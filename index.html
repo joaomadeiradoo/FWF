@@ -15,7 +15,23 @@
     from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
   // ─────────────────────────────────────────────
-  // 🔧 PASTE YOUR FIREBASE CONFIG HERE
+  // // Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyAjKGFK8pAuO5ughXRAZXKbpriSQ-bcLKA",
+  authDomain: "fwf1-3b522.firebaseapp.com",
+  projectId: "fwf1-3b522",
+  storageBucket: "fwf1-3b522.firebasestorage.app",
+  messagingSenderId: "67996577619",
+  appId: "1:67996577619:web:7395c5cf151585a1353ba6"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
   // ─────────────────────────────────────────────
   const firebaseConfig = {
     apiKey: "PASTE_YOUR_apiKey_HERE",
