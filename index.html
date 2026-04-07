@@ -15,16 +15,16 @@
 
   // ── PASTE YOUR FIREBASE CONFIG BELOW ──
   const firebaseConfig = {
-    apiKey: "AIzaSyAjKGFK8pAuO5ughXRAZXKbpriSQ-bcLKA",
-    authDomain: "fwf1-3b522.firebaseapp.com",
-    projectId: "fwf1-3b522",
-    storageBucket: "fwf1-3b522.firebasestorage.app",
-    messagingSenderId: "67996577619",
-    appId: "1:67996577619:web:7395c5cf151585a1353ba6"
+    apiKey: "PASTE_YOUR_apiKey_HERE",
+    authDomain: "PASTE_YOUR_authDomain_HERE",
+    projectId: "PASTE_YOUR_projectId_HERE",
+    storageBucket: "PASTE_YOUR_storageBucket_HERE",
+    messagingSenderId: "PASTE_YOUR_messagingSenderId_HERE",
+    appId: "PASTE_YOUR_appId_HERE"
   };
 
   // ── PASTE YOUR API-FOOTBALL.COM KEY HERE (optional – leave "" for manual mode) ──
-  window.API_FOOTBALL_KEY = "424ff8dc2cc982631a9e2b54fa9298f6";
+  window.API_FOOTBALL_KEY = "";
 
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
@@ -86,7 +86,8 @@ header p{color:var(--muted);font-size:.78rem;margin-top:3px}
 .match-card{background:#0D1B2A;border:1px solid var(--border);border-radius:10px;padding:12px 10px;margin-bottom:8px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:4px}
 .match-team{display:flex;flex-direction:column;align-items:center;gap:3px}
 .match-team.home{align-items:flex-end}.match-team.away{align-items:flex-start}
-.team-flag{font-size:1.6rem;line-height:1}
+.team-flag{font-size:1.6rem;line-height:1;display:flex;align-items:center;justify-content:center}
+.team-flag img{width:36px;height:24px;object-fit:cover;border-radius:3px;box-shadow:0 1px 3px rgba(0,0,0,.3)}
 .team-name{font-weight:700;font-size:.75rem;text-align:center;word-break:break-word;max-width:80px;line-height:1.2}
 .match-center{display:flex;flex-direction:column;align-items:center;gap:3px}
 .match-score{display:flex;align-items:center;gap:6px}
@@ -193,7 +194,7 @@ header p{color:var(--muted);font-size:.78rem;margin-top:3px}
   header h1{font-size:clamp(1.1rem,7vw,1.8rem);letter-spacing:1px}
   /* Match card: flag + name stacked, bigger score boxes */
   .match-card{padding:10px 8px;gap:4px}
-  .team-flag{font-size:1.8rem}
+  .team-flag img{width:44px;height:30px}
   .team-name{font-size:.68rem;max-width:70px}
   .score-input{width:52px;height:52px;font-size:1.5rem}
   /* Leaderboard: compact */
@@ -443,19 +444,22 @@ const TOURNAMENT_START=new Date('2026-06-11T00:00:00Z');
 const DEADLINE=new Date(TOURNAMENT_START.getTime()-24*60*60*1000);
 const WC_LEAGUE_ID=1;
 
+// Helper to generate flag img tag
+function flag(code){return`<img src="https://flagcdn.com/w40/${code}.png" alt="${code}" loading="lazy"/>`}
+
 const GROUPS={
-  A:{teams:[{name:'México',flag:'🇲🇽'},{name:'EUA',flag:'🇺🇸'},{name:'Canadá',flag:'🇨🇦'},{name:'Uruguai',flag:'🇺🇾'}]},
-  B:{teams:[{name:'Argentina',flag:'🇦🇷'},{name:'Equador',flag:'🇪🇨'},{name:'Chile',flag:'🇨🇱'},{name:'Peru',flag:'🇵🇪'}]},
-  C:{teams:[{name:'Brasil',flag:'🇧🇷'},{name:'Colômbia',flag:'🇨🇴'},{name:'Venezuela',flag:'🇻🇪'},{name:'Bolívia',flag:'🇧🇴'}]},
-  D:{teams:[{name:'França',flag:'🇫🇷'},{name:'Bélgica',flag:'🇧🇪'},{name:'Áustria',flag:'🇦🇹'},{name:'Polónia',flag:'🇵🇱'}]},
-  E:{teams:[{name:'Espanha',flag:'🇪🇸'},{name:'Portugal',flag:'🇵🇹'},{name:'Escócia',flag:'🏴󠁧󠁢󠁳󠁣󠁴󠁿'},{name:'Turquia',flag:'🇹🇷'}]},
-  F:{teams:[{name:'Inglaterra',flag:'🏴󠁧󠁢󠁥󠁮󠁧󠁿'},{name:'Alemanha',flag:'🇩🇪'},{name:'Hungria',flag:'🇭🇺'},{name:'Eslovénia',flag:'🇸🇮'}]},
-  G:{teams:[{name:'Marrocos',flag:'🇲🇦'},{name:'Senegal',flag:'🇸🇳'},{name:'Camarões',flag:'🇨🇲'},{name:'Tunísia',flag:'🇹🇳'}]},
-  H:{teams:[{name:'Egipto',flag:'🇪🇬'},{name:'Argélia',flag:'🇩🇿'},{name:'África do Sul',flag:'🇿🇦'},{name:'Gana',flag:'🇬🇭'}]},
-  I:{teams:[{name:'Japão',flag:'🇯🇵'},{name:'Coreia do Sul',flag:'🇰🇷'},{name:'Austrália',flag:'🇦🇺'},{name:'Indonésia',flag:'🇮🇩'}]},
-  J:{teams:[{name:'Irão',flag:'🇮🇷'},{name:'Arábia Saudita',flag:'🇸🇦'},{name:'Iraque',flag:'🇮🇶'},{name:'Jordânia',flag:'🇯🇴'}]},
-  K:{teams:[{name:'Países Baixos',flag:'🇳🇱'},{name:'Dinamarca',flag:'🇩🇰'},{name:'Suíça',flag:'🇨🇭'},{name:'Geórgia',flag:'🇬🇪'}]},
-  L:{teams:[{name:'Itália',flag:'🇮🇹'},{name:'Croácia',flag:'🇭🇷'},{name:'Albânia',flag:'🇦🇱'},{name:'Eslovénia',flag:'🇸🇮'}]},
+  A:{teams:[{name:'México',flag:flag('mx')},{name:'EUA',flag:flag('us')},{name:'Canadá',flag:flag('ca')},{name:'Uruguai',flag:flag('uy')}]},
+  B:{teams:[{name:'Argentina',flag:flag('ar')},{name:'Equador',flag:flag('ec')},{name:'Chile',flag:flag('cl')},{name:'Peru',flag:flag('pe')}]},
+  C:{teams:[{name:'Brasil',flag:flag('br')},{name:'Colômbia',flag:flag('co')},{name:'Venezuela',flag:flag('ve')},{name:'Bolívia',flag:flag('bo')}]},
+  D:{teams:[{name:'França',flag:flag('fr')},{name:'Bélgica',flag:flag('be')},{name:'Áustria',flag:flag('at')},{name:'Polónia',flag:flag('pl')}]},
+  E:{teams:[{name:'Espanha',flag:flag('es')},{name:'Portugal',flag:flag('pt')},{name:'Escócia',flag:flag('gb-sct')},{name:'Turquia',flag:flag('tr')}]},
+  F:{teams:[{name:'Inglaterra',flag:flag('gb-eng')},{name:'Alemanha',flag:flag('de')},{name:'Hungria',flag:flag('hu')},{name:'Eslovénia',flag:flag('si')}]},
+  G:{teams:[{name:'Marrocos',flag:flag('ma')},{name:'Senegal',flag:flag('sn')},{name:'Camarões',flag:flag('cm')},{name:'Tunísia',flag:flag('tn')}]},
+  H:{teams:[{name:'Egipto',flag:flag('eg')},{name:'Argélia',flag:flag('dz')},{name:'África do Sul',flag:flag('za')},{name:'Gana',flag:flag('gh')}]},
+  I:{teams:[{name:'Japão',flag:flag('jp')},{name:'Coreia do Sul',flag:flag('kr')},{name:'Austrália',flag:flag('au')},{name:'Indonésia',flag:flag('id')}]},
+  J:{teams:[{name:'Irão',flag:flag('ir')},{name:'Arábia Saudita',flag:flag('sa')},{name:'Iraque',flag:flag('iq')},{name:'Jordânia',flag:flag('jo')}]},
+  K:{teams:[{name:'Países Baixos',flag:flag('nl')},{name:'Dinamarca',flag:flag('dk')},{name:'Suíça',flag:flag('ch')},{name:'Geórgia',flag:flag('ge')}]},
+  L:{teams:[{name:'Itália',flag:flag('it')},{name:'Croácia',flag:flag('hr')},{name:'Albânia',flag:flag('al')},{name:'Eslovénia',flag:flag('si')}]},
 };
 
 function genMatches(){const m=[];let id=0;for(const[g,d] of Object.entries(GROUPS))for(let i=0;i<d.teams.length;i++)for(let j=i+1;j<d.teams.length;j++)m.push({id:`g${id++}`,group:g,home:d.teams[i],away:d.teams[j]});return m;}
@@ -545,9 +549,10 @@ function hide(id){$(id).classList.add('hidden')}
 function toast(msg,err=false){const e=$('toast');e.textContent=msg;e.classList.toggle('error',err);e.classList.add('show');setTimeout(()=>e.classList.remove('show'),3000);}
 function genCode(){return Math.random().toString(36).substr(2,6).toUpperCase()}
 function isLocked(uid){const u=allUsers[uid||currentUser?.uid];if(u?.unlockedDeadline)return false;return new Date()>DEADLINE;}
-async function getApiUsage(){const{db,doc,getDoc}=window._fb;const today=new Date().toISOString().split('T')[0];try{const d=await getDoc(doc(db,'apiUsage','counter'));const data=d.exists()?d.data():{date:'',n:0};return data.date===today?data:{date:today,n:0};}catch(e){return{date:new Date().toISOString().split('T')[0],n:0};}}
-async function bumpApi(){const{db,doc,updateDoc,setDoc}=window._fb;const u=await getApiUsage();u.n++;u.date=new Date().toISOString().split('T')[0];try{await setDoc(doc(db,'apiUsage','counter'),u);}catch(e){}return u.n;}
-async function canApi(max=92){const u=await getApiUsage();return u.n<max;}
+function getApiUsage(){const today=new Date().toISOString().split('T')[0];const s=JSON.parse(localStorage.getItem('api_u')||`{"date":"","n":0}`);return s.date===today?s:{date:today,n:0};}
+function bumpApi(){const u=getApiUsage();u.n++;u.date=new Date().toISOString().split('T')[0];localStorage.setItem('api_u',JSON.stringify(u));return u.n;}
+function canApi(max=88){return getApiUsage().n<max;}
+
 // ═══ AUTH ═══
 function switchAuthTab(tab){['login','register','join'].forEach(s=>{$(`auth-${s}`).classList.toggle('hidden',s!==tab);$(`tab-${s}`).classList.toggle('active',s===tab);});}
 async function doLogin(){try{await window._fb.signInWithEmailAndPassword(window._fb.auth,$('login-email').value,$('login-pass').value);}catch(e){toast(e.message,true)}}
@@ -1067,7 +1072,7 @@ function resetApiCounter(){
 
 let apiStatus='idle'; // 'idle' | 'ok' | 'error'
 async function fetchLive(){
-  const key=window.API_FOOTBALL_KEY;if(!key||!await canApi(92));
+  const key=window.API_FOOTBALL_KEY;if(!key||!canApi(92))return;
   try{
     const r=await fetch(`https://v3.football.api-sports.io/fixtures?league=${WC_LEAGUE_ID}&season=2026&live=all`,
       {headers:{'x-rapidapi-key':key,'x-rapidapi-host':'v3.football.api-sports.io'}});
@@ -1095,7 +1100,7 @@ async function fetchLive(){
 }
 
 async function fetchUpcoming(){
-  const key=window.API_FOOTBALL_KEY;if(!key||!await canApi(90));
+  const key=window.API_FOOTBALL_KEY;if(!key||!canApi(90))return;
   try{
     const today=new Date().toISOString().split('T')[0];
     const r=await fetch(`https://v3.football.api-sports.io/fixtures?league=${WC_LEAGUE_ID}&season=2026&from=${today}&to=${today}`,
