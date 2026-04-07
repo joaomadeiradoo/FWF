@@ -545,10 +545,9 @@ function hide(id){$(id).classList.add('hidden')}
 function toast(msg,err=false){const e=$('toast');e.textContent=msg;e.classList.toggle('error',err);e.classList.add('show');setTimeout(()=>e.classList.remove('show'),3000);}
 function genCode(){return Math.random().toString(36).substr(2,6).toUpperCase()}
 function isLocked(uid){const u=allUsers[uid||currentUser?.uid];if(u?.unlockedDeadline)return false;return new Date()>DEADLINE;}
-function getApiUsage(){const today=new Date().toISOString().split('T')[0];const s=JSON.parse(localStorage.getItem('api_u')||`{"date":"","n":0}`);return s.date===today?s:{date:today,n:0};}
-function bumpApi(){const u=getApiUsage();u.n++;u.date=new Date().toISOString().split('T')[0];localStorage.setItem('api_u',JSON.stringify(u));return u.n;}
-function canApi(max=88){return getApiUsage().n<max;}
-
+async function getApiUsage(){const{db,doc,getDoc}=window._fb;const today=new Date().toISOString().split('T')[0];try{const d=await getDoc(doc(db,'apiUsage','counter'));const data=d.exists()?d.data():{date:'',n:0};return data.date===today?data:{date:today,n:0};}catch(e){return{date:new Date().toISOString().split('T')[0],n:0};}}
+async function bumpApi(){const{db,doc,updateDoc,setDoc}=window._fb;const u=await getApiUsage();u.n++;u.date=new Date().toISOString().split('T')[0];try{await setDoc(doc(db,'apiUsage','counter'),u);}catch(e){}return u.n;}
+async function canApi(max=92){const u=await getApiUsage();return u.n<max;}
 // ═══ AUTH ═══
 function switchAuthTab(tab){['login','register','join'].forEach(s=>{$(`auth-${s}`).classList.toggle('hidden',s!==tab);$(`tab-${s}`).classList.toggle('active',s===tab);});}
 async function doLogin(){try{await window._fb.signInWithEmailAndPassword(window._fb.auth,$('login-email').value,$('login-pass').value);}catch(e){toast(e.message,true)}}
@@ -1068,7 +1067,7 @@ function resetApiCounter(){
 
 let apiStatus='idle'; // 'idle' | 'ok' | 'error'
 async function fetchLive(){
-  const key=window.API_FOOTBALL_KEY;if(!key||!canApi(92))return;
+  const key=window.API_FOOTBALL_KEY;if(!key||!await canApi(92));
   try{
     const r=await fetch(`https://v3.football.api-sports.io/fixtures?league=${WC_LEAGUE_ID}&season=2026&live=all`,
       {headers:{'x-rapidapi-key':key,'x-rapidapi-host':'v3.football.api-sports.io'}});
@@ -1096,7 +1095,7 @@ async function fetchLive(){
 }
 
 async function fetchUpcoming(){
-  const key=window.API_FOOTBALL_KEY;if(!key||!canApi(90))return;
+  const key=window.API_FOOTBALL_KEY;if(!key||!await canApi(90));
   try{
     const today=new Date().toISOString().split('T')[0];
     const r=await fetch(`https://v3.football.api-sports.io/fixtures?league=${WC_LEAGUE_ID}&season=2026&from=${today}&to=${today}`,
