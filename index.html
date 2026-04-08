@@ -654,7 +654,6 @@ function canEdit(uid){
     return now<extDeadline; // extensão de 23.5h após o prazo
   }
   return false; // prazo passou, sem extensão
-};
 }
 
 // ═══ API USAGE ═══
@@ -1230,7 +1229,7 @@ function renderDailySummary(rows){
   const wrap=$('dsum-wrap');if(!wrap) return;
   const hasAnyReal=ALL_MATCHES.some(m=>{const s=actualScores[m.id];return s&&s.home!==undefined&&s.home!=='';});
   if(!hasAnyReal){wrap.innerHTML=`<div class="dsum"><div class="dsum-hl">📢 Aviso importante</div><p class="dsum-p">Mandem as apostas e pagamentos a tempo. Que ganhe o melhor, desde que o melhor não seja o Niza!</p></div>`;return;}
-  const wrap=$('dsum-wrap');if(!wrap||rows.length<2) return;
+  if(rows.length<2) return;
   const today=new Date().toISOString().split('T')[0];
   if(dailyCommentDate===today&&dailyComment){wrap.innerHTML=dailyComment;return;}
   const chars=currentComp?.playerChars||{};
