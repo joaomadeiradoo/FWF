@@ -1066,6 +1066,7 @@ function pickWinner(round,matchIdx,team){
 
   setBP(bp);
   renderBracket();renderBracketMobile();
+  }
 function getActualWinner(round,matchIdx){
   const ak=actualScores[`ko_${round}`];
   return ak&&ak[matchIdx]?ak[matchIdx]:null;
