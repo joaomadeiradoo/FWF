@@ -1066,23 +1066,6 @@ function pickWinner(round,matchIdx,team){
 
   setBP(bp);
   renderBracket();renderBracketMobile();
-}  // SF loser → 3rd place
-  if(round==='sf'){
-    if(!bp.f3) bp.f3=[];
-    const f3Slot=matchIdx===0?0:1; // SF match 0 loser → f3[0], SF match 2 loser → f3[1]
-    const sfSlot=matchIdx===0?0:1;
-    if(loser) bp.f3[sfSlot]=loser;
-  }
-
-  // Final loser → runner-up (stored in bp.fin[1])
-  if(round==='fin'){
-    if(!bp.fin) bp.fin=[];
-    if(loser) bp.fin[1]=loser;
-  }
-
-  setBP(bp);
-  renderBracket();renderBracketMobile();
-}
 function getActualWinner(round,matchIdx){
   const ak=actualScores[`ko_${round}`];
   return ak&&ak[matchIdx]?ak[matchIdx]:null;
