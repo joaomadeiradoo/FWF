@@ -1559,17 +1559,82 @@ function downloadCSV(){
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='previsoes_fwf.csv';a.click();
 }
 function renderOtherPreds(){
-  const myS=!!(allPredictions[currentUser?.uid]&&Object.keys(allPredictions[currentUser?.uid]).length>0);
   const c=$('op-content');if(!c) return;
-  if(!myS){c.innerHTML=`<p style="color:var(--muted);font-size:.82rem">${lang==='pt'?'Submete primeiro.':'Submit first to see others.'}</p>`;return;}
-  const others=Object.entries(allPredictions).filter(([uid])=>uid!==currentUser?.uid);
-  if(!others.length){c.innerHTML=`<p style="color:var(--muted);font-size:.82rem">${lang==='pt'?'Ninguém mais submeteu.':'Nobody else submitted yet.'}</p>`;return;}
-  let html='';
-  for(const[uid,preds] of others){
-    const u=allUsers[uid]||{name:'?'};
-    html+=`<div style="margin-bottom:12px"><div style="font-weight:700;margin-bottom:5px;color:var(--gold)">${u.name}</div><div style="display:flex;flex-wrap:wrap;gap:3px">`;
-    ALL_MATCHES.slice(0,18).forEach(m=>{const p=preds[m.id]||{};const has=p.home!==undefined&&p.home!=='';html+=`<div style="background:#0D1B2A;border:1px solid var(--border);border-radius:4px;padding:2px 5px;font-size:.68rem">${has?`${p.home}:${p.away}`:'?:?'}</div>`;});
-    html+=`</div></div>`;
+  const today=new Date().toISOString().split('T')[0];
+  const firstGameTime=new Date('2026-06-11T01:00:00Z'); // primeiro jogo 10min antes
+  const showFrom=new Date(firstGameTime.getTime()-10*60*1000);
+  const now=new Date();
+
+  // Antes do torneio ou antes dos 10min do 1º jogo
+  if(now<showFrom){
+    c.innerHTML=`<p style="color:var(--muted);font-size:.82rem">Disponível 10 min antes do primeiro jogo para que o Nize não copie pelo Nuno Cordas como costume.</p>`;
+    return;
+  }
+
+  // Calcular que dia mostrar
+  // Agrupar jogos por data
+  const matchDates=[...new Set(ALL_MATCHES.map(m=>m.date).filter(Boolean))];
+
+  // Para o 1º dia: mostrar a partir dos 10min antes
+  // Para dias seguintes: mostrar quando o último jogo do dia anterior tem resultado
+  function dayHasAllResults(dateStr){
+    const dayMatches=ALL_MATCHES.filter(m=>m.date===dateStr);
+    return dayMatches.length>0&&dayMatches.every(m=>{const s=actualScores[m.id];return s&&s.home!==undefined&&s.home!=='';});
+  }
+
+  // Determinar qual o próximo dia a mostrar
+  let showDate=null;
+  if(now>=showFrom){
+    // Primeiro dia sempre disponível após os 10min
+    showDate=matchDates[0];
+    // Verificar se podemos já mostrar dia seguinte
+    for(let i=0;i<matchDates.length-1;i++){
+      if(dayHasAllResults(matchDates[i])) showDate=matchDates[i+1];
+    }
+    // Se todos os dias tiverem resultado, mostrar o último
+    if(matchDates.every(d=>dayHasAllResults(d))) showDate=matchDates[matchDates.length-1];
+  }
+
+  if(!showDate){
+    c.innerHTML=`<p style="color:var(--muted);font-size:.82rem">Disponível 10 min antes do primeiro jogo para que o Nize não copie pelo Nuno Cordas como costume.</p>`;
+    return;
+  }
+
+  const dayMatches=ALL_MATCHES.filter(m=>m.date===showDate);
+  if(!dayMatches.length){c.innerHTML='';return;}
+
+  const myS=!!(allPredictions[currentUser?.uid]&&Object.keys(allPredictions[currentUser?.uid]).length>0);
+  if(!myS){
+    c.innerHTML=`<p style="color:var(--muted);font-size:.82rem">${lang==='pt'?'Submete primeiro as tuas previsões para ver as dos outros.':'Submit your predictions first.'}</p>`;
+    return;
+  }
+
+  const others=Object.entries(allUsers).filter(([uid])=>uid!==currentUser?.uid);
+  if(!others.length){
+    c.innerHTML=`<p style="color:var(--muted);font-size:.82rem">${lang==='pt'?'Ninguém mais na competição ainda.':'Nobody else in the competition yet.'}</p>`;
+    return;
+  }
+
+  let html=`<p style="color:var(--gold);font-size:.78rem;font-weight:700;margin-bottom:10px">📅 ${showDate}</p>`;
+  for(const m of dayMatches){
+    html+=`<div style="margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;padding-bottom:4px;border-bottom:1px solid var(--border)">
+        ${fi(m.home,16)}<span style="font-size:.75rem;font-weight:700">${m.home}</span>
+        <span style="color:var(--muted);font-size:.7rem">vs</span>
+        ${fi(m.away,16)}<span style="font-size:.75rem;font-weight:700">${m.away}</span>
+        ${actualScores[m.id]&&actualScores[m.id].home!==undefined?`<span class="actual-badge" style="margin-left:auto">✅ ${actualScores[m.id].home}-${actualScores[m.id].away}</span>`:''}
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:5px">
+        ${others.map(([uid,u])=>{
+          const p=(allPredictions[uid]||{})[m.id]||{};
+          const has=p.home!==undefined&&p.home!=='';
+          return`<span style="background:#0D1B2A;border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:.72rem">
+            <span style="color:var(--muted)">${u.name}:</span>
+            <span style="font-weight:700;color:${has?'var(--text)':'var(--muted)'}">${has?`${p.home}-${p.away}`:'?'}</span>
+          </span>`;
+        }).join('')}
+      </div>
+    </div>`;
   }
   c.innerHTML=html;
 }
