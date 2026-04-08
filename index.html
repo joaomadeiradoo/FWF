@@ -1039,25 +1039,40 @@ function pickWinner(round,matchIdx,team){
   if(!canEdit(currentUser?.uid)) return;
   const bp={...getBP()};
   if(!bp[round]) bp[round]=[];
-  bp[round][matchIdx]=team;
-  // Cascade: clear downstream rounds that depended on the previous pick
-  // When picking r32, the r16 slot for this match pair clears
-  // When picking r16, the qf slot clears, etc.
-  const cascadeMap={r32:'r16',r16:'qf',qf:'sf',sf:['fin','f3']};
-  if(cascadeMap[round]){
-    const nextRounds=Array.isArray(cascadeMap[round])?cascadeMap[round]:[cascadeMap[round]];
-    const nextIdx=Math.floor(matchIdx/2);
-    nextRounds.forEach(nr=>{
-      if(bp[nr]) bp[nr][nextIdx]=undefined;
-      // Also clear further downstream
-      const nextNextMap={r16:'qf',qf:'sf',sf:['fin','f3'],fin:'win',f3:'win'};
-      // Just clear the specific downstream slot
-    });
+  const r32=getR32Teams(currentUser?.uid);
+
+  // Find the loser of this match
+  function getLoser(r,idx,winner){
+    let tA,tB;
+    if(r==='r32'){tA=r32[idx]?.home;tB=r32[idx]?.away;}
+    else if(r==='r16'){const p=idx*2;tA=getWinner('r32',p)||null;tB=getWinner('r32',p+1)||null;}
+    else if(r==='qf'){const p=idx*2;tA=getWinner('r16',p)||null;tB=getWinner('r16',p+1)||null;}
+    else if(r==='sf'){const p=idx*2;tA=getWinner('qf',p)||null;tB=getWinner('qf',p+1)||null;}
+    else if(r==='fin'){tA=getWinner('sf',0)||null;tB=getWinner('sf',2)||null;}
+    if(!tA||!tB) return null;
+    return tA===winner?tB:tA;
   }
+
+  bp[round][matchIdx]=team;
+  const loser=getLoser(round,matchIdx,team);
+
+  // SF loser → 3rd place
+  if(round==='sf'){
+    if(!bp.f3) bp.f3=[];
+    const f3Slot=matchIdx===0?0:1; // SF match 0 loser → f3[0], SF match 2 loser → f3[1]
+    const sfSlot=matchIdx===0?0:1;
+    if(loser) bp.f3[sfSlot]=loser;
+  }
+
+  // Final loser → runner-up (stored in bp.fin[1])
+  if(round==='fin'){
+    if(!bp.fin) bp.fin=[];
+    if(loser) bp.fin[1]=loser;
+  }
+
   setBP(bp);
   renderBracket();renderBracketMobile();
 }
-
 function getActualWinner(round,matchIdx){
   const ak=actualScores[`ko_${round}`];
   return ak&&ak[matchIdx]?ak[matchIdx]:null;
