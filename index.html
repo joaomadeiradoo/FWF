@@ -1259,8 +1259,7 @@ function renderBracketMobile(){
 
   // SF
   html+=`<div class="bm-round"><div class="bm-rnd-hdr"><span>${lang==='pt'?'Meias-Finais':'Semifinals'}</span><span style="font-size:.7rem;color:var(--muted)">+15pts</span></div>
-  ${[0,2].map(i=>{const a=getWinnerM('qf',i),b=getWinnerM('qf',i+1);const idx=i===0?0:2;return mMatch(a,b,'sf',idx,!a&&!b);}).join('')}</div>`;
-
+${[0,1].map(i=>{const a=getWinnerM('qf',i*2),b=getWinnerM('qf',i*2+1);return mMatch(a,b,'sf',i,!a&&!b);}).join('')}</div>`;
   // Final & 3rd place
   const finA=getWinnerM('sf',0),finB=getWinnerM('sf',2);
   const f3A=getWinnerM('sf',1),f3B=getWinnerM('sf',3);
