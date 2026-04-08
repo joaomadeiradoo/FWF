@@ -1041,14 +1041,13 @@ function pickWinner(round,matchIdx,team){
   if(!bp[round]) bp[round]=[];
   const r32=getR32Teams(currentUser?.uid);
 
-  // Find the loser of this match
   function getLoser(r,idx,winner){
-    let tA,tB;
+    let tA=null,tB=null;
     if(r==='r32'){tA=r32[idx]?.home;tB=r32[idx]?.away;}
-    else if(r==='r16'){const p=idx*2;tA=getWinner('r32',p)||null;tB=getWinner('r32',p+1)||null;}
-    else if(r==='qf'){const p=idx*2;tA=getWinner('r16',p)||null;tB=getWinner('r16',p+1)||null;}
-    else if(r==='sf'){const p=idx*2;tA=getWinner('qf',p)||null;tB=getWinner('qf',p+1)||null;}
-    else if(r==='fin'){tA=getWinner('sf',0)||null;tB=getWinner('sf',2)||null;}
+    else if(r==='r16'){tA=getWinner('r32',idx*2);tB=getWinner('r32',idx*2+1);}
+    else if(r==='qf'){tA=getWinner('r16',idx*2);tB=getWinner('r16',idx*2+1);}
+    else if(r==='sf'){tA=getWinner('qf',idx*2);tB=getWinner('qf',idx*2+1);}
+    else if(r==='fin'){tA=getWinner('sf',0);tB=getWinner('sf',1);}
     if(!tA||!tB) return null;
     return tA===winner?tB:tA;
   }
@@ -1056,7 +1055,18 @@ function pickWinner(round,matchIdx,team){
   bp[round][matchIdx]=team;
   const loser=getLoser(round,matchIdx,team);
 
-  // SF loser → 3rd place
+  if(round==='sf'){
+    if(!bp.f3) bp.f3=[];
+    bp.f3[matchIdx]=loser;
+  }
+  if(round==='fin'){
+    if(!bp.fin) bp.fin=[];
+    bp.fin[1]=loser;
+  }
+
+  setBP(bp);
+  renderBracket();renderBracketMobile();
+}  // SF loser → 3rd place
   if(round==='sf'){
     if(!bp.f3) bp.f3=[];
     const f3Slot=matchIdx===0?0:1; // SF match 0 loser → f3[0], SF match 2 loser → f3[1]
@@ -1125,52 +1135,21 @@ function getWinner(round,idx){
 function renderBracket(){
   const c=$('bracket-content');if(!c) return;
   const uid=currentUser?.uid;
-  const sub=!!(allPredictions[uid]&&Object.keys(allPredictions[uid]).length>0);
-  const editable=canEdit(uid);
-  if(!sub&&!isAdmin){c.innerHTML=`<div style="text-align:center;padding:28px;color:var(--muted)">${t('brLocked')}</div>`;return;}
-
-  const r32=getR32Teams(uid);
-
-  // Derive teams for each round from user picks
-  // R16: winners of R32 pairs (pairs 0-1 → R16[0], pairs 2-3 → R16[1], etc.)
-  function r16Teams(i){
-    // R16 match i comes from R32 matches i*2 and i*2+1
-    const a=getWinner('r32',i*2)||null;
-    const b=getWinner('r32',i*2+1)||null;
-    return{home:a,away:b};
-  }
-  function qfTeams(i){
-    const a=getWinner('r16',i*2)||null;
-    const b=getWinner('r16',i*2+1)||null;
-    return{home:a,away:b};
-  }
-  function sfTeams(i){
-    const a=getWinner('qf',i*2)||null;
-    const b=getWinner('qf',i*2+1)||null;
-    return{home:a,away:b};
-  }
-
-  const sf0=sfTeams(0);const sf1=sfTeams(1);
   const finA=getWinner('sf',0)||null;
-  const finB=getWinner('sf',2)||null;
-  const f3A=getWinner('sf',1)||null;
-  const f3B=getWinner('sf',3)||null;
+  const finB=getWinner('sf',1)||null;
+  const f3A=getBP().f3?.[0]||null;
+  const f3B=getBP().f3?.[1]||null;
   const champion=getWinner('fin',0)||null;
+  const runnerUp=getBP().fin?.[1]||null;
+  const third=getWinner('f3',0)||null;
 
-  // Build bracket: R32(8) → R16(4) → QF(2) → SF(1) | FINAL | SF(1) → QF(2) → R16(4) → R32(8)
-  // Each column uses flex spacers to centre each match between its two feeders
-  // Formula: spacer before = (matchHeight * 2^level - matchHeight) / 2
-
-  const MH=62; // approx match height in px (2 teams × ~27px + margin)
-  const GAP=2;
+  const MH=62;const GAP=2;
 
   function r32Col(startIdx,hdr){
     const nodes=Array.from({length:8},(_,i)=>bNode(r32[startIdx+i]?.home||'TBD',r32[startIdx+i]?.away||'TBD','r32',startIdx+i,editable));
     return`<div class="b-col"><div class="b-col-hdr">${hdr}</div>${nodes.join('')}</div>`;
   }
-
   function r16Col(startIdx){
-    // 4 matches, each centred between 2 R32 matches
     const spacerTop=`<div style="height:${MH/2+GAP}px"></div>`;
     const spacerBetween=`<div style="height:${MH+GAP*2}px"></div>`;
     let html=`<div class="b-col"><div class="b-col-hdr">R16</div>${spacerTop}`;
@@ -1181,7 +1160,6 @@ function renderBracket(){
     }
     return html+`</div>`;
   }
-
   function qfCol(startIdx){
     const spacerTop=`<div style="height:${MH*1.5+GAP*3}px"></div>`;
     const spacerBetween=`<div style="height:${MH*3+GAP*6}px"></div>`;
@@ -1193,7 +1171,53 @@ function renderBracket(){
     }
     return html+`</div>`;
   }
+  function sfSingle(sfIdx,home,away){
+    const spacer=`<div style="height:${MH*3.5+GAP*7}px"></div>`;
+    return`<div class="b-col"><div class="b-col-hdr">SF</div>${spacer}${bNode(home,away,'sf',sfIdx,editable)}</div>`;
+  }
 
+  function resultSlot(medal,name,label){
+    if(!name) return`<div style="display:flex;align-items:center;gap:6px;padding:5px 8px;background:rgba(255,255,255,.04);border-radius:6px;opacity:.4"><span>${medal}</span><span style="font-size:.7rem;color:var(--muted)">–</span></div>`;
+    return`<div style="display:flex;align-items:center;gap:6px;padding:5px 8px;background:rgba(255,255,255,.06);border-radius:6px">
+      <span style="font-size:.9rem">${medal}</span>
+      ${fi(name,16)}
+      <span style="font-size:.72rem;font-weight:700;flex:1">${name}</span>
+      <span style="font-size:.6rem;color:var(--muted)">${label}</span>
+    </div>`;
+  }
+
+  const sf0t=sfTeams(0);const sf1t=sfTeams(1);
+
+  const centreHtml=`<div class="b-centre">
+    <div class="b-col-hdr" style="width:100%;text-align:center">🏆 FINAL</div>
+    <div class="b-trophy">🏆</div>
+    ${bNode(finA,finB,'fin',0,editable)}
+    <div style="margin-top:8px;width:100%">
+      <div class="b-bronze-lbl" style="margin-bottom:4px">🥉 ${lang==='pt'?'3.º LUGAR':'3RD PLACE'}</div>
+      ${bNode(f3A,f3B,'f3',0,editable)}
+    </div>
+    <div style="margin-top:10px;width:100%;border-top:1px solid var(--border);padding-top:8px;display:flex;flex-direction:column;gap:4px">
+      <div style="font-family:var(--fh);font-size:.6rem;color:var(--gold);letter-spacing:1px;text-align:center;margin-bottom:3px">${lang==='pt'?'RESULTADOS FINAIS':'FINAL RESULTS'}</div>
+      ${resultSlot('🥇',champion,lang==='pt'?'Campeão':'Champion')}
+      ${resultSlot('🥈',runnerUp,lang==='pt'?'Vice-campeão':'Runner-up')}
+      ${resultSlot('🥉',third,lang==='pt'?'3.º lugar':'3rd place')}
+    </div>
+  </div>`;
+
+  const html=`<div class="bracket-grid">
+    ${r32Col(0,'R32 · '+t('pathway1'))}
+    ${r16Col(0)}
+    ${qfCol(0)}
+    ${sfSingle(0,sf0t.home,sf0t.away)}
+    ${centreHtml}
+    ${sfSingle(1,sf1t.home,sf1t.away)}
+    ${qfCol(2)}
+    ${r16Col(4)}
+    ${r32Col(8,'R32 · '+t('pathway2'))}
+  </div>`;
+  c.innerHTML=html;
+  const ts=$('topscorer-input');if(ts) ts.value=userPredictions.topScorer||'';
+}
   function sfCol(sfMatchIdx,homeA,awayA,homeB,awayB){
     const spacerTop=`<div style="height:${MH*3.5+GAP*7}px"></div>`;
     const spacerBetween=`<div style="height:${MH*7+GAP*14}px"></div>`;
