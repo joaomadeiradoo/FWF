@@ -1201,49 +1201,6 @@ function renderBracket(){
   c.innerHTML=html;
   const ts=$('topscorer-input');if(ts) ts.value=userPredictions.topScorer||'';
 }
-  function sfCol(sfMatchIdx,homeA,awayA,homeB,awayB){
-    const spacerTop=`<div style="height:${MH*3.5+GAP*7}px"></div>`;
-    const spacerBetween=`<div style="height:${MH*7+GAP*14}px"></div>`;
-    let html=`<div class="b-col"><div class="b-col-hdr">SF</div>${spacerTop}`;
-    html+=bNode(homeA,awayA,'sf',sfMatchIdx,editable);
-    html+=spacerBetween;
-    html+=bNode(homeB,awayB,'sf',sfMatchIdx+2,editable);
-    return html+`</div>`;
-  }
-
-  // Centre column
-  const centreHtml=`<div class="b-centre">
-    <div class="b-col-hdr" style="width:100%;text-align:center">🏆 FINAL</div>
-    <div class="b-trophy">🏆</div>
-    <div style="font-family:var(--fh);font-size:.62rem;color:var(--gold);letter-spacing:1px;text-align:center;margin-bottom:3px">${lang==='pt'?'CAMPEÃO':'CHAMPION'}</div>
-    ${bNode(finA,finB,'fin',0,editable)}
-    <div style="margin-top:8px;width:100%">
-      <div style="font-family:var(--fh);font-size:.6rem;color:var(--gold);letter-spacing:1px;text-align:center;margin-bottom:2px">${lang==='pt'?'VENCEDOR':'WINNER'}</div>
-      ${bNode(champion,'','win',0,false)}
-    </div>
-    <div class="b-bronze">
-      <div class="b-bronze-lbl">🥉 ${lang==='pt'?'3.º LUGAR':'3RD PLACE'}</div>
-      ${bNode(f3A,f3B,'f3',0,editable)}
-    </div>
-  </div>`;
-
-  const sf0t=sfTeams(0);const sf1t=sfTeams(1);
-
-  const html=`<div class="bracket-grid">
-    ${r32Col(0,'R32 · '+t('pathway1'))}
-    ${r16Col(0)}
-    ${qfCol(0)}
-    ${sfCol(0,sf0t.home,sf0t.away,sf1t.home,sf1t.away)}
-    ${centreHtml}
-    ${sfCol(2,sfTeams(2).home,sfTeams(2).away,sfTeams(3).home,sfTeams(3).away)}
-    ${qfCol(2)}
-    ${r16Col(4)}
-    ${r32Col(8,'R32 · '+t('pathway2'))}
-  </div>`;
-  c.innerHTML=html;
-  const ts=$('topscorer-input');if(ts) ts.value=userPredictions.topScorer||'';
-}
-
 function renderBracketMobile(){
   const c=$('bracket-mobile');if(!c) return;
   const uid=currentUser?.uid;
