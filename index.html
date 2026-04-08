@@ -1118,6 +1118,13 @@ function getWinner(round,idx){
 function renderBracket(){
   const c=$('bracket-content');if(!c) return;
   const uid=currentUser?.uid;
+  const sub=!!(allPredictions[uid]&&Object.keys(allPredictions[uid]).length>0);
+  const editable=canEdit(uid);
+  if(!sub&&!isAdmin){c.innerHTML=`<div style="text-align:center;padding:28px;color:var(--muted)">${t('brLocked')}</div>`;return;}
+  const r32=getR32Teams(uid);
+  function r16Teams(i){const a=getWinner('r32',i*2)||null;const b=getWinner('r32',i*2+1)||null;return{home:a,away:b};}
+  function qfTeams(i){const a=getWinner('r16',i*2)||null;const b=getWinner('r16',i*2+1)||null;return{home:a,away:b};}
+  function sfTeams(i){const a=getWinner('qf',i*2)||null;const b=getWinner('qf',i*2+1)||null;return{home:a,away:b};}
   const finA=getWinner('sf',0)||null;
   const finB=getWinner('sf',1)||null;
   const f3A=getBP().f3?.[0]||null;
