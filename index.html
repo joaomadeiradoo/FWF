@@ -1431,50 +1431,104 @@ function renderLeaderboard(){
 }
 
 // ═══ DAILY COMMENTARY (40+ cheeky templates) ═══
-const DAILY_TEMPLATES_PT=[
-  (l,s,la,c1,c2,c3)=>`🏆 ${l.name} no topo com ${l.pts} pontos. ${s.name} a ${l.pts-s.pts} atrás. Quem vai cair primeiro?`,
-  (l,s,la,c1,c2,c3)=>`🐔 ${la.name} está a fazer uma colecção de últimos lugares. Parabéns pela consistência!`,
-  (l,s,la,c1,c2,c3)=>`⚽ Estado do bolão: ${l.name} a rir, ${la.name} a chorar. A vida é assim.`,
-  (l,s,la,c1,c2,c3)=>`🎯 ${l.name} acertou mais uma vez. Será sorte ou genialidade? Provavelmente sorte.`,
-  (l,s,la,c1,c2,c3)=>`📊 Classificação: ${l.name} reina, ${s.name} conspira, ${la.name} reza.`,
-  (l,s,la,c1,c2,c3)=>`🔮 Os oráculos estavam enganados. ${l.name} provou que ninguém sabe nada de futebol — incluindo nós.`,
-  (l,s,la,c1,c2,c3)=>`😤 ${s.name} está a ${l.pts-s.pts} pontos de ${l.name}. Falta pouco... ou talvez muito.`,
-  (l,s,la,c1,c2,c3)=>`🎭 Drama no bolão: ${l.name} sorridente, ${la.name} a pensar em reconversão para outra profissão.`,
-  (l,s,la,c1,c2,c3)=>`💡 Insight do dia: prever futebol é como jogar à roleta. ${l.name} acertou na bala de ouro.`,
-  (l,s,la,c1,c2,c3)=>`🤦 ${la.name} tem as previsões mais originais do torneio. Originais no sentido de... completamente erradas.`,
-  (l,s,la,c1,c2,c3)=>`🎪 Bem-vindos ao circo! ${l.name} é o leão, ${la.name} é o palhaço. E que palhaço!`,
-  (l,s,la,c1,c2,c3)=>`📺 Se isto fosse um reality show, ${l.name} ganhava o prémio do público e ${la.name} era expulso na 1ª semana.`,
-  (l,s,la,c1,c2,c3)=>`⚡ Flash de notícias: ${l.name} ainda lidera. ${la.name} ainda não percebe porquê.`,
-  (l,s,la,c1,c2,c3)=>`🍀 ${l.name} ou tem muito jeito ou uma ferradura escondida. A investigação continua.`,
-  (l,s,la,c1,c2,c3)=>`🎲 ${la.name} provavelmente teria mais sorte a lançar dados aleatoriamente. Dica grátis.`,
-  (l,s,la,c1,c2,c3)=>`😎 ${l.name} está tão à frente que já começou a preparar o discurso de vencedor.`,
-  (l,s,la,c1,c2,c3)=>`🌪️ Caos geral excepto ${l.name}, que parece estar a ver um jogo diferente de todos os outros.`,
-  (l,s,la,c1,c2,c3)=>`🏳️ ${la.name} está a ponderar levantar a bandeira branca. Aguenta!`,
-  (l,s,la,c1,c2,c3)=>`📉 Curva de aprendizagem de ${la.name}: ainda a descer. Impressionante à sua maneira.`,
-  (l,s,la,c1,c2,c3)=>`🎯 ${l.name} com ${l.pts} pontos. ${s.name} fica quieto no canto. Os outros tiram selfies com a tabela.`,
-];
-const DAILY_TEMPLATES_EN=[
-  (l,s,la,c1,c2,c3)=>`🏆 ${l.name} leads with ${l.pts} points. ${s.name} is ${l.pts-s.pts} behind. Who's going to crack first?`,
-  (l,s,la,c1,c2,c3)=>`🐔 ${la.name} is building quite the collection of last places. Points for consistency!`,
-  (l,s,la,c1,c2,c3)=>`⚽ Current state: ${l.name} laughing, ${la.name} crying. Such is life.`,
-  (l,s,la,c1,c2,c3)=>`🎯 ${l.name} strikes again. Talent or luck? Definitely luck.`,
-  (l,s,la,c1,c2,c3)=>`📊 Leaderboard: ${l.name} reigns, ${s.name} schemes, ${la.name} prays.`,
-  (l,s,la,c1,c2,c3)=>`🔮 The oracles were wrong. ${l.name} proved nobody knows football — including us.`,
-  (l,s,la,c1,c2,c3)=>`😤 ${s.name} is ${l.pts-s.pts} points behind ${l.name}. Close... or maybe not.`,
-  (l,s,la,c1,c2,c3)=>`🎭 Drama in the pool: ${l.name} smiling, ${la.name} considering a career change.`,
-  (l,s,la,c1,c2,c3)=>`💡 Today's insight: predicting football is like roulette. ${l.name} hit the jackpot.`,
-  (l,s,la,c1,c2,c3)=>`🤦 ${la.name} has the most creative predictions in the tournament. Creative as in... completely wrong.`,
-  (l,s,la,c1,c2,c3)=>`🎪 Welcome to the circus! ${l.name} is the lion, ${la.name} is the clown. What a clown!`,
-  (l,s,la,c1,c2,c3)=>`📺 If this were a reality show, ${l.name} wins the audience vote and ${la.name} gets eliminated week 1.`,
-  (l,s,la,c1,c2,c3)=>`⚡ Breaking: ${l.name} still leads. ${la.name} still doesn't know why.`,
-  (l,s,la,c1,c2,c3)=>`🍀 ${l.name} either has great instincts or a lucky horseshoe. Investigation ongoing.`,
-  (l,s,la,c1,c2,c3)=>`🎲 ${la.name} would probably do better throwing dice randomly. Free tip.`,
-  (l,s,la,c1,c2,c3)=>`😎 ${l.name} is so far ahead they've started practising their winner's speech.`,
-  (l,s,la,c1,c2,c3)=>`🌪️ Chaos everywhere except ${l.name}, who seems to be watching a different match.`,
-  (l,s,la,c1,c2,c3)=>`🏳️ ${la.name} is considering raising the white flag. Hang in there!`,
-  (l,s,la,c1,c2,c3)=>`📉 ${la.name}'s learning curve: still going down. Impressive in its own way.`,
-  (l,s,la,c1,c2,c3)=>`🎯 ${l.name} with ${l.pts} points. ${s.name} quietly sulking. Everyone else taking selfies with the table.`,
-];
+// Savage commentary templates with player characteristics
+const SAVAGE_COMMENTARY={
+  savage_pt:[
+    (name,char,pts)=>`${name}${char?` (${char})`:''} teve um dia desastroso. ${pts} pontos pelo ralo.`,
+    (name,char,pts)=>`Ser ${char||'jogador'} não ajudou ${name} hoje. ${pts} pontos desapareceram.`,
+    (name,char,pts)=>`${name} previu${char?` como ${char}`:''} com os olhos fechados. Perdeu ${pts} pontos para provar.`,
+    (name,char,pts)=>`Mesmo ${char?`como ${char}`:''}, ${name} devia ter visto isso. ${pts} pontos foram-se.`,
+    (name,char,pts)=>`${char?char+' e ':''}${name}? Mais ${name} o vidente... de previsões erradas. -${pts} hoje.`,
+    (name,char,pts)=>`As previsões de ${name} hoje: prova que ${char?`ser ${char}`:' entusiasmo'} não é qualificação. ${pts} pontos evaporados.`,
+    (name,char,pts)=>`${char?`Como ${char}, `:' '}${name} não tem desculpa para perder ${pts} pontos. Nenhuma.`,
+    (name,char,pts)=>`${name} combinou ${char?`ser ${char} com`:'excesso de confiança e'} julgamento terrível. Resultado: -${pts} pontos.`,
+    (name,char,pts)=>`${char?`Ser ${char}`:' A paixão'} deu confiança a ${name}. Infelizmente não deu precisão. ${pts} pontos perdidos.`,
+    (name,char,pts)=>`Os instintos ${char?`de ${char}`:''} de ${name} falharam espetacularmente. ${pts} pontos de colapso.`,
+    (name,char,pts)=>`${char?char+'? ':''}${name} previu como se nunca tivesse visto futebol. ${pts} pontos de prova.`,
+    (name,char,pts)=>`${name}${char?` é ${char}`:''} mas previu como turista confuso. ${pts} pontos desapareceram.`,
+    (name,char,pts)=>`Pensarias que ${char?`ser ${char}`:' experiência'} ajudaria ${name}. Não ajudou. ${pts} pontos perdidos.`,
+    (name,char,pts)=>`A energia ${char?`de ${char}`:''} de ${name} era forte. As previsões não. ${pts} pontos mais fraco.`,
+    (name,char,pts)=>`${char?`Como ${char}, `:' '}${name} devia saber melhor. Claramente não sabe. ${pts} pontos confirmam.`,
+  ],
+  hype_pt:[
+    (name,char,pts)=>`${name}${char?` é ${char}`:''} E aparentemente psíquico. +${pts} pontos hoje. Exibicionista.`,
+    (name,char,pts)=>`${char?`Ser ${char}`:' A intuição'} finalmente compensou ${name}. +${pts} pontos. Imparável.`,
+    (name,char,pts)=>`Os instintos ${char?`de ${char}`:''} de ${name} estão em fogo. +${pts} pontos. Alguém os pare.`,
+    (name,char,pts)=>`Ser ${char||'vidente'} torna-te clarividente. ${name} acabou de provar com +${pts}.`,
+    (name,char,pts)=>`${name} combinou ${char?char+' com':''} conhecimento real de futebol. +${pts} pontos. Combinação perigosa.`,
+    (name,char,pts)=>`${char?`Como ${char}, `:' '}${name} chamou tudo perfeitamente. +${pts} pontos. Números da lotaria a seguir?`,
+    (name,char,pts)=>`${name}${char?` (${char})`:''} tinha superpoderes hoje. +${pts} pontos. Vantagem injusta.`,
+    (name,char,pts)=>`${char?`Ser ${char}`:' Saber'} tem benefícios. Pergunta a ${name}, que acabou de ganhar +${pts} pontos.`,
+    (name,char,pts)=>`${name}${char?` é ${char}`:''} numa missão. +${pts} pontos. Todos os outros jogam pelo 2º.`,
+    (name,char,pts)=>`${char||'Instinto'} encontra bola de cristal. ${name} ganhou ${pts} pontos. Alguém verifique o regulamento.`,
+    (name,char,pts)=>`A sequência ${char?`de ${char}`:''} de ${name} continua. +${pts} pontos hoje. Oficialmente irritante.`,
+    (name,char,pts)=>`${char?`Ser ${char}`:' Acertar'} E estar certo é o superpoder de ${name}. +${pts} pontos provam-no.`,
+    (name,char,pts)=>`${name} usou${char?` a sabedoria ${char}`:' lógica'} perfeitamente. +${pts} pontos. Resto chora.`,
+    (name,char,pts)=>`${char?`Como ${char}, `:' '}${name} previu como se tivesse escrito os scripts. +${pts} pontos.`,
+    (name,char,pts)=>`${name}${char?` é ${char}`:''} com poderes proféticos. +${pts} pontos. Ridículo agora.`,
+  ],
+  chaos_pt:[
+    (name,char,swing)=>`${name}${char?` é ${char}`:''} numa montanha-russa emocional. ${swing>0?'↑':'↓'} ${Math.abs(swing)} lugares hoje.`,
+    (name,char,swing)=>`${char?`Ser ${char}`:' Jogar assim'} significa drama para ${name}. Oscilou ${Math.abs(swing)} posições ${swing>0?'↑':'↓'}.`,
+    (name,char,swing)=>`A energia ${char?`de ${char}`:''} de ${name} é caótica. ${swing>0?'↑':'↓'} ${Math.abs(swing)} lugares. Nunca é aborrecido.`,
+    (name,char,swing)=>`${char?`Como ${char}, `:' '}${name} foi ${swing>0?'↑':'↓'} ${Math.abs(swing)} lugares. Entretenimento puro.`,
+    (name,char,swing)=>`${name}${char?` é ${char}`:''} sem chill zero. Oscilação de ${Math.abs(swing)} posições ${swing>0?'↑':'↓'}.`,
+    (name,char,swing)=>`${char?`Ser ${char}`:' Esta estratégia'} cai bem em ${name}. Moveu ${Math.abs(swing)} lugares ${swing>0?'↑':'↓'}. Caos puro.`,
+    (name,char,swing)=>`Instintos ${char?`de ${char}`:''} de ${name} = imprevisível. ${swing>0?'↑':'↓'} ${Math.abs(swing)} posições hoje.`,
+    (name,char,swing)=>`${char||'Isto'} significa viagens selvagens para ${name}. ${Math.abs(swing)} lugares ${swing>0?'↑':'↓'}. Apertem cintos.`,
+    (name,char,swing)=>`${name}${char?` é ${char}`:''} e claramente prospera no caos. ${swing>0?'↑':'↓'} ${Math.abs(swing)} lugares.`,
+    (name,char,swing)=>`${char?`Como ${char}, `:' '}${name} não faz estabilidade. Oscilação de ${Math.abs(swing)} posições ${swing>0?'↑':'↓'} prova-o.`,
+    (name,char,swing)=>`A jornada ${char?`de ${char}`:''} de ${name}: ${swing>0?'↑':'↓'} ${Math.abs(swing)} posições. Dano emocional.`,
+    (name,char,swing)=>`${char?`Ser ${char}`:' Estas previsões'} significa que a classificação de ${name} é lotaria. ${swing>0?'↑':'↓'} ${Math.abs(swing)} hoje.`,
+    (name,char,swing)=>`${name}${char?` é ${char}`:''} numa missão para confundir todos. ${swing>0?'↑':'↓'} ${Math.abs(swing)} lugares.`,
+    (name,char,swing)=>`${char||'Volatilidade'} + ${name} = volatilidade. ${Math.abs(swing)} posições ${swing>0?'↑':'↓'}. Nunca mudes.`,
+    (name,char,swing)=>`As previsões ${char?`de ${char}`:''} de ${name} oscilam violentamente. ${swing>0?'↑':'↓'} ${Math.abs(swing)} lugares hoje.`,
+  ],
+  bottom_pt:[
+    (name,char,rank)=>`${name}${char?` é ${char}`:''} em último. Pelo menos é consistentemente último.`,
+    (name,char,rank)=>`${char?`Ser ${char}`:' Esforço'} não salvou ${name} do ${rank}º lugar. Talvez nunca.`,
+    (name,char,rank)=>`A energia ${char?`de ${char}`:''} de ${name} pertence no ${rank}º. Encaixe perfeito honestamente.`,
+    (name,char,rank)=>`${char?`Como ${char}, `:' '}${name} mantém o ${rank}º lugar com orgulho. Compromisso admirável.`,
+    (name,char,rank)=>`${name}${char?` é ${char}`:''} e firmemente no ${rank}º. Aparentemente é uma vibe.`,
+    (name,char,rank)=>`${char?`Ser ${char}`:' Estas escolhas'} não desculpa ${name} na posição ${rank}º. Hora do amor duro.`,
+    (name,char,rank)=>`${name}${char?` é ${char}`:''} mantendo o ${rank}º lugar quentinho. Alguém tem de o fazer.`,
+    (name,char,rank)=>`${char||'Último lugar'} no ${rank}º = ${name}. História de amor.`,
+    (name,char,rank)=>`A estratégia ${char?`de ${char}`:''} de ${name} leva ao ${rank}º lugar. A funcionar como pretendido?`,
+    (name,char,rank)=>`${char?`Como ${char}, `:' '}${name} ganhou o ${rank}º lugar de forma justa. Respeito.`,
+    (name,char,rank)=>`${name}${char?` é ${char}`:''} no fundo (${rank}º). Essa é a marca agora.`,
+    (name,char,rank)=>`${char?`Ser ${char}`:' Isto'} levou ${name} ao ${rank}º lugar. Não claro se era o objetivo.`,
+    (name,char,rank)=>`Vibes ${char?`de ${char}`:''} de ${name} = ${rank}º lugar. Matemática verifica.`,
+    (name,char,rank)=>`${char||'Mau julgamento'} + previsões terríveis = ${name} no ${rank}º. Equação simples.`,
+    (name,char,rank)=>`${name}${char?` é ${char}`:''} e possui o ${rank}º lugar. Ninguém pode tirar isso.`,
+  ],
+};
+
+const SAVAGE_EN={
+  savage:[
+    (name,char,pts)=>`${name}${char?` (${char})`:''} had a disastrous day. ${pts} points down the drain.`,
+    (name,char,pts)=>`Being ${char||'passionate'} didn't help ${name} today. ${pts} points vanished.`,
+    (name,char,pts)=>`${name} predicted${char?` as ${char}`:''} with eyes closed. Lost ${pts} points to prove it.`,
+    (name,char,pts)=>`Even${char?` as ${char}`:''}, ${name} should've seen that. ${pts} points gone.`,
+    (name,char,pts)=>`${char?char+' and ':''}${name}? More like ${name} the clairvoyant... of wrong predictions. -${pts} today.`,
+  ],
+  hype:[
+    (name,char,pts)=>`${name}${char?` is ${char}`:''} AND apparently psychic. +${pts} points today. Show-off.`,
+    (name,char,pts)=>`Being ${char||'smart'} finally paid off for ${name}. +${pts} points. Unstoppable.`,
+    (name,char,pts)=>`${name}'s ${char||'instincts'} are on fire. +${pts} points. Someone stop them.`,
+  ],
+  chaos:[
+    (name,char,swing)=>`${name}${char?` is ${char}`:''} on emotional rollercoaster. ${swing>0?'↑':'↓'} ${Math.abs(swing)} places.`,
+    (name,char,swing)=>`Being ${char||'unpredictable'} means drama for ${name}. Swung ${Math.abs(swing)} ${swing>0?'↑':'↓'}.`,
+  ],
+  bottom:[
+    (name,char,rank)=>`${name}${char?` is ${char}`:''} in last. At least consistently last.`,
+    (name,char,rank)=>`Being ${char||'trying'} hasn't saved ${name} from ${rank}º. Might never.`,
+  ],
+};
+
+const DAILY_TEMPLATES_PT=SAVAGE_COMMENTARY.savage_pt.concat(SAVAGE_COMMENTARY.hype_pt,SAVAGE_COMMENTARY.chaos_pt,SAVAGE_COMMENTARY.bottom_pt);
+const DAILY_TEMPLATES_EN=SAVAGE_EN.savage.concat(SAVAGE_EN.hype,SAVAGE_EN.chaos,SAVAGE_EN.bottom);
+
 
 // Personalised shoutout templates
 function shoutLeader(name,char){
@@ -1548,11 +1602,34 @@ function renderDailySummary(rows){
       }
     });
   }
-  const tpls=lang==='pt'?DAILY_TEMPLATES_PT:DAILY_TEMPLATES_EN;
-  // Pick a template different from yesterday (use random hash)
+  
+  // Pick template type based on day's drama
+  let sum='';
+  const isSavage=lang==='pt'?SAVAGE_COMMENTARY.savage_pt:SAVAGE_EN.savage;
+  const isHype=lang==='pt'?SAVAGE_COMMENTARY.hype_pt:SAVAGE_EN.hype;
+  const isChaos=lang==='pt'?SAVAGE_COMMENTARY.chaos_pt:SAVAGE_EN.chaos;
+  const isBottom=lang==='pt'?SAVAGE_COMMENTARY.bottom_pt:SAVAGE_EN.bottom;
+  
   const dayHash=today.split('-').reduce((a,b)=>a+parseInt(b),0);
-  const idx=dayHash%tpls.length;
-  const sum=tpls[idx](leader,second,last,chars[leader.uid],chars[second.uid],chars[last.uid]);
+  
+  if(badDay.diff<-5){
+    const idx=dayHash%isSavage.length;
+    sum=isSavage[idx](badDay.name,chars[badDay.uid],Math.abs(badDay.diff));
+  }else if(bigDay.diff>5){
+    const idx=dayHash%isHype.length;
+    sum=isHype[idx](bigDay.name,chars[bigDay.uid],bigDay.diff);
+  }else if(bigClimb.diff>=3||bigFall.diff<=-3){
+    const idx=dayHash%isChaos.length;
+    const target=bigClimb.diff>=3?bigClimb:bigFall;
+    sum=isChaos[idx](target.name,chars[target.uid],target.diff);
+  }else if(last.pts<-10){
+    const idx=dayHash%isBottom.length;
+    sum=isBottom[idx](last.name,chars[last.uid],rows.length);
+  }else{
+    // Fallback to hype for leader
+    const idx=dayHash%isHype.length;
+    sum=isHype[idx](leader.name,chars[leader.uid],leader.pts);
+  }
 
   const shouts=[];
   // Leader shoutout
