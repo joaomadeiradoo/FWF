@@ -743,23 +743,23 @@ const RULE_ITEMS=[
 
 // Historical tournaments data
 const TOURNAMENT_HISTORY=[
-  {year:2008,name:'CAN Ghana',type:'CAN',winner:'?',runnerUp:'?',third:'?'},
-  {year:2010,name:'CAN Angola',type:'CAN',winner:'João do Ó',runnerUp:'No records',third:'No record'},
-  {year:2010,name:'World Cup',type:'WC',winner:'João Covilhã Silva',runnerUp:'Nuno do Ó',third:'Filipe Figueiredo'},
-  {year:2012,name:'CAN Gabão/Guiné Equatorial',type:'CAN',winner:'Nuno Pistolas Santos',runnerUp:'Nuno do Ó',third:'Pedro Brandão'},
-  {year:2013,name:'CAN África do Sul',type:'CAN',winner:'Nuno Cordas',runnerUp:'Humberto Pina',third:'João Covilhã Silva'},
-  {year:2014,name:'World Cup Brazil',type:'WC',winner:'Liz Graham',runnerUp:'Luís Lemos',third:'Humberto Martins'},
+  {year:2008,name:'CAN Gana',type:'CAN',winner:'João do Ó',runnerUp:'No records',third:'No records'},
+  {year:2010,name:'CAN Angola',type:'CAN',winner:'João Covilhã Silva',runnerUp:'Nuno do Ó',third:'Filipe Figueiredo'},
+  {year:2010,name:'Mundial África do Sul',type:'WC',winner:'Nuno Pistolas Santos',runnerUp:'Nuno do Ó',third:'Pedro Brandão'},
+  {year:2012,name:'CAN Gabão/Guiné Equatorial',type:'CAN',winner:'Nuno Cordas',runnerUp:'Humberto Pina',third:'João Covilhã Silva'},
+  {year:2012,name:'Euro Polónia e Ucrânia',type:'EURO',winner:'Jose Alvarinho',runnerUp:'Humberto Pina',third:'João Luís Mota'},
+  {year:2013,name:'CAN África do Sul',type:'CAN',winner:'João Covilhã Silva',runnerUp:'Ricardo Paulino',third:'Tiago Domingues'},
+  {year:2014,name:'Mundial Brasil',type:'WC',winner:'Liz Graham',runnerUp:'Luís Lemos',third:'Humberto Martins'},
   {year:2015,name:'CAN Guiné Equatorial',type:'CAN',winner:'João Luís Mota',runnerUp:'Nuno Cordas',third:'Liz Graham'},
-  {year:2016,name:'Euro France',type:'EURO',winner:'Paulo Niza',runnerUp:'João Rodrigues',third:'António Valente'},
+  {year:2016,name:'Euro França',type:'EURO',winner:'Paulo Niza',runnerUp:'João Rodrigues',third:'António Valente'},
   {year:2017,name:'CAN Gabão',type:'CAN',winner:'Filipe Figueiredo',runnerUp:'Hugo Igreja',third:'Luís Vargas Mota'},
-  {year:2018,name:'World Cup Russia',type:'WC',winner:'Mário Fonseca',runnerUp:'Bruno Banheiro',third:'Humberto Martins'},
+  {year:2018,name:'Mundial Rússia',type:'WC',winner:'Mário Fonseca',runnerUp:'Bruno Banheiro',third:'Humberto Martins'},
   {year:2019,name:'CAN Egito',type:'CAN',winner:'Humberto Martins',runnerUp:'Luís Mota',third:'João Luís Mota'},
-  {year:2021,name:'Euro',type:'EURO',winner:'Vlad Zhuravlev',runnerUp:'João Luís Mota',third:'Luís Mota'},
+  {year:2020,name:'Euro',type:'EURO',winner:'Vlad Zhuravlev',runnerUp:'João Luís Mota',third:'Luís Mota'},
   {year:2021,name:'CAN Camarões',type:'CAN',winner:'Paulo Niza',runnerUp:'João do Ó',third:'Luís Mota'},
-  {year:2022,name:'World Cup Qatar',type:'WC',winner:'Luís Vargas Mota',runnerUp:'Manuel Reis',third:'Humberto Martins'},
-  {year:2023,name:'CAN Costa do Marfim',type:'CAN',winner:'?',runnerUp:'?',third:'?'},
+  {year:2022,name:'Mundial Qatar',type:'WC',winner:'Luís Vargas Mota',runnerUp:'Manuel Reis',third:'Humberto Martins'},
   {year:2025,name:'CAN Marrocos',type:'CAN',winner:'João Eira',runnerUp:'Paulo Niza',third:'João do Ó'},
-  {year:2026,name:'World Cup',type:'WC',winner:'TBD',runnerUp:'TBD',third:'TBD'},
+  {year:2026,name:'Mundial',type:'WC',winner:'TBD',runnerUp:'TBD',third:'TBD'},
 ];
 
 function normalize(s){return(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim();}
@@ -1961,10 +1961,10 @@ function renderAwards(){
       if(t.type==='EURO') euroWins[t.winner]=(euroWins[t.winner]||0)+1;
       if(t.type==='WC') wcWins[t.winner]=(wcWins[t.winner]||0)+1;
     }
-    if(t.runnerUp&&t.runnerUp!=='TBD'&&t.runnerUp!=='?'&&t.runnerUp!=='No records'){
+    if(t.runnerUp&&t.runnerUp!=='TBD'&&t.runnerUp!=='?'&&!t.runnerUp.includes('No record')){
       runnerUps[t.runnerUp]=(runnerUps[t.runnerUp]||0)+1;
     }
-    if(t.third&&t.third!=='TBD'&&t.third!=='?'&&t.third!=='No record'){
+    if(t.third&&t.third!=='TBD'&&t.third!=='?'&&!t.third.includes('No record')){
       thirds[t.third]=(thirds[t.third]||0)+1;
     }
   });
