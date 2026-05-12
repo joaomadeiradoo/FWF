@@ -178,7 +178,8 @@ table.gct tr:nth-child(3) td{background:rgba(255,215,0,.03)}
 .ls{font-family:var(--fh);font-size:1.4rem;color:var(--gold);line-height:1}
 .lmin{font-size:.65rem;color:var(--red);font-weight:700}
 .sec-lbl{font-size:.63rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;font-weight:700}
-.dsum{background:linear-gradient(135deg,rgba(255,215,0,.06),rgba(45,198,83,.03));border:1px solid rgba(255,215,0,.15);border-radius:10px;padding:14px 16px;margin-bottom:12px;line-height:1.75}
+.dsum{background:linear-gradient(135deg,rgba(255,215,0,.06),rgba(45,198,83,.03));border:1px solid rgba(255,215,0,.15);border-radius:10px;padding:14px 16px;margin-bottom:12px;line-height:1.75;animation:fadeIn .5s ease-in}
+@keyframes fadeIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
 .dsum-hl{font-family:var(--fh);font-size:.92rem;color:var(--gold);margin-bottom:8px;letter-spacing:1px}
 .dsum-p{font-size:.84rem;color:var(--text);margin-bottom:5px}.dsum-p:last-child{margin-bottom:0}
 .api-bar{height:7px;border-radius:4px;background:rgba(255,255,255,.08);overflow:hidden;margin:5px 0}
@@ -889,6 +890,7 @@ async function joinCompWithCode(uid,code,name){
 }
 async function regenerateCode(){
   if(!isHost) return;
+  if(!confirm(lang==='pt'?'Gerar novo código? O código antigo deixará de funcionar.':'Generate new code? The old code will stop working.')) return;
   const{db,doc,updateDoc}=window._fb;const code=genCode();
   await updateDoc(doc(db,'competitions',currentCompId),{inviteCode:code});
   $('host-invite-code').textContent=code;toast(t('copied'));
