@@ -2044,30 +2044,33 @@ function scheduleApi(){
   const msSince=new Date()-TOURNAMENT_START;
   const daysIn=Math.floor(msSince/86400000);
   
-  // Optimized polling intervals to stay under 92 calls/day
-  // Group stage: up to 4 matches/day, 90min each = 6 hours match time
-  // Knockout: 2 matches/day max, but with potential extra time (120min each)
-  let ms=20*60*1000; // Default: 20min = 72 calls/day
+  // Optimized for MAXIMUM frequency while staying under 92 calls/day
+  // Strategy: Use most of our 92-call budget for maximum freshness
+  let ms=16*60*1000; // Default: 16min = 90 calls/day (near limit)
   
   if(daysIn>=0&&daysIn<20){
-    // Group stage (Jun 11-30): Many matches, but all 90min
-    ms=20*60*1000; // 20min = 72 calls/day
-  }else if(daysIn>=20&&daysIn<28){
-    // Round of 32 (Jul 1-8): 2 matches/day, potential ET (120min)
-    ms=25*60*1000; // 25min = 57.6 calls/day (safer for ET)
-  }else if(daysIn>=28&&daysIn<32){
-    // Round of 16 (Jul 9-12): 2 matches/day, potential ET
-    ms=25*60*1000; // 25min = 57.6 calls/day
+    // Group stage (Jun 11-30): Multiple 90-min matches per day
+    // 4 matches × 90min = 6 hours of football
+    ms=16*60*1000; // 16min = 90 calls/day (maximum freshness)
+  }else if(daysIn>=20&&daysIn<32){
+    // Round of 32 + R16 (Jul 1-12): 2 matches/day, potential 120min each
+    // 2 matches × 120min = 4 hours max
+    ms=16*60*1000; // 16min = 90 calls/day (can afford frequent updates)
   }else if(daysIn>=32&&daysIn<36){
-    // Quarterfinals (Jul 13-16): 2 matches/day, potential ET
-    ms=30*60*1000; // 30min = 48 calls/day (more cautious for ET)
+    // Quarterfinals (Jul 13-16): 2 matches/day, 120min each likely
+    // 2 matches × 120min = 4 hours
+    ms=16*60*1000; // 16min = 90 calls/day (still safe)
   }else if(daysIn>=36&&daysIn<40){
-    // Semifinals (Jul 17-18): 1 match/day, potential ET+penalties
-    ms=35*60*1000; // 35min = 41 calls/day (very safe for ET+pens)
+    // Semifinals (Jul 17-18): 1 match/day, potential 150min (ET + penalties)
+    // Even at 150min, 16min intervals = 9-10 calls during match
+    ms=16*60*1000; // 16min = 90 calls/day (aggressive but safe for 1 match)
   }else if(daysIn>=40){
-    // Finals (Jul 19): 3rd place + Final, both potential ET
-    // Final could be 120min + 30min penalties = 150min
-    ms=40*60*1000; // 40min = 36 calls/day (safest, accounts for long final)
+    // Finals (Jul 19): 3rd place + Final
+    // Worst case: both go to 150min = 5 hours total
+    // At 16min intervals during 5 hours = 18-19 calls during matches
+    // Plus baseline polling = ~90 calls/day total
+    // BUT: If both matches have ET+penalties, be slightly safer
+    ms=17*60*1000; // 17min = 84.7 calls/day (safe for worst case final day)
   }
   
   apiPollTimer=setInterval(()=>{fetchLive();fetchUpcoming();},ms);
