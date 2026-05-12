@@ -13,7 +13,7 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/lipis/flag-icons@7.2.3/css/flag-icons.min.css"/>
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile }
+  import { getAuth, signInAnonymously, signOut, onAuthStateChanged }
     from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
   import { getFirestore, doc, getDoc, setDoc, collection, getDocs, updateDoc, onSnapshot }
     from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
@@ -29,8 +29,8 @@
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
   const db = getFirestore(app);
-  window._fb = { auth, db, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut,
-    onAuthStateChanged, doc, getDoc, setDoc, collection, getDocs, updateDoc, onSnapshot, updateProfile };
+  window._fb = { auth, db, signInAnonymously, signOut, onAuthStateChanged, 
+    doc, getDoc, setDoc, collection, getDocs, updateDoc, onSnapshot };
   window.dispatchEvent(new Event("firebase-ready"));
 </script>
 <style>
@@ -259,29 +259,11 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
 <header><h1>⚽ PLAY FOOTBALL WITH FRIENDS</h1><p id="hdr-sub">2026 · USA · CANADA · MEXICO</p></header>
 <div id="screen-auth" class="card">
   <h2 style="text-align:center;margin-bottom:16px">Play Football with Friends</h2>
-  <div class="tabs" style="margin-bottom:18px">
-    <button class="tab active" onclick="switchAuthTab('login')" id="tab-login">Entrar</button>
-    <button class="tab" onclick="switchAuthTab('register')" id="tab-register">Criar Conta</button>
-    <button class="tab" onclick="switchAuthTab('join')" id="tab-join">Com Código</button>
-  </div>
-  <div id="auth-login">
-    <div class="form-group"><label>Email</label><input type="email" id="login-email" placeholder="email@exemplo.com" autocomplete="email"/></div>
-    <div class="form-group"><label>Password</label><input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password"/></div>
-    <button class="btn btn-gold btn-full" onclick="doLogin()">Entrar / Sign In</button>
-  </div>
-  <div id="auth-register" class="hidden">
-    <div class="form-group"><label>Nome / Name</label><input type="text" id="reg-name" placeholder="O teu nome" autocomplete="name"/></div>
-    <div class="form-group"><label>Email</label><input type="email" id="reg-email" placeholder="email@exemplo.com" autocomplete="email"/></div>
-    <div class="form-group"><label>Password</label><input type="password" id="reg-pass" placeholder="mín. 6 caracteres" autocomplete="new-password"/></div>
-    <div class="form-group"><label>Código de convite <span style="color:var(--muted);font-size:.75rem">(deixa em branco se és o host)</span></label>
-      <input type="text" id="reg-code" placeholder="XXXXXX" style="text-transform:uppercase" autocomplete="off"/></div>
-    <button class="btn btn-gold btn-full" onclick="doRegister()">Criar Conta</button>
-  </div>
-  <div id="auth-join" class="hidden">
-    <p style="color:var(--muted);margin-bottom:12px;font-size:.88rem">Já tens conta? Entra primeiro e junta-te com o código.</p>
-    <div class="form-group"><label>Código</label><input type="text" id="join-code" placeholder="XXXXXX" style="text-transform:uppercase" autocomplete="off"/></div>
-    <button class="btn btn-green btn-full" onclick="joinCompetition()">Juntar / Join</button>
-  </div>
+  <div class="form-group"><label>Nome / Name</label><input type="text" id="auth-name" placeholder="O teu nome" autocomplete="name"/></div>
+  <div class="form-group"><label>PIN (4 dígitos)</label><input type="password" id="auth-pin" placeholder="••••" maxlength="4" pattern="[0-9]{4}" inputmode="numeric" autocomplete="off"/></div>
+  <div class="form-group"><label>Código de Convite</label><input type="text" id="auth-code" placeholder="XXXXXX" style="text-transform:uppercase" autocomplete="off"/></div>
+  <button class="btn btn-gold btn-full" onclick="doSimpleAuth()">Entrar / Join</button>
+  <p style="color:var(--muted);font-size:.75rem;margin-top:12px;text-align:center">Primeira vez? Escolhe um nome e PIN. Próximas vezes usa o mesmo PIN para entrar.</p>
 </div>
 <div id="screen-main" class="hidden">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:6px">
@@ -836,68 +818,90 @@ function updateApiCounter(u){
 }
 
 // ═══ AUTH ═══
-function switchAuthTab(tab){
-  ['login','register','join'].forEach(s=>{
-    $(`auth-${s}`).classList.toggle('hidden',s!==tab);
-    $(`tab-${s}`).classList.toggle('active',s===tab);
-  });
-}
-async function doLogin(){
+// ═══ SIMPLE AUTH (Name + PIN + Code) ═══
+async function doSimpleAuth(){
   if(!window._fb){toast('A carregar...',true);return;}
-  try{await window._fb.signInWithEmailAndPassword(window._fb.auth,$('login-email').value,$('login-pass').value);}
-  catch(e){toast(e.message,true);}
-}
-async function doRegister(){
-  if(!window._fb){toast('A carregar...',true);return;}
-  const{auth,db,createUserWithEmailAndPassword,updateProfile,doc,setDoc,getDocs,collection}=window._fb;
-  const name=$('reg-name').value.trim(),email=$('reg-email').value.trim(),pass=$('reg-pass').value;
-  const code=$('reg-code').value.trim().toUpperCase();
-  if(!name||!email||!pass){toast('Preenche todos os campos',true);return;}
+  const name=$('auth-name').value.trim();
+  const pin=$('auth-pin').value.trim();
+  const code=$('auth-code').value.trim().toUpperCase();
+  
+  if(!name||!pin||!code){toast('Preenche todos os campos',true);return;}
+  if(pin.length!==4||!/^\d{4}$/.test(pin)){toast('PIN deve ter 4 dígitos',true);return;}
+  
+  const{db,getDocs,collection,doc,updateDoc,signInAnonymously}=window._fb;
+  
   try{
-    const cred=await createUserWithEmailAndPassword(auth,email,pass);
-    await updateProfile(cred.user,{displayName:name});
-    await setDoc(doc(db,'users',cred.user.uid),{name,email,uid:cred.user.uid});
+    // Find competition by code
     const snap=await getDocs(collection(db,'competitions'));
-    if(snap.empty) await createComp(cred.user.uid,name);
-    else if(code) await joinCompWithCode(cred.user.uid,code,name);
-    else await addMemberToComp(snap.docs[0].id,cred.user.uid,name);
-  }catch(e){toast(e.message,true);}
+    let compDoc=null;
+    snap.forEach(d=>{if(d.data().inviteCode===code) compDoc={id:d.id,...d.data()};});
+    
+    if(!compDoc){toast('Código inválido',true);return;}
+    
+    // Check if name+PIN combo exists
+    const members=compDoc.members||{};
+    let existingUid=null;
+    Object.keys(members).forEach(uid=>{
+      if(members[uid].name===name&&members[uid].pin===pin) existingUid=uid;
+    });
+    
+    if(existingUid){
+      // Returning user
+      currentUser={uid:existingUid,displayName:name};
+      currentCompId=compDoc.id;
+      localStorage.setItem('fwf_uid',existingUid);
+      localStorage.setItem('fwf_name',name);
+      localStorage.setItem('fwf_pin',pin);
+      localStorage.setItem('fwf_comp',compDoc.id);
+      await initMainApp(existingUid);
+    }else{
+      // New user - create anonymous account
+      const cred=await signInAnonymously(window._fb.auth);
+      const uid=cred.user.uid;
+      
+      // Add to competition
+      members[uid]={name,pin,role:'member',joinedAt:new Date().toISOString()};
+      await updateDoc(doc(db,'competitions',compDoc.id),{members});
+      
+      currentUser={uid,displayName:name};
+      currentCompId=compDoc.id;
+      localStorage.setItem('fwf_uid',uid);
+      localStorage.setItem('fwf_name',name);
+      localStorage.setItem('fwf_pin',pin);
+      localStorage.setItem('fwf_comp',compDoc.id);
+      
+      await initMainApp(uid);
+      toast(`Bem-vindo, ${name}!`);
+    }
+  }catch(e){
+    console.error(e);
+    toast('Erro: '+e.message,true);
+  }
 }
+
 async function doSignOut(){
   clearInterval(countdownInterval);clearInterval(apiPollTimer);
-  await window._fb.signOut(window._fb.auth);
+  localStorage.removeItem('fwf_uid');
+  localStorage.removeItem('fwf_name');
+  localStorage.removeItem('fwf_pin');
+  localStorage.removeItem('fwf_comp');
+  currentUser=null;currentCompId=null;
   hide('screen-main');show('screen-auth');
+  location.reload();
 }
 
 // ═══ COMPETITION ═══
-async function createComp(uid,name){
+async function createComp(uid,name,compName='Play Football with Friends'){
   const{db,doc,setDoc}=window._fb;
   const code=genCode(),id=`comp_${Date.now()}`;
   await setDoc(doc(db,'competitions',id),{
-    name:'Play Football with Friends',inviteCode:code,hostUid:uid,
-    rules:{...DEFAULT_RULES},members:{[uid]:{name,joinedAt:Date.now(),role:'host'}},
+    name:compName,inviteCode:code,hostUid:uid,
+    rules:{...DEFAULT_RULES},members:{[uid]:{name,joinedAt:Date.now(),role:'host',pin:'0000'}},
     actualScores:{},predictions:{},playerChars:{},approvedTopScorers:{},
     ptsToggles:{groupWinner:true,groupSecond:true,round32:true},
     createdAt:Date.now()
   });
-}
-async function addMemberToComp(compId,uid,name){
-  const{db,doc,getDoc,updateDoc}=window._fb;
-  const cd=await getDoc(doc(db,'competitions',compId));if(!cd.exists()) return;
-  const members={...cd.data().members};
-  if(!members[uid]){members[uid]={name,joinedAt:Date.now(),role:'member'};await updateDoc(doc(db,'competitions',compId),{members});}
-}
-async function joinCompetition(){
-  if(!currentUser){toast('Entra primeiro',true);return;}
-  await joinCompWithCode(currentUser.uid,$('join-code').value.trim().toUpperCase(),currentUser.displayName);
-}
-async function joinCompWithCode(uid,code,name){
-  const{db,getDocs,collection}=window._fb;
-  const snap=await getDocs(collection(db,'competitions'));
-  let found=null;snap.forEach(d=>{if(d.data().inviteCode===code) found={id:d.id,...d.data()};});
-  if(!found){toast('Código inválido',true);return;}
-  await addMemberToComp(found.id,uid,name);
-  toast(t('saved'));await initMainApp(uid);
+  return{id,code};
 }
 async function regenerateCode(){
   if(!isHost) return;
@@ -2258,21 +2262,34 @@ function copyInvite(){navigator.clipboard.writeText(currentComp?.inviteCode||'')
 // ═══ BOOTSTRAP ═══
 function startFirebase(){
   if(!window._fb) return;
-  window._fb.onAuthStateChanged(window._fb.auth,async user=>{
-    currentUser=user;
-    if(user){
-      const{db,doc,getDoc,setDoc}=window._fb;
-      const uRef=doc(db,'users',user.uid);const ud=await getDoc(uRef);
-      if(!ud.exists()) await setDoc(uRef,{name:user.displayName||'User',email:user.email,uid:user.uid});
-      await initMainApp(user.uid);
-    }else{hide('screen-main');show('screen-auth');}
-  });
+  
+  // Check localStorage for auto-login
+  const storedUid=localStorage.getItem('fwf_uid');
+  const storedName=localStorage.getItem('fwf_name');
+  const storedPin=localStorage.getItem('fwf_pin');
+  const storedComp=localStorage.getItem('fwf_comp');
+  
+  if(storedUid&&storedName&&storedPin&&storedComp){
+    // Auto-login from localStorage
+    currentUser={uid:storedUid,displayName:storedName};
+    currentCompId=storedComp;
+    initMainApp(storedUid).catch(()=>{
+      // If init fails, clear localStorage and show auth
+      localStorage.removeItem('fwf_uid');
+      localStorage.removeItem('fwf_name');
+      localStorage.removeItem('fwf_pin');
+      localStorage.removeItem('fwf_comp');
+      hide('screen-main');show('screen-auth');
+    });
+  }else{
+    hide('screen-main');show('screen-auth');
+  }
 }
 window.addEventListener('firebase-ready',startFirebase);
 if(window._fb) startFirebase();
 
-window.setLang=setLang;window.switchAuthTab=switchAuthTab;window.doLogin=doLogin;
-window.doRegister=doRegister;window.doSignOut=doSignOut;window.joinCompetition=joinCompetition;
+window.setLang=setLang;window.doSimpleAuth=doSimpleAuth;
+window.doSignOut=doSignOut;
 window.showTab=showTab;window.submitPredictions=submitPredictions;window.saveActualScores=saveActualScores;
 window.toggleUnlock=toggleUnlock;window.copyInvite=copyInvite;window.regenerateCode=regenerateCode;
 window.toggleAdmin=toggleAdmin;window.kickUser=kickUser;window.shareLeaderboard=shareLeaderboard;window.downloadLb=downloadLb;
