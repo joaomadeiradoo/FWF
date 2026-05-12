@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Test Admin Button</title>
+    <style>
+        body { background: #0D1B2A; color: #EEF2FF; font-family: sans-serif; padding: 50px; }
+        .btn { background: #2DC653; color: #0D1B2A; border: none; padding: 15px 30px; 
+               border-radius: 10px; cursor: pointer; font-weight: bold; font-size: 16px; }
+        .card { background: #162232; padding: 30px; border-radius: 12px; max-width: 500px; margin: 0 auto; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <div id="screen-auth" class="card">
+        <h2 style="text-align:center">Test Admin Button</h2>
+        <p style="text-align:center; margin: 20px 0;">Click the button below and enter PIN: <strong>2026</strong></p>
+        <div style="text-align:center">
+            <button class="btn" onclick="(function(){const p=prompt('PIN Administrador:');if(p==='2026'){document.getElementById('screen-auth').classList.add('hidden');document.getElementById('screen-host-create').classList.remove('hidden');}else if(p){alert('PIN incorreto');}})()">
+                🎯 Test Button
+            </button>
+        </div>
+    </div>
+
+    <div id="screen-host-create" class="card hidden">
+        <h2 style="text-align:center; color: #2DC653;">✅ IT WORKS!</h2>
+        <p style="text-align:center; margin-top: 20px;">The admin PIN check is working correctly.</p>
+        <p style="text-align:center; margin-top: 20px;">
+            <button class="btn" onclick="document.getElementById('screen-host-create').classList.add('hidden');document.getElementById('screen-auth').classList.remove('hidden');">
+                ← Go Back
+            </button>
+        </p>
+    </div>
+</body>
+</html>
