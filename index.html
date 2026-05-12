@@ -265,12 +265,13 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
   <button class="btn btn-gold btn-full" onclick="doSimpleAuth()">Entrar / Join</button>
   <p style="color:var(--muted);font-size:.75rem;margin-top:12px;text-align:center">Primeira vez? Escolhe um nome e PIN. Próximas vezes usa o mesmo PIN para entrar.</p>
   <div style="margin-top:16px;text-align:center;padding-top:16px;border-top:1px solid var(--border)">
-    <button class="btn btn-green" style="min-width:200px" onclick="showHostCreate()">🎯 Criar Nova Competição</button>
+    <p style="color:var(--muted);font-size:.7rem;margin-bottom:8px">Apenas para administradores</p>
+    <button class="btn btn-green btn-sm" onclick="promptAdminCreate()">🎯 Criar Nova Competição</button>
   </div>
 </div>
 <div id="screen-host-create" class="card hidden">
   <h2 style="text-align:center;margin-bottom:16px">Criar Competição</h2>
-  <div class="form-group"><label>Teu Nome / Your Name</label><input type="text" id="host-name" placeholder="O teu nome" autocomplete="name"/></div>
+  <div class="form-group"><label>Teu Nome / Your Name</label><input type="text" id="host-name" placeholder="João Madeira" autocomplete="name"/></div>
   <div class="form-group"><label>Teu PIN (4 dígitos)</label><input type="password" id="host-pin" placeholder="••••" maxlength="4" pattern="[0-9]{4}" inputmode="numeric" autocomplete="off"/></div>
   <div class="form-group"><label>Nome da Competição</label><input type="text" id="host-comp-name" placeholder="World Cup 2026" value="Play Football with Friends"/></div>
   <button class="btn btn-gold btn-full" onclick="doCreateCompetition()">Criar / Create</button>
@@ -926,6 +927,17 @@ async function doCreateCompetition(){
 
 function showHostCreate(){hide('screen-auth');show('screen-host-create');}
 function showAuth(){hide('screen-host-create');show('screen-auth');}
+
+// ADMIN VERIFICATION - Only authorized users can create competitions
+const ADMIN_PIN='2026'; // Secret PIN - only you know this
+function promptAdminCreate(){
+  const pin=prompt('PIN de Administrador / Admin PIN:');
+  if(pin===ADMIN_PIN){
+    showHostCreate();
+  }else{
+    toast('PIN incorreto. Apenas administradores podem criar competições.',true);
+  }
+}
 
 async function doSignOut(){
   clearInterval(countdownInterval);clearInterval(apiPollTimer);
@@ -2337,7 +2349,7 @@ window.addEventListener('firebase-ready',startFirebase);
 if(window._fb) startFirebase();
 
 window.setLang=setLang;window.doSimpleAuth=doSimpleAuth;window.doCreateCompetition=doCreateCompetition;
-window.showHostCreate=showHostCreate;window.showAuth=showAuth;window.doSignOut=doSignOut;
+window.showHostCreate=showHostCreate;window.showAuth=showAuth;window.promptAdminCreate=promptAdminCreate;window.doSignOut=doSignOut;
 window.showTab=showTab;window.submitPredictions=submitPredictions;window.saveActualScores=saveActualScores;
 window.toggleUnlock=toggleUnlock;window.copyInvite=copyInvite;window.regenerateCode=regenerateCode;
 window.toggleAdmin=toggleAdmin;window.kickUser=kickUser;window.shareLeaderboard=shareLeaderboard;window.downloadLb=downloadLb;
