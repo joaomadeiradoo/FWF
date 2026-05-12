@@ -264,6 +264,17 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
   <div class="form-group"><label>Código de Convite</label><input type="text" id="auth-code" placeholder="XXXXXX" style="text-transform:uppercase" autocomplete="off"/></div>
   <button class="btn btn-gold btn-full" onclick="doSimpleAuth()">Entrar / Join</button>
   <p style="color:var(--muted);font-size:.75rem;margin-top:12px;text-align:center">Primeira vez? Escolhe um nome e PIN. Próximas vezes usa o mesmo PIN para entrar.</p>
+  <div style="margin-top:16px;text-align:center;padding-top:16px;border-top:1px solid var(--border)">
+    <button class="btn btn-green" style="min-width:200px" onclick="showHostCreate()">🎯 Criar Nova Competição</button>
+  </div>
+</div>
+<div id="screen-host-create" class="card hidden">
+  <h2 style="text-align:center;margin-bottom:16px">Criar Competição</h2>
+  <div class="form-group"><label>Teu Nome / Your Name</label><input type="text" id="host-name" placeholder="O teu nome" autocomplete="name"/></div>
+  <div class="form-group"><label>Teu PIN (4 dígitos)</label><input type="password" id="host-pin" placeholder="••••" maxlength="4" pattern="[0-9]{4}" inputmode="numeric" autocomplete="off"/></div>
+  <div class="form-group"><label>Nome da Competição</label><input type="text" id="host-comp-name" placeholder="World Cup 2026" value="Play Football with Friends"/></div>
+  <button class="btn btn-gold btn-full" onclick="doCreateCompetition()">Criar / Create</button>
+  <button class="btn btn-ghost btn-full" style="margin-top:8px" onclick="showAuth()">← Voltar</button>
 </div>
 <div id="screen-main" class="hidden">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:6px">
@@ -879,6 +890,43 @@ async function doSimpleAuth(){
   }
 }
 
+async function doCreateCompetition(){
+  if(!window._fb){toast('A carregar...',true);return;}
+  const name=$('host-name').value.trim();
+  const pin=$('host-pin').value.trim();
+  const compName=$('host-comp-name').value.trim();
+  
+  if(!name||!pin){toast('Preenche nome e PIN',true);return;}
+  if(pin.length!==4||!/^\d{4}$/.test(pin)){toast('PIN deve ter 4 dígitos',true);return;}
+  
+  const{signInAnonymously}=window._fb;
+  
+  try{
+    // Create anonymous account
+    const cred=await signInAnonymously(window._fb.auth);
+    const uid=cred.user.uid;
+    
+    // Create competition
+    const result=await createComp(uid,name,compName||'Play Football with Friends',pin);
+    
+    currentUser={uid,displayName:name};
+    currentCompId=result.id;
+    localStorage.setItem('fwf_uid',uid);
+    localStorage.setItem('fwf_name',name);
+    localStorage.setItem('fwf_pin',pin);
+    localStorage.setItem('fwf_comp',result.id);
+    
+    await initMainApp(uid);
+    toast(`Competição criada! Código: ${result.code}`);
+  }catch(e){
+    console.error(e);
+    toast('Erro: '+e.message,true);
+  }
+}
+
+function showHostCreate(){hide('screen-auth');show('screen-host-create');}
+function showAuth(){hide('screen-host-create');show('screen-auth');}
+
 async function doSignOut(){
   clearInterval(countdownInterval);clearInterval(apiPollTimer);
   localStorage.removeItem('fwf_uid');
@@ -891,12 +939,12 @@ async function doSignOut(){
 }
 
 // ═══ COMPETITION ═══
-async function createComp(uid,name,compName='Play Football with Friends'){
+async function createComp(uid,name,compName='Play Football with Friends',pin='0000'){
   const{db,doc,setDoc}=window._fb;
   const code=genCode(),id=`comp_${Date.now()}`;
   await setDoc(doc(db,'competitions',id),{
     name:compName,inviteCode:code,hostUid:uid,
-    rules:{...DEFAULT_RULES},members:{[uid]:{name,joinedAt:Date.now(),role:'host',pin:'0000'}},
+    rules:{...DEFAULT_RULES},members:{[uid]:{name,pin,joinedAt:Date.now(),role:'host'}},
     actualScores:{},predictions:{},playerChars:{},approvedTopScorers:{},
     ptsToggles:{groupWinner:true,groupSecond:true,round32:true},
     createdAt:Date.now()
@@ -2288,8 +2336,8 @@ function startFirebase(){
 window.addEventListener('firebase-ready',startFirebase);
 if(window._fb) startFirebase();
 
-window.setLang=setLang;window.doSimpleAuth=doSimpleAuth;
-window.doSignOut=doSignOut;
+window.setLang=setLang;window.doSimpleAuth=doSimpleAuth;window.doCreateCompetition=doCreateCompetition;
+window.showHostCreate=showHostCreate;window.showAuth=showAuth;window.doSignOut=doSignOut;
 window.showTab=showTab;window.submitPredictions=submitPredictions;window.saveActualScores=saveActualScores;
 window.toggleUnlock=toggleUnlock;window.copyInvite=copyInvite;window.regenerateCode=regenerateCode;
 window.toggleAdmin=toggleAdmin;window.kickUser=kickUser;window.shareLeaderboard=shareLeaderboard;window.downloadLb=downloadLb;
