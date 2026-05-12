@@ -189,6 +189,21 @@ input:checked+.toggle-slider{background:var(--green)}
 input:checked+.toggle-slider:before{transform:translateX(20px)}
 input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
 .pts-toggle-locked{background:rgba(45,198,83,.08);border-color:var(--green)}
+/* Wall of Fame */
+.wof-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:10px}
+.wof-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
+.wof-tournament{background:#0D1B2A;border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center;transition:transform .2s,border-color .2s}
+.wof-tournament:hover{transform:translateY(-2px);border-color:rgba(255,215,0,.4)}
+.wof-year{font-family:var(--fh);font-size:1.1rem;color:var(--gold);letter-spacing:1px;margin-bottom:4px}
+.wof-name{font-size:.7rem;color:var(--muted);margin-bottom:8px;line-height:1.3}
+.wof-winner{font-size:.75rem;font-weight:700;margin:4px 0;display:flex;align-items:center;justify-content:center;gap:4px}
+.wof-winner.first{color:var(--gold)}
+.wof-winner.second{color:#C0C0C0}
+.wof-winner.third{color:#CD7F32}
+.award-item{background:#0D1B2A;border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px}
+.award-title{font-family:var(--fh);font-size:1rem;color:var(--gold);letter-spacing:1px;margin-bottom:6px}
+.award-desc{font-size:.72rem;color:var(--muted);margin-bottom:8px}
+.award-winner{font-size:.85rem;font-weight:700;color:var(--text)}
 @media(max-width:640px){
   #bottom-nav{display:flex}.tabs{display:none}
   #app{padding:8px}.card{padding:12px;margin-bottom:10px}
@@ -216,6 +231,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
   <button class="bnav-btn" onclick="showTab('tab-predictions')" id="bnav-predictions"><span class="bi">🎯</span><span>Previsões</span></button>
   <button class="bnav-btn" onclick="showTab('tab-grupos')" id="bnav-grupos"><span class="bi">📋</span><span>Grupos</span></button>
   <button class="bnav-btn" onclick="showTab('tab-bracket')" id="bnav-bracket"><span class="bi">📊</span><span>Fases</span></button>
+  <button class="bnav-btn" onclick="showTab('tab-historia')" id="bnav-historia"><span class="bi">🏛️</span><span>História</span></button>
   <button class="bnav-btn" onclick="showTab('tab-rules')" id="bnav-rules"><span class="bi">📖</span><span>Regras</span></button>
   <button class="bnav-btn hidden" onclick="showTab('tab-host')" id="bnav-host"><span class="bi">⚙️</span><span>Host</span></button>
 </nav>
@@ -268,6 +284,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
     <button class="tab" onclick="showTab('tab-predictions')" id="tab-btn-predictions">🎯 Previsões</button>
     <button class="tab" onclick="showTab('tab-grupos')" id="tab-btn-grupos">📋 Grupos</button>
     <button class="tab" onclick="showTab('tab-bracket')" id="tab-btn-bracket">📊 Fases</button>
+    <button class="tab" onclick="showTab('tab-historia')" id="tab-btn-historia">🏛️ História</button>
     <button class="tab" onclick="showTab('tab-rules')" id="tab-btn-rules">📖 Regras</button>
     <button class="tab hidden" onclick="showTab('tab-host')" id="tab-btn-host">⚙️ Host</button>
   </div>
@@ -333,6 +350,18 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
       <div style="margin-top:14px;text-align:center">
         <button class="btn btn-gold" onclick="submitPredictions('bracket')" id="btn-submit-bracket">✅ Guardar Fases &amp; Goleador</button>
       </div>
+    </div>
+  </div>
+  <div id="tab-historia" class="tab-content">
+    <div class="card">
+      <h2>🏛️ Wall of Fame</h2>
+      <p style="color:var(--muted);font-size:.82rem;margin-bottom:16px">A história completa desde 2008. Desliza para ver todos os torneios.</p>
+      <div id="historia-content"></div>
+    </div>
+    <div class="card">
+      <h2>🏆 Troféus Especiais</h2>
+      <p style="color:var(--muted);font-size:.82rem;margin-bottom:14px">Estatísticas históricas dos melhores.</p>
+      <div id="awards-content"></div>
     </div>
   </div>
   <div id="tab-rules" class="tab-content">
@@ -696,6 +725,27 @@ const RULE_ITEMS=[
   {k:'runner_up',label:{pt:'Vice-campeão',en:'Runner-up'}},
   {k:'winner',label:{pt:'Campeão',en:'Champion'}},
   {k:'top_scorer',label:{pt:'Melhor marcador',en:'Top scorer'}},
+];
+
+// Historical tournaments data
+const TOURNAMENT_HISTORY=[
+  {year:2008,name:'CAN Ghana',type:'CAN',winner:'?',runnerUp:'?',third:'?'},
+  {year:2010,name:'CAN Angola',type:'CAN',winner:'João do Ó',runnerUp:'No records',third:'No record'},
+  {year:2010,name:'World Cup',type:'WC',winner:'João Covilhã Silva',runnerUp:'Nuno do Ó',third:'Filipe Figueiredo'},
+  {year:2012,name:'CAN Gabão/Guiné Equatorial',type:'CAN',winner:'Nuno Pistolas Santos',runnerUp:'Nuno do Ó',third:'Pedro Brandão'},
+  {year:2013,name:'CAN África do Sul',type:'CAN',winner:'Nuno Cordas',runnerUp:'Humberto Pina',third:'João Covilhã Silva'},
+  {year:2014,name:'World Cup Brazil',type:'WC',winner:'Liz Graham',runnerUp:'Luís Lemos',third:'Humberto Martins'},
+  {year:2015,name:'CAN Guiné Equatorial',type:'CAN',winner:'João Luís Mota',runnerUp:'Nuno Cordas',third:'Liz Graham'},
+  {year:2016,name:'Euro France',type:'EURO',winner:'Paulo Niza',runnerUp:'João Rodrigues',third:'António Valente'},
+  {year:2017,name:'CAN Gabão',type:'CAN',winner:'Filipe Figueiredo',runnerUp:'Hugo Igreja',third:'Luís Vargas Mota'},
+  {year:2018,name:'World Cup Russia',type:'WC',winner:'Mário Fonseca',runnerUp:'Bruno Banheiro',third:'Humberto Martins'},
+  {year:2019,name:'CAN Egito',type:'CAN',winner:'Humberto Martins',runnerUp:'Luís Mota',third:'João Luís Mota'},
+  {year:2021,name:'Euro',type:'EURO',winner:'Vlad Zhuravlev',runnerUp:'João Luís Mota',third:'Luís Mota'},
+  {year:2021,name:'CAN Camarões',type:'CAN',winner:'Paulo Niza',runnerUp:'João do Ó',third:'Luís Mota'},
+  {year:2022,name:'World Cup Qatar',type:'WC',winner:'Luís Vargas Mota',runnerUp:'Manuel Reis',third:'Humberto Martins'},
+  {year:2023,name:'CAN Costa do Marfim',type:'CAN',winner:'?',runnerUp:'?',third:'?'},
+  {year:2025,name:'CAN Marrocos',type:'CAN',winner:'João Eira',runnerUp:'Paulo Niza',third:'João do Ó'},
+  {year:2026,name:'World Cup',type:'WC',winner:'TBD',runnerUp:'TBD',third:'TBD'},
 ];
 
 function normalize(s){return(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim();}
@@ -1635,6 +1685,67 @@ function renderRules(){
   const c=$('rules-content');if(!c) return;
   c.innerHTML=`<div class="rules-grid">${RULE_ITEMS.map(it=>`<div class="rule-item"><span class="rule-label">${it.label[lang]}</span><span class="rule-val" style="color:${rules[it.k]<0?'var(--red)':'var(--gold)'}"> ${rules[it.k]>0?'+':''}${rules[it.k]}</span></div>`).join('')}</div>`;
 }
+
+// ═══ HISTÓRIA / WALL OF FAME ═══
+function renderHistoria(){
+  const c=$('historia-content');if(!c) return;
+  const getIcon=type=>{
+    if(type==='WC') return '⚽';
+    if(type==='EURO') return '🇪🇺';
+    if(type==='CAN') return '🌍';
+    return '🏆';
+  };
+  let html='<div class="wof-grid">';
+  TOURNAMENT_HISTORY.forEach(t=>{
+    const isCurrent=t.year===2026&&t.type==='WC';
+    html+=`<div class="wof-tournament${isCurrent?' style="border-color:var(--gold)"':''}"}>
+      <div class="wof-year">${getIcon(t.type)} ${t.year}</div>
+      <div class="wof-name">${t.name}</div>
+      ${t.winner!=='TBD'&&t.winner!=='?'?`<div class="wof-winner first">🥇 ${t.winner}</div>`:'<div class="wof-winner" style="color:var(--muted)">🥇 ${isCurrent?'Por decidir':'?'}</div>'}
+      ${t.runnerUp!=='TBD'&&t.runnerUp!=='?'?`<div class="wof-winner second">🥈 ${t.runnerUp}</div>`:'<div class="wof-winner" style="color:var(--muted)">🥈 ${isCurrent?'Por decidir':'?'}</div>'}
+      ${t.third!=='TBD'&&t.third!=='?'?`<div class="wof-winner third">🥉 ${t.third}</div>`:'<div class="wof-winner" style="color:var(--muted)">🥉 ${isCurrent?'Por decidir':'?'}</div>'}
+    </div>`;
+  });
+  html+='</div>';
+  c.innerHTML=html;
+  renderAwards();
+}
+
+function renderAwards(){
+  const ac=$('awards-content');if(!ac) return;
+  
+  // Calculate awards from history
+  const canWins={},euroWins={},wcWins={},runnerUps={},thirds={};
+  TOURNAMENT_HISTORY.forEach(t=>{
+    if(t.winner&&t.winner!=='TBD'&&t.winner!=='?'){
+      if(t.type==='CAN') canWins[t.winner]=(canWins[t.winner]||0)+1;
+      if(t.type==='EURO') euroWins[t.winner]=(euroWins[t.winner]||0)+1;
+      if(t.type==='WC') wcWins[t.winner]=(wcWins[t.winner]||0)+1;
+    }
+    if(t.runnerUp&&t.runnerUp!=='TBD'&&t.runnerUp!=='?'&&t.runnerUp!=='No records'){
+      runnerUps[t.runnerUp]=(runnerUps[t.runnerUp]||0)+1;
+    }
+    if(t.third&&t.third!=='TBD'&&t.third!=='?'&&t.third!=='No record'){
+      thirds[t.third]=(thirds[t.third]||0)+1;
+    }
+  });
+  
+  const topCan=Object.entries(canWins).sort((a,b)=>b[1]-a[1])[0];
+  const topEuro=Object.entries(euroWins).sort((a,b)=>b[1]-a[1])[0];
+  const topWC=Object.entries(wcWins).sort((a,b)=>b[1]-a[1])[0];
+  const topRunner=Object.entries(runnerUps).sort((a,b)=>b[1]-a[1])[0];
+  const topThird=Object.entries(thirds).sort((a,b)=>b[1]-a[1])[0];
+  
+  let html='';
+  if(topCan) html+=`<div class="award-item"><div class="award-title">🌍 CAN Supremo</div><div class="award-desc">Rei da Taça Africana de Nações</div><div class="award-winner">${topCan[0]} (${topCan[1]}× campeão)</div></div>`;
+  if(topEuro) html+=`<div class="award-item"><div class="award-title">🇪🇺 EuroVisionário</div><div class="award-desc">Mestre dos Europeus</div><div class="award-winner">${topEuro[0]} (${topEuro[1]}× campeão)</div></div>`;
+  if(topWC) html+=`<div class="award-item"><div class="award-title">⚽ Rei do Mundo</div><div class="award-desc">Dominador dos Mundiais</div><div class="award-winner">${topWC[0]} (${topWC[1]}× campeão)</div></div>`;
+  if(topRunner) html+=`<div class="award-item"><div class="award-title">💀 Eterno Segundo</div><div class="award-desc">Sempre perto, nunca lá</div><div class="award-winner">${topRunner[0]} (${topRunner[1]}× vice-campeão)</div></div>`;
+  if(topThird) html+=`<div class="award-item"><div class="award-title">🥉 Mr. Bronze</div><div class="award-desc">Especialista em 3º lugares</div><div class="award-winner">${topThird[0]} (${topThird[1]}× terceiro)</div></div>`;
+  
+  ac.innerHTML=html||`<p style="color:var(--muted);font-size:.82rem">Ainda sem dados suficientes para troféus especiais.</p>`;
+}
+
 function renderHostRules(){
   const c=$('host-rules-edit');if(!c) return;
   c.innerHTML=`<div class="rules-grid">${RULE_ITEMS.map(it=>`<div class="rule-item"><span class="rule-label">${it.label[lang]}</span><input class="rule-val-edit" type="number" data-rule="${it.k}" value="${rules[it.k]}"/></div>`).join('')}</div>`;
@@ -1886,6 +1997,7 @@ function showTab(id){
   if(id==='tab-leaderboard'){renderLeaderboard();renderOtherPreds();renderLive();}
   if(id==='tab-grupos') renderGruposTab();
   if(id==='tab-bracket'){renderBracket();renderBracketMobile();}
+  if(id==='tab-historia') renderHistoria();
   if(id==='tab-rules') renderRules();
   if(id==='tab-host'){renderHostScores();renderHostMembers();renderHostRules();renderHostPlayerChars();renderPtsToggles();getApiUsage().then(updateApiCounter);}
 }
