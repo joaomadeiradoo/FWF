@@ -931,10 +931,14 @@ function showAuth(){hide('screen-host-create');show('screen-auth');}
 // ADMIN VERIFICATION - Only authorized users can create competitions
 const ADMIN_PIN='2026'; // Secret PIN - only you know this
 function promptAdminCreate(){
+  console.log('promptAdminCreate called'); // DEBUG
   const pin=prompt('PIN de Administrador / Admin PIN:');
+  console.log('PIN entered:', pin); // DEBUG
   if(pin===ADMIN_PIN){
+    console.log('PIN correct, showing create screen'); // DEBUG
     showHostCreate();
   }else{
+    console.log('PIN incorrect'); // DEBUG
     toast('PIN incorreto. Apenas administradores podem criar competições.',true);
   }
 }
