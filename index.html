@@ -936,8 +936,9 @@ function promptAdminCreate(){
   console.log('PIN entered:', pin); // DEBUG
   if(pin===ADMIN_PIN){
     console.log('PIN correct, showing create screen'); // DEBUG
-    showHostCreate();
-  }else{
+    hide('screen-auth');
+    show('screen-host-create');
+  }else if(pin!==null){ // null means cancelled
     console.log('PIN incorrect'); // DEBUG
     toast('PIN incorreto. Apenas administradores podem criar competições.',true);
   }
