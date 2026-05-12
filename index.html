@@ -1937,12 +1937,12 @@ function renderHistoria(){
   let html='<div class="wof-grid">';
   TOURNAMENT_HISTORY.forEach(t=>{
     const isCurrent=t.year===2026&&t.type==='WC';
-    html+=`<div class="wof-tournament${isCurrent?' style="border-color:var(--gold)"':''}"}>
+    html+=`<div class="wof-tournament"${isCurrent?' style="border-color:var(--gold)"':''}>
       <div class="wof-year">${getIcon(t.type)} ${t.year}</div>
       <div class="wof-name">${t.name}</div>
-      ${t.winner!=='TBD'&&t.winner!=='?'?`<div class="wof-winner first">🥇 ${t.winner}</div>`:'<div class="wof-winner" style="color:var(--muted)">🥇 ${isCurrent?'Por decidir':'?'}</div>'}
-      ${t.runnerUp!=='TBD'&&t.runnerUp!=='?'?`<div class="wof-winner second">🥈 ${t.runnerUp}</div>`:'<div class="wof-winner" style="color:var(--muted)">🥈 ${isCurrent?'Por decidir':'?'}</div>'}
-      ${t.third!=='TBD'&&t.third!=='?'?`<div class="wof-winner third">🥉 ${t.third}</div>`:'<div class="wof-winner" style="color:var(--muted)">🥉 ${isCurrent?'Por decidir':'?'}</div>'}
+      ${t.winner!=='TBD'&&t.winner!=='?'?`<div class="wof-winner first">🥇 ${t.winner}</div>`:'<div class="wof-winner" style="color:var(--muted)">🥇 '+(isCurrent?'Por decidir':'?')+'</div>'}
+      ${t.runnerUp!=='TBD'&&t.runnerUp!=='?'?`<div class="wof-winner second">🥈 ${t.runnerUp}</div>`:'<div class="wof-winner" style="color:var(--muted)">🥈 '+(isCurrent?'Por decidir':'?')+'</div>'}
+      ${t.third!=='TBD'&&t.third!=='?'?`<div class="wof-winner third">🥉 ${t.third}</div>`:'<div class="wof-winner" style="color:var(--muted)">🥉 '+(isCurrent?'Por decidir':'?')+'</div>'}
     </div>`;
   });
   html+='</div>';
