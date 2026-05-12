@@ -1009,15 +1009,17 @@ async function initMainApp(uid){
   ptsToggles={groupWinner:true,groupSecond:true,round32:true,...(currentComp.ptsToggles||{})};
   userPredictions=allPredictions[uid]||{};
 
-  const nm=currentUser.displayName||'-';
+  const nm=(currentUser&&currentUser.displayName)||'-';
   $('user-name-display').textContent=nm;$('user-avatar').textContent=nm.charAt(0).toUpperCase();
-  $('user-comp-display').textContent=`${currentComp.name} · ${currentComp.inviteCode}`;
+  if(currentComp){
+    $('user-comp-display').textContent=`${currentComp.name} · ${currentComp.inviteCode}`;
+  }
   $('host-badge').classList.toggle('hidden',!isHost);
   $('admin-badge').classList.toggle('hidden',isHost||!isAdmin);
   $('tab-btn-host').classList.toggle('hidden',!isAdmin);
   const bnh=$('bnav-host');if(bnh) bnh.classList.toggle('hidden',!isAdmin);
   if(isHost){show('invite-section');show('rules-edit-section');}
-  const hic=$('host-invite-code');if(hic) hic.textContent=currentComp.inviteCode;
+  const hic=$('host-invite-code');if(hic&&currentComp) hic.textContent=currentComp.inviteCode;
 
   onSnapshot(doc(db,'competitions',currentCompId),sn=>{
     if(!sn.exists()) return;const d=sn.data();
