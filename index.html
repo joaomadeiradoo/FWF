@@ -934,13 +934,16 @@ function updateBanner(){
 function renderGroupMatches(){
   const c=$('group-matches');if(!c) return;
   const uid=currentUser?.uid;const editable=canEdit(uid);
-  let html='';let cg='';
-  for(const m of ALL_MATCHES){
+  // Sort matches by group first, then by original order within group
+  const sortedMatches=[...ALL_MATCHES].sort((a,b)=>a.group.localeCompare(b.group)||parseInt(a.id.slice(1))-parseInt(b.id.slice(1)));
+  let html='';let cg='';let groupMatchCount=0;
+  for(const m of sortedMatches){
     if(m.group!==cg){
       if(cg) html+='</div></div>';
-      cg=m.group;
+      cg=m.group;groupMatchCount=0;
       html+=`<div class="card" style="margin-bottom:10px"><h2 style="font-size:1.1rem">${lang==='pt'?'Grupo':'Group'} ${m.group}</h2><div>`;
     }
+    groupMatchCount++;
     const pred=userPredictions[m.id]||{home:'',away:''};
     const act=actualScores[m.id]||null;
     const pts=(act&&act.home!==undefined&&act.home!==''&&pred.home!=='')?calcMatch(pred,act):null;
@@ -949,7 +952,7 @@ function renderGroupMatches(){
     html+=`<div class="match-card">
       <div class="match-team home"><div>${fi(m.home,30)}</div><div class="team-name">${m.home}</div></div>
       <div class="match-center">
-        ${dateLbl}<div class="grp-lbl">Grupo ${m.group}</div>
+        ${dateLbl}<div class="grp-lbl">Jogo ${groupMatchCount}/6</div>
         <div class="match-score-row">
           <input class="score-input mp" type="number" min="0" max="20" placeholder="-" data-mid="${m.id}" data-side="home" value="${pred.home}" ${!editable?'disabled':''}>
           <span class="score-sep">:</span>
