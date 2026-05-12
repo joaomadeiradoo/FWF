@@ -266,7 +266,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
   <p style="color:var(--muted);font-size:.75rem;margin-top:12px;text-align:center">Primeira vez? Escolhe um nome e PIN. Próximas vezes usa o mesmo PIN para entrar.</p>
   <div style="margin-top:16px;text-align:center;padding-top:16px;border-top:1px solid var(--border)">
     <p style="color:var(--muted);font-size:.7rem;margin-bottom:8px">Apenas para administradores</p>
-    <button class="btn btn-green btn-sm" onclick="promptAdminCreate()">🎯 Criar Nova Competição</button>
+    <button class="btn btn-green btn-sm" onclick="(function(){const p=prompt('PIN Administrador:');if(p==='2026'){document.getElementById('screen-auth').classList.add('hidden');document.getElementById('screen-host-create').classList.remove('hidden');}else if(p){alert('PIN incorreto');}})()">🎯 Criar Nova Competição</button>
   </div>
 </div>
 <div id="screen-host-create" class="card hidden">
