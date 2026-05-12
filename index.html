@@ -599,7 +599,7 @@ function getBestThirds(scores){
     const s=groupStandings(grp,scores);
     if(s[2]) thirds.push({...s[2],group:grp});
   }
-  return thirds.sort((a,b)=>b.Pts-a.Pts||b.GD-a.GD||b.GF-a.GF).slice(0,8);
+  return thirds.sort((a,b)=>b.Pts-a.Pts||b.GD-a.GD||b.GF-a.GF||a.GA-b.GA).slice(0,8);
 }
 function getQualified32(scores){
   const q=[];
@@ -1823,7 +1823,7 @@ function scheduleApi(){
   if(msSince>48*86400000) ms=30*60*1000;
   if(msSince>54*86400000) ms=60*60*1000;
   if(msSince>58*86400000) ms=15*60*1000;
-  apiPollTimer=setInterval(()=>{fetchLive();if(Math.random()<0.25)fetchUpcoming();},ms);
+  apiPollTimer=setInterval(()=>{fetchLive();fetchUpcoming();},ms);
 }
 function renderLive(){
   const c=$('live-content');if(!c) return;
@@ -1837,7 +1837,7 @@ function renderLive(){
     return`<span class="pred-pill ${cls}">👤 ${ph}-${pa}</span>`;
   }
   let html='';
-  const manRecent=ALL_MATCHES.filter(m=>{const s=actualScores[m.id];return s&&s.home!==undefined&&s.home!=='';}).slice(-2).map(m=>({home:m.home,away:m.away,hs:actualScores[m.id].home,as:actualScores[m.id].away}));
+  const manRecent=ALL_MATCHES.filter(m=>{const s=actualScores[m.id];return s&&s.home!==undefined&&s.home!=='';}).slice(-5).map(m=>({home:m.home,away:m.away,hs:actualScores[m.id].home,as:actualScores[m.id].away}));
   const allRecent=[...recentData,...manRecent].slice(0,2);
   if(allRecent.length){
     html+=`<div style="margin-bottom:10px"><div class="sec-lbl">🏁 ${lang==='pt'?'Recentes':'Recent'}</div>`;
