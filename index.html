@@ -901,6 +901,15 @@ async function toggleAdmin(uid){
   members[uid].role=members[uid].role==='admin'?'member':'admin';
   await updateDoc(doc(db,'competitions',currentCompId),{members});toast(t('saved'));
 }
+async function kickUser(uid,name){
+  if(!isAdmin) return;
+  if(!confirm(lang==='pt'?`Expulsar ${name}? Esta ação remove o utilizador permanentemente da competição.`:`Kick ${name}? This permanently removes the user from the competition.`)) return;
+  const{db,doc,updateDoc}=window._fb;
+  const members={...allUsers};delete members[uid];
+  const preds={...allPredictions};delete preds[uid];
+  await updateDoc(doc(db,'competitions',currentCompId),{members,predictions:preds});
+  toast(lang==='pt'?'Utilizador expulso':'User kicked');
+}
 
 // ═══ INIT ═══
 async function initMainApp(uid){
@@ -1920,7 +1929,10 @@ function renderHostMembers(){
     <td>${u.name}${uid===currentUser.uid?' ⭐':''}</td>
     <td><span class="badge ${role==='host'?'badge-host':role==='admin'?'badge-admin':'badge-locked'}">${role.toUpperCase()}</span></td>
     <td class="${calcTotal(uid)>=0?'pts-pos':'pts-neg'}">${calcTotal(uid)>=0?'+':''}${calcTotal(uid)}</td>
-    <td>${isHost&&role!=='host'?`<button class="btn btn-ghost btn-sm" onclick="toggleAdmin('${uid}')">${role==='admin'?'↓ Remover':'↑ Admin'}</button>`:''}</td>
+    <td style="display:flex;gap:4px;flex-wrap:wrap">
+      ${isHost&&role!=='host'?`<button class="btn btn-ghost btn-sm" onclick="toggleAdmin('${uid}')">${role==='admin'?'↓ Remover':'↑ Admin'}</button>`:''} 
+      ${isAdmin&&role!=='host'?`<button class="btn btn-red btn-sm" onclick="kickUser('${uid}','${u.name}')" style="padding:6px 10px">🚫 Expulsar</button>`:''}
+    </td>
   </tr>`;}).join('')}</tbody></table>`;
   const uw=$('host-unlock');if(!uw) return;
   uw.innerHTML=members.map(([uid,u])=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);gap:7px;flex-wrap:wrap">
@@ -2030,10 +2042,34 @@ function scheduleApi(){
   clearInterval(apiPollTimer);if(!window.API_FOOTBALL_KEY) return;
   fetchUpcoming();fetchLive();
   const msSince=new Date()-TOURNAMENT_START;
-  let ms=20*60*1000;
-  if(msSince>48*86400000) ms=30*60*1000;
-  if(msSince>54*86400000) ms=60*60*1000;
-  if(msSince>58*86400000) ms=15*60*1000;
+  const daysIn=Math.floor(msSince/86400000);
+  
+  // Optimized polling intervals to stay under 92 calls/day
+  // Group stage: up to 4 matches/day, 90min each = 6 hours match time
+  // Knockout: 2 matches/day max, but with potential extra time (120min each)
+  let ms=20*60*1000; // Default: 20min = 72 calls/day
+  
+  if(daysIn>=0&&daysIn<20){
+    // Group stage (Jun 11-30): Many matches, but all 90min
+    ms=20*60*1000; // 20min = 72 calls/day
+  }else if(daysIn>=20&&daysIn<28){
+    // Round of 32 (Jul 1-8): 2 matches/day, potential ET (120min)
+    ms=25*60*1000; // 25min = 57.6 calls/day (safer for ET)
+  }else if(daysIn>=28&&daysIn<32){
+    // Round of 16 (Jul 9-12): 2 matches/day, potential ET
+    ms=25*60*1000; // 25min = 57.6 calls/day
+  }else if(daysIn>=32&&daysIn<36){
+    // Quarterfinals (Jul 13-16): 2 matches/day, potential ET
+    ms=30*60*1000; // 30min = 48 calls/day (more cautious for ET)
+  }else if(daysIn>=36&&daysIn<40){
+    // Semifinals (Jul 17-18): 1 match/day, potential ET+penalties
+    ms=35*60*1000; // 35min = 41 calls/day (very safe for ET+pens)
+  }else if(daysIn>=40){
+    // Finals (Jul 19): 3rd place + Final, both potential ET
+    // Final could be 120min + 30min penalties = 150min
+    ms=40*60*1000; // 40min = 36 calls/day (safest, accounts for long final)
+  }
+  
   apiPollTimer=setInterval(()=>{fetchLive();fetchUpcoming();},ms);
 }
 function renderLive(){
@@ -2116,7 +2152,7 @@ window.setLang=setLang;window.switchAuthTab=switchAuthTab;window.doLogin=doLogin
 window.doRegister=doRegister;window.doSignOut=doSignOut;window.joinCompetition=joinCompetition;
 window.showTab=showTab;window.submitPredictions=submitPredictions;window.saveActualScores=saveActualScores;
 window.toggleUnlock=toggleUnlock;window.copyInvite=copyInvite;window.regenerateCode=regenerateCode;
-window.toggleAdmin=toggleAdmin;window.shareLeaderboard=shareLeaderboard;window.downloadLb=downloadLb;
+window.toggleAdmin=toggleAdmin;window.kickUser=kickUser;window.shareLeaderboard=shareLeaderboard;window.downloadLb=downloadLb;
 window.downloadCSV=downloadCSV;window.saveRules=saveRules;window.savePlayerChars=savePlayerChars;
 window.reviewTopScorer=reviewTopScorer;window.approveTopScorer=approveTopScorer;window.forceFetch=forceFetch;
 window.pickWinner=pickWinner;window.setPtsToggle=setPtsToggle;window.launchPtsToggle=launchPtsToggle;
