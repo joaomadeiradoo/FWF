@@ -1954,33 +1954,61 @@ function renderAwards(){
   const ac=$('awards-content');if(!ac) return;
   
   // Calculate awards from history
-  const canWins={},euroWins={},wcWins={},runnerUps={},thirds={};
+  const stats={};
   TOURNAMENT_HISTORY.forEach(t=>{
-    if(t.winner&&t.winner!=='TBD'&&t.winner!=='?'){
-      if(t.type==='CAN') canWins[t.winner]=(canWins[t.winner]||0)+1;
-      if(t.type==='EURO') euroWins[t.winner]=(euroWins[t.winner]||0)+1;
-      if(t.type==='WC') wcWins[t.winner]=(wcWins[t.winner]||0)+1;
-    }
-    if(t.runnerUp&&t.runnerUp!=='TBD'&&t.runnerUp!=='?'&&!t.runnerUp.includes('No record')){
-      runnerUps[t.runnerUp]=(runnerUps[t.runnerUp]||0)+1;
-    }
-    if(t.third&&t.third!=='TBD'&&t.third!=='?'&&!t.third.includes('No record')){
-      thirds[t.third]=(thirds[t.third]||0)+1;
-    }
+    [
+      {name:t.winner,pos:1,type:t.type},
+      {name:t.runnerUp,pos:2,type:t.type},
+      {name:t.third,pos:3,type:t.type}
+    ].forEach(({name,pos,type})=>{
+      if(!name||name==='TBD'||name==='?'||name.includes('No record')) return;
+      
+      if(!stats[name]) stats[name]={
+        total:0,can:0,euro:0,wc:0,
+        wins:0,canWins:0,euroWins:0,wcWins:0,
+        seconds:0,thirds:0
+      };
+      
+      stats[name].total++;
+      if(type==='CAN') stats[name].can++;
+      if(type==='EURO') stats[name].euro++;
+      if(type==='WC') stats[name].wc++;
+      
+      if(pos===1){
+        stats[name].wins++;
+        if(type==='CAN') stats[name].canWins++;
+        if(type==='EURO') stats[name].euroWins++;
+        if(type==='WC') stats[name].wcWins++;
+      }
+      if(pos===2) stats[name].seconds++;
+      if(pos===3) stats[name].thirds++;
+    });
   });
   
-  const topCan=Object.entries(canWins).sort((a,b)=>b[1]-a[1])[0];
-  const topEuro=Object.entries(euroWins).sort((a,b)=>b[1]-a[1])[0];
-  const topWC=Object.entries(wcWins).sort((a,b)=>b[1]-a[1])[0];
-  const topRunner=Object.entries(runnerUps).sort((a,b)=>b[1]-a[1])[0];
-  const topThird=Object.entries(thirds).sort((a,b)=>b[1]-a[1])[0];
+  // CAN Supremo - most CAN podiums
+  const canLeader=Object.entries(stats)
+    .filter(([_,s])=>s.can>0)
+    .sort((a,b)=>b[1].can-a[1].can||b[1].canWins-a[1].canWins)[0];
+  
+  // Mr. Endurance - most total podiums
+  const endurance=Object.entries(stats)
+    .sort((a,b)=>b[1].total-a[1].total||b[1].wins-a[1].wins||b[1].seconds-a[1].seconds)[0];
+  
+  // Eterno Segundo - most runner-ups
+  const runner=Object.entries(stats)
+    .filter(([_,s])=>s.seconds>0)
+    .sort((a,b)=>b[1].seconds-a[1].seconds)[0];
+  
+  // Mr. Bronze - most third places
+  const bronze=Object.entries(stats)
+    .filter(([_,s])=>s.thirds>0)
+    .sort((a,b)=>b[1].thirds-a[1].thirds)[0];
   
   let html='';
-  if(topCan) html+=`<div class="award-item"><div class="award-title">🌍 CAN Supremo</div><div class="award-desc">Rei da Taça Africana de Nações</div><div class="award-winner">${topCan[0]} (${topCan[1]}× campeão)</div></div>`;
-  if(topEuro) html+=`<div class="award-item"><div class="award-title">🇪🇺 EuroVisionário</div><div class="award-desc">Mestre dos Europeus</div><div class="award-winner">${topEuro[0]} (${topEuro[1]}× campeão)</div></div>`;
-  if(topWC) html+=`<div class="award-item"><div class="award-title">⚽ Rei do Mundo</div><div class="award-desc">Dominador dos Mundiais</div><div class="award-winner">${topWC[0]} (${topWC[1]}× campeão)</div></div>`;
-  if(topRunner) html+=`<div class="award-item"><div class="award-title">💀 Eterno Segundo</div><div class="award-desc">Sempre perto, nunca lá</div><div class="award-winner">${topRunner[0]} (${topRunner[1]}× vice-campeão)</div></div>`;
-  if(topThird) html+=`<div class="award-item"><div class="award-title">🥉 Mr. Bronze</div><div class="award-desc">Especialista em 3º lugares</div><div class="award-winner">${topThird[0]} (${topThird[1]}× terceiro)</div></div>`;
+  if(canLeader) html+=`<div class="award-item"><div class="award-title">🌍 CAN Supremo</div><div class="award-desc">Rei da Taça Africana de Nações</div><div class="award-winner">${canLeader[0]} (${canLeader[1].can} pódios, ${canLeader[1].canWins}× campeão)</div></div>`;
+  if(endurance) html+=`<div class="award-item"><div class="award-title">🏃 Mr. Endurance</div><div class="award-desc">Sempre presente, sempre no pódio</div><div class="award-winner">${endurance[0]} (${endurance[1].total} pódios totais)</div></div>`;
+  if(runner) html+=`<div class="award-item"><div class="award-title">💀 Eterno Segundo</div><div class="award-desc">Sempre perto, nunca lá</div><div class="award-winner">${runner[0]} (${runner[1].seconds}× vice-campeão)</div></div>`;
+  if(bronze) html+=`<div class="award-item"><div class="award-title">🥉 Mr. Bronze</div><div class="award-desc">Especialista em 3º lugares</div><div class="award-winner">${bronze[0]} (${bronze[1].thirds}× terceiro)</div></div>`;
   
   ac.innerHTML=html||`<p style="color:var(--muted);font-size:.82rem">Ainda sem dados suficientes para troféus especiais.</p>`;
 }
