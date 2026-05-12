@@ -274,8 +274,8 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
   <div class="form-group"><label>Teu Nome / Your Name</label><input type="text" id="host-name" placeholder="João Madeira" autocomplete="name"/></div>
   <div class="form-group"><label>Teu PIN (4 dígitos)</label><input type="password" id="host-pin" placeholder="••••" maxlength="4" pattern="[0-9]{4}" inputmode="numeric" autocomplete="off"/></div>
   <div class="form-group"><label>Nome da Competição</label><input type="text" id="host-comp-name" placeholder="World Cup 2026" value="Play Football with Friends"/></div>
-  <button class="btn btn-gold btn-full" onclick="doCreateCompetition()">Criar / Create</button>
-  <button class="btn btn-ghost btn-full" style="margin-top:8px" onclick="showAuth()">← Voltar</button>
+  <button class="btn btn-gold btn-full" onclick="(async()=>{const $=id=>document.getElementById(id);const toast=(msg,err)=>{const e=document.getElementById('toast');if(e){e.textContent=msg;e.classList.toggle('error',err);e.classList.add('show');setTimeout(()=>e.classList.remove('show'),3200);}};if(!window._fb){toast('A carregar...',true);return;}const name=$('host-name').value.trim();const pin=$('host-pin').value.trim();const compName=$('host-comp-name').value.trim();if(!name||!pin){toast('Preenche nome e PIN',true);return;}if(pin.length!==4||!/^\\d{4}$/.test(pin)){toast('PIN deve ter 4 dígitos',true);return;}try{const cred=await window._fb.signInAnonymously(window._fb.auth);const uid=cred.user.uid;const result=await window.createComp(uid,name,compName||'Play Football with Friends',pin);window.currentUser={uid,displayName:name};window.currentCompId=result.id;localStorage.setItem('fwf_uid',uid);localStorage.setItem('fwf_name',name);localStorage.setItem('fwf_pin',pin);localStorage.setItem('fwf_comp',result.id);await window.initMainApp(uid);toast('Competição criada! Código: '+result.code);}catch(e){console.error(e);toast('Erro: '+e.message,true);}})()">Criar / Create</button>
+  <button class="btn btn-ghost btn-full" style="margin-top:8px" onclick="document.getElementById('screen-host-create').classList.add('hidden');document.getElementById('screen-auth').classList.remove('hidden');">← Voltar</button>
 </div>
 <div id="screen-main" class="hidden">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:6px">
@@ -2355,6 +2355,7 @@ if(window._fb) startFirebase();
 
 window.setLang=setLang;window.doSimpleAuth=doSimpleAuth;window.doCreateCompetition=doCreateCompetition;
 window.showHostCreate=showHostCreate;window.showAuth=showAuth;window.promptAdminCreate=promptAdminCreate;window.doSignOut=doSignOut;
+window.createComp=createComp;window.initMainApp=initMainApp;
 window.showTab=showTab;window.submitPredictions=submitPredictions;window.saveActualScores=saveActualScores;
 window.toggleUnlock=toggleUnlock;window.copyInvite=copyInvite;window.regenerateCode=regenerateCode;
 window.toggleAdmin=toggleAdmin;window.kickUser=kickUser;window.shareLeaderboard=shareLeaderboard;window.downloadLb=downloadLb;
