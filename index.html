@@ -432,11 +432,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
       </div>
       <div style="margin-bottom:18px">
         <h3 style="font-family:var(--fh);color:var(--gold);letter-spacing:1px;margin-bottom:6px;font-size:.95rem">⚽ Inserir Resultados Reais</h3>
-        <p style="color:var(--muted);font-size:.73rem;margin-bottom:10px">Por ordem de calendário FIFA. Classificação actualiza automaticamente.</p>
-        <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap">
-          <button class="btn btn-green btn-sm" onclick="autoFillScores()">📥 Auto-preencher da API</button>
-          <button class="btn btn-ghost btn-sm" onclick="saveActualScores()">💾 Guardar</button>
-        </div>
+        <p style="color:var(--muted);font-size:.73rem;margin-bottom:10px">API aplica automaticamente. Podes editar manualmente se necessário.</p>
         <div id="host-score-inputs"></div>
         <div style="margin-top:14px;padding:12px;background:#0D1B2A;border-radius:10px;border:1px solid var(--border)">
           <label style="font-size:.8rem;color:var(--muted);font-weight:600;display:block;margin-bottom:6px">Melhor marcador real (nome oficial)</label>
@@ -2028,7 +2024,14 @@ async function toggleUnlock(uid){
 async function saveActualScores(){
   if(!isAdmin) return;const{db,doc,updateDoc}=window._fb;
   const scores={...actualScores};
-  document.querySelectorAll('.ha').forEach(i=>{const id=i.dataset.mid,side=i.dataset.side;if(!scores[id])scores[id]={};if(i.value!=='')scores[id][side]=parseInt(i.value);});
+  document.querySelectorAll('.ha').forEach(i=>{
+    const id=i.dataset.mid,side=i.dataset.side;
+    if(!scores[id])scores[id]={source:'manual'};
+    if(i.value!==''){
+      scores[id][side]=parseInt(i.value);
+      scores[id].source='manual'; // Mark as manually entered
+    }
+  });
   const auto=autoGroupKeys(scores);for(const[k,v] of Object.entries(auto)) scores[k]=v;
   const ts=$('host-topscorer');if(ts&&ts.value) scores.topScorer=ts.value;
   await updateDoc(doc(db,'competitions',currentCompId),{actualScores:scores});toast(t('saved'));
@@ -2104,7 +2107,10 @@ async function fetchUpcoming(){
     await bumpApi('upcoming');const d=await r.json();
     if(d.response){
       upcomingData=d.response.filter(f=>f.fixture.status.short==='NS').slice(0,3).map(f=>({home:f.teams.home.name,away:f.teams.away.name,time:new Date(f.fixture.date).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}),venue:f.fixture.venue?.name||''}));
-      recentData=d.response.filter(f=>['FT','AET','PEN'].includes(f.fixture.status.short)).slice(-2).map(f=>({home:f.teams.home.name,away:f.teams.away.name,hs:f.goals.home,as:f.goals.away}));
+      recentData=d.response.filter(f=>['FT','AET','PEN'].includes(f.fixture.status.short)).slice(-5).map(f=>({home:f.teams.home.name,away:f.teams.away.name,hs:f.goals.home,as:f.goals.away}));
+      
+      // AUTO-APPLY SCORES: Apply finished matches to actualScores automatically
+      if(isAdmin) await autoApplyScores(recentData);
     }
     renderLive();
   }catch(e){console.warn('API:',e);}
@@ -2152,6 +2158,42 @@ function scheduleApi(){
   }
   
   apiPollTimer=setInterval(()=>{fetchLive();fetchUpcoming();},ms);
+}
+
+// ═══ AUTO-APPLY API SCORES ═══
+function normalizeTeamName(name){
+  // Remove flag emojis and normalize spacing
+  return name.replace(/[\u{1F1E6}-\u{1F1FF}]/gu,'').replace(/🇵🇹|🇧🇷|🇦🇷|🇫🇷|🇪🇸|🇩🇪|🇮🇹|🇬🇧|🏴󠁧󠁢󠁥󠁮󠁧󠁿|🇳🇱|🇧🇪|🇵🇹|🇲🇽|🇺🇸|🇨🇦/g,'').trim();
+}
+function matchTeams(match,apiHome,apiAway){
+  const mh=normalizeTeamName(match.home).toLowerCase();
+  const ma=normalizeTeamName(match.away).toLowerCase();
+  const ah=normalizeTeamName(apiHome).toLowerCase();
+  const aa=normalizeTeamName(apiAway).toLowerCase();
+  return (mh===ah||mh.includes(ah)||ah.includes(mh))&&(ma===aa||ma.includes(aa)||aa.includes(ma));
+}
+async function autoApplyScores(finishedMatches){
+  if(!isAdmin||!currentCompId) return;
+  const{db,doc,updateDoc}=window._fb;
+  let updated=false;
+  
+  for(const apiMatch of finishedMatches){
+    const found=ALL_MATCHES.find(m=>matchTeams(m,apiMatch.home,apiMatch.away));
+    if(found){
+      // Only apply if not already set OR if source was 'api' (allow API updates)
+      const existing=actualScores[found.id];
+      if(!existing||(existing.source==='api')){
+        actualScores[found.id]={home:apiMatch.hs,away:apiMatch.as,source:'api'};
+        updated=true;
+      }
+    }
+  }
+  
+  if(updated){
+    await updateDoc(doc(db,'competitions',currentCompId),{actualScores});
+    renderGroupMatches();renderGruposTab();renderBracket();renderBracketMobile();renderBracketSwipe();
+    renderLeaderboard();renderLive();
+  }
 }
 function renderLive(){
   const c=$('live-content');if(!c) return;
