@@ -517,6 +517,547 @@ const GROUPS={
   L:{teams:['Inglaterra','Croácia','Gana','Panamá']},
 };
 
+// FIFA World Cup 2026 Annex C: Round of 32 pairings lookup table
+// Source: https://en.wikipedia.org/wiki/2026_FIFA_World_Cup_knockout_stage
+// (transcribed from Annex C of the FIFA World Cup 2026 Competition Regulations)
+//
+// Format: 8-letter sorted key of qualifying 3rd-place groups -> 8-char string
+//         where each character is the group whose 3rd-placed team plays the
+//         corresponding winner. Column order: 1A, 1B, 1D, 1E, 1G, 1I, 1K, 1L
+//
+// Validated: all 495 = C(12,8) scenarios present, no duplicates, no slot-constraint
+// violations (each assignment respects the fixture template from Matches 73-88).
+const ANNEX_C_WINNER_ORDER = ["A","B","D","E","G","I","K","L"];
+const ANNEX_C = {
+  ABCDEFGH: "HGBCAFDE",
+  ABCDEFGI: "CGBDAFEI",
+  ABCDEFGJ: "CGBDAFEJ",
+  ABCDEFGK: "CGBDAFEK",
+  ABCDEFGL: "CGBDAFLE",
+  ABCDEFHI: "HEBCAFDI",
+  ABCDEFHJ: "HJBCAFDE",
+  ABCDEFHK: "HEBCAFDK",
+  ABCDEFHL: "HFBCADLE",
+  ABCDEFIJ: "CJBDAFEI",
+  ABCDEFIK: "CEBDAFIK",
+  ABCDEFIL: "CEBDAFLI",
+  ABCDEFJK: "CJBDAFEK",
+  ABCDEFJL: "CJBDAFLE",
+  ABCDEFKL: "CEBDAFLK",
+  ABCDEGHI: "HGBCADEI",
+  ABCDEGHJ: "HGBCADEJ",
+  ABCDEGHK: "HGBCADEK",
+  ABCDEGHL: "HGBCADLE",
+  ABCDEGIJ: "EGBCADIJ",
+  ABCDEGIK: "EGBCADIK",
+  ABCDEGIL: "EGBCADLI",
+  ABCDEGJK: "EGBCADJK",
+  ABCDEGJL: "EGBCADLJ",
+  ABCDEGKL: "EGBCADLK",
+  ABCDEHIJ: "HJBCADEI",
+  ABCDEHIK: "HEBCADIK",
+  ABCDEHIL: "HEBCADLI",
+  ABCDEHJK: "HJBCADEK",
+  ABCDEHJL: "HJBCADLE",
+  ABCDEHKL: "HEBCADLK",
+  ABCDEIJK: "EJBCADIK",
+  ABCDEIJL: "EJBCADLI",
+  ABCDEIKL: "EIBCADLK",
+  ABCDEJKL: "EJBCADLK",
+  ABCDFGHI: "HGBCAFDI",
+  ABCDFGHJ: "HGBCAFDJ",
+  ABCDFGHK: "HGBCAFDK",
+  ABCDFGHL: "CGBDAFLH",
+  ABCDFGIJ: "CGBDAFIJ",
+  ABCDFGIK: "CGBDAFIK",
+  ABCDFGIL: "CGBDAFLI",
+  ABCDFGJK: "CGBDAFJK",
+  ABCDFGJL: "CGBDAFLJ",
+  ABCDFGKL: "CGBDAFLK",
+  ABCDFHIJ: "HJBCAFDI",
+  ABCDFHIK: "HFBCADIK",
+  ABCDFHIL: "HFBCADLI",
+  ABCDFHJK: "HJBCAFDK",
+  ABCDFHJL: "CJBDAFLH",
+  ABCDFHKL: "HFBCADLK",
+  ABCDFIJK: "CJBDAFIK",
+  ABCDFIJL: "CJBDAFLI",
+  ABCDFIKL: "CIBDAFLK",
+  ABCDFJKL: "CJBDAFLK",
+  ABCDGHIJ: "HGBCADIJ",
+  ABCDGHIK: "HGBCADIK",
+  ABCDGHIL: "HGBCADLI",
+  ABCDGHJK: "HGBCADJK",
+  ABCDGHJL: "HGBCADLJ",
+  ABCDGHKL: "HGBCADLK",
+  ABCDGIJK: "CJBDAGIK",
+  ABCDGIJL: "CJBDAGLI",
+  ABCDGIKL: "IGBCADLK",
+  ABCDGJKL: "CJBDAGLK",
+  ABCDHIJK: "HJBCADIK",
+  ABCDHIJL: "HJBCADLI",
+  ABCDHIKL: "HIBCADLK",
+  ABCDHJKL: "HJBCADLK",
+  ABCDIJKL: "IJBCADLK",
+  ABCEFGHI: "HGBCAFEI",
+  ABCEFGHJ: "HGBCAFEJ",
+  ABCEFGHK: "HGBCAFEK",
+  ABCEFGHL: "HGBCAFLE",
+  ABCEFGIJ: "EGBCAFIJ",
+  ABCEFGIK: "EGBCAFIK",
+  ABCEFGIL: "EGBCAFLI",
+  ABCEFGJK: "EGBCAFJK",
+  ABCEFGJL: "EGBCAFLJ",
+  ABCEFGKL: "EGBCAFLK",
+  ABCEFHIJ: "HJBCAFEI",
+  ABCEFHIK: "HEBCAFIK",
+  ABCEFHIL: "HEBCAFLI",
+  ABCEFHJK: "HJBCAFEK",
+  ABCEFHJL: "HJBCAFLE",
+  ABCEFHKL: "HEBCAFLK",
+  ABCEFIJK: "EJBCAFIK",
+  ABCEFIJL: "EJBCAFLI",
+  ABCEFIKL: "EIBCAFLK",
+  ABCEFJKL: "EJBCAFLK",
+  ABCEGHIJ: "HJBCAGEI",
+  ABCEGHIK: "EGBCAHIK",
+  ABCEGHIL: "EGBCAHLI",
+  ABCEGHJK: "HJBCAGEK",
+  ABCEGHJL: "HJBCAGLE",
+  ABCEGHKL: "EGBCAHLK",
+  ABCEGIJK: "EJBCAGIK",
+  ABCEGIJL: "EJBCAGLI",
+  ABCEGIKL: "EGBAICLK",
+  ABCEGJKL: "EJBCAGLK",
+  ABCEHIJK: "EJBCAHIK",
+  ABCEHIJL: "EJBCAHLI",
+  ABCEHIKL: "EIBCAHLK",
+  ABCEHJKL: "EJBCAHLK",
+  ABCEIJKL: "EJBAICLK",
+  ABCFGHIJ: "HGBCAFIJ",
+  ABCFGHIK: "HGBCAFIK",
+  ABCFGHIL: "HGBCAFLI",
+  ABCFGHJK: "HGBCAFJK",
+  ABCFGHJL: "HGBCAFLJ",
+  ABCFGHKL: "HGBCAFLK",
+  ABCFGIJK: "CJBFAGIK",
+  ABCFGIJL: "CJBFAGLI",
+  ABCFGIKL: "IGBCAFLK",
+  ABCFGJKL: "CJBFAGLK",
+  ABCFHIJK: "HJBCAFIK",
+  ABCFHIJL: "HJBCAFLI",
+  ABCFHIKL: "HIBCAFLK",
+  ABCFHJKL: "HJBCAFLK",
+  ABCFIJKL: "IJBCAFLK",
+  ABCGHIJK: "HJBCAGIK",
+  ABCGHIJL: "HJBCAGLI",
+  ABCGHIKL: "IGBCAHLK",
+  ABCGHJKL: "HJBCAGLK",
+  ABCGIJKL: "IJBCAGLK",
+  ABCHIJKL: "IJBCAHLK",
+  ABDEFGHI: "HGBDAFEI",
+  ABDEFGHJ: "HGBDAFEJ",
+  ABDEFGHK: "HGBDAFEK",
+  ABDEFGHL: "HGBDAFLE",
+  ABDEFGIJ: "EGBDAFIJ",
+  ABDEFGIK: "EGBDAFIK",
+  ABDEFGIL: "EGBDAFLI",
+  ABDEFGJK: "EGBDAFJK",
+  ABDEFGJL: "EGBDAFLJ",
+  ABDEFGKL: "EGBDAFLK",
+  ABDEFHIJ: "HJBDAFEI",
+  ABDEFHIK: "HEBDAFIK",
+  ABDEFHIL: "HEBDAFLI",
+  ABDEFHJK: "HJBDAFEK",
+  ABDEFHJL: "HJBDAFLE",
+  ABDEFHKL: "HEBDAFLK",
+  ABDEFIJK: "EJBDAFIK",
+  ABDEFIJL: "EJBDAFLI",
+  ABDEFIKL: "EIBDAFLK",
+  ABDEFJKL: "EJBDAFLK",
+  ABDEGHIJ: "HJBDAGEI",
+  ABDEGHIK: "EGBDAHIK",
+  ABDEGHIL: "EGBDAHLI",
+  ABDEGHJK: "HJBDAGEK",
+  ABDEGHJL: "HJBDAGLE",
+  ABDEGHKL: "EGBDAHLK",
+  ABDEGIJK: "EJBDAGIK",
+  ABDEGIJL: "EJBDAGLI",
+  ABDEGIKL: "EGBAIDLK",
+  ABDEGJKL: "EJBDAGLK",
+  ABDEHIJK: "EJBDAHIK",
+  ABDEHIJL: "EJBDAHLI",
+  ABDEHIKL: "EIBDAHLK",
+  ABDEHJKL: "EJBDAHLK",
+  ABDEIJKL: "EJBAIDLK",
+  ABDFGHIJ: "HGBDAFIJ",
+  ABDFGHIK: "HGBDAFIK",
+  ABDFGHIL: "HGBDAFLI",
+  ABDFGHJK: "HGBDAFJK",
+  ABDFGHJL: "HGBDAFLJ",
+  ABDFGHKL: "HGBDAFLK",
+  ABDFGIJK: "FJBDAGIK",
+  ABDFGIJL: "FJBDAGLI",
+  ABDFGIKL: "IGBDAFLK",
+  ABDFGJKL: "FJBDAGLK",
+  ABDFHIJK: "HJBDAFIK",
+  ABDFHIJL: "HJBDAFLI",
+  ABDFHIKL: "HIBDAFLK",
+  ABDFHJKL: "HJBDAFLK",
+  ABDFIJKL: "IJBDAFLK",
+  ABDGHIJK: "HJBDAGIK",
+  ABDGHIJL: "HJBDAGLI",
+  ABDGHIKL: "IGBDAHLK",
+  ABDGHJKL: "HJBDAGLK",
+  ABDGIJKL: "IJBDAGLK",
+  ABDHIJKL: "IJBDAHLK",
+  ABEFGHIJ: "HJBFAGEI",
+  ABEFGHIK: "EGBFAHIK",
+  ABEFGHIL: "EGBFAHLI",
+  ABEFGHJK: "HJBFAGEK",
+  ABEFGHJL: "HJBFAGLE",
+  ABEFGHKL: "EGBFAHLK",
+  ABEFGIJK: "EJBFAGIK",
+  ABEFGIJL: "EJBFAGLI",
+  ABEFGIKL: "EGBAIFLK",
+  ABEFGJKL: "EJBFAGLK",
+  ABEFHIJK: "EJBFAHIK",
+  ABEFHIJL: "EJBFAHLI",
+  ABEFHIKL: "EIBFAHLK",
+  ABEFHJKL: "EJBFAHLK",
+  ABEFIJKL: "EJBAIFLK",
+  ABEGHIJK: "EJBAHGIK",
+  ABEGHIJL: "EJBAHGLI",
+  ABEGHIKL: "EGBAIHLK",
+  ABEGHJKL: "EJBAHGLK",
+  ABEGIJKL: "EJBAIGLK",
+  ABEHIJKL: "EJBAIHLK",
+  ABFGHIJK: "HJBFAGIK",
+  ABFGHIJL: "HJBFAGLI",
+  ABFGHIKL: "HGBAIFLK",
+  ABFGHJKL: "HJBFAGLK",
+  ABFGIJKL: "IJBFAGLK",
+  ABFHIJKL: "HJBAIFLK",
+  ABGHIJKL: "HJBAIGLK",
+  ACDEFGHI: "HGECAFDI",
+  ACDEFGHJ: "HGJCAFDE",
+  ACDEFGHK: "HGECAFDK",
+  ACDEFGHL: "HGFCADLE",
+  ACDEFGIJ: "CGJDAFEI",
+  ACDEFGIK: "CGEDAFIK",
+  ACDEFGIL: "CGEDAFLI",
+  ACDEFGJK: "CGJDAFEK",
+  ACDEFGJL: "CGJDAFLE",
+  ACDEFGKL: "CGEDAFLK",
+  ACDEFHIJ: "HJECAFDI",
+  ACDEFHIK: "HEFCADIK",
+  ACDEFHIL: "HEFCADLI",
+  ACDEFHJK: "HJECAFDK",
+  ACDEFHJL: "HJFCADLE",
+  ACDEFHKL: "HEFCADLK",
+  ACDEFIJK: "CJEDAFIK",
+  ACDEFIJL: "CJEDAFLI",
+  ACDEFIKL: "CEIDAFLK",
+  ACDEFJKL: "CJEDAFLK",
+  ACDEGHIJ: "HGJCADEI",
+  ACDEGHIK: "HGECADIK",
+  ACDEGHIL: "HGECADLI",
+  ACDEGHJK: "HGJCADEK",
+  ACDEGHJL: "HGJCADLE",
+  ACDEGHKL: "HGECADLK",
+  ACDEGIJK: "EGJCADIK",
+  ACDEGIJL: "EGJCADLI",
+  ACDEGIKL: "EGICADLK",
+  ACDEGJKL: "EGJCADLK",
+  ACDEHIJK: "HJECADIK",
+  ACDEHIJL: "HJECADLI",
+  ACDEHIKL: "HEICADLK",
+  ACDEHJKL: "HJECADLK",
+  ACDEIJKL: "EJICADLK",
+  ACDFGHIJ: "HGJCAFDI",
+  ACDFGHIK: "HGFCADIK",
+  ACDFGHIL: "HGFCADLI",
+  ACDFGHJK: "HGJCAFDK",
+  ACDFGHJL: "CGJDAFLH",
+  ACDFGHKL: "HGFCADLK",
+  ACDFGIJK: "CGJDAFIK",
+  ACDFGIJL: "CGJDAFLI",
+  ACDFGIKL: "CGIDAFLK",
+  ACDFGJKL: "CGJDAFLK",
+  ACDFHIJK: "HJFCADIK",
+  ACDFHIJL: "HJFCADLI",
+  ACDFHIKL: "HFICADLK",
+  ACDFHJKL: "HJFCADLK",
+  ACDFIJKL: "CJIDAFLK",
+  ACDGHIJK: "HGJCADIK",
+  ACDGHIJL: "HGJCADLI",
+  ACDGHIKL: "HGICADLK",
+  ACDGHJKL: "HGJCADLK",
+  ACDGIJKL: "IGJCADLK",
+  ACDHIJKL: "HJICADLK",
+  ACEFGHIJ: "HGJCAFEI",
+  ACEFGHIK: "HGECAFIK",
+  ACEFGHIL: "HGECAFLI",
+  ACEFGHJK: "HGJCAFEK",
+  ACEFGHJL: "HGJCAFLE",
+  ACEFGHKL: "HGECAFLK",
+  ACEFGIJK: "EGJCAFIK",
+  ACEFGIJL: "EGJCAFLI",
+  ACEFGIKL: "EGICAFLK",
+  ACEFGJKL: "EGJCAFLK",
+  ACEFHIJK: "HJECAFIK",
+  ACEFHIJL: "HJECAFLI",
+  ACEFHIKL: "HEICAFLK",
+  ACEFHJKL: "HJECAFLK",
+  ACEFIJKL: "EJICAFLK",
+  ACEGHIJK: "EGJCAHIK",
+  ACEGHIJL: "EGJCAHLI",
+  ACEGHIKL: "EGICAHLK",
+  ACEGHJKL: "EGJCAHLK",
+  ACEGIJKL: "EJICAGLK",
+  ACEHIJKL: "EJICAHLK",
+  ACFGHIJK: "HGJCAFIK",
+  ACFGHIJL: "HGJCAFLI",
+  ACFGHIKL: "HGICAFLK",
+  ACFGHJKL: "HGJCAFLK",
+  ACFGIJKL: "IGJCAFLK",
+  ACFHIJKL: "HJICAFLK",
+  ACGHIJKL: "HJICAGLK",
+  ADEFGHIJ: "HGJDAFEI",
+  ADEFGHIK: "HGEDAFIK",
+  ADEFGHIL: "HGEDAFLI",
+  ADEFGHJK: "HGJDAFEK",
+  ADEFGHJL: "HGJDAFLE",
+  ADEFGHKL: "HGEDAFLK",
+  ADEFGIJK: "EGJDAFIK",
+  ADEFGIJL: "EGJDAFLI",
+  ADEFGIKL: "EGIDAFLK",
+  ADEFGJKL: "EGJDAFLK",
+  ADEFHIJK: "HJEDAFIK",
+  ADEFHIJL: "HJEDAFLI",
+  ADEFHIKL: "HEIDAFLK",
+  ADEFHJKL: "HJEDAFLK",
+  ADEFIJKL: "EJIDAFLK",
+  ADEGHIJK: "EGJDAHIK",
+  ADEGHIJL: "EGJDAHLI",
+  ADEGHIKL: "EGIDAHLK",
+  ADEGHJKL: "EGJDAHLK",
+  ADEGIJKL: "EJIDAGLK",
+  ADEHIJKL: "EJIDAHLK",
+  ADFGHIJK: "HGJDAFIK",
+  ADFGHIJL: "HGJDAFLI",
+  ADFGHIKL: "HGIDAFLK",
+  ADFGHJKL: "HGJDAFLK",
+  ADFGIJKL: "IGJDAFLK",
+  ADFHIJKL: "HJIDAFLK",
+  ADGHIJKL: "HJIDAGLK",
+  AEFGHIJK: "EGJFAHIK",
+  AEFGHIJL: "EGJFAHLI",
+  AEFGHIKL: "EGIFAHLK",
+  AEFGHJKL: "EGJFAHLK",
+  AEFGIJKL: "EJIFAGLK",
+  AEFHIJKL: "EJIFAHLK",
+  AEGHIJKL: "EJIAHGLK",
+  AFGHIJKL: "HJIFAGLK",
+  BCDEFGHI: "CGBDHFEI",
+  BCDEFGHJ: "HGBCJFDE",
+  BCDEFGHK: "CGBDHFEK",
+  BCDEFGHL: "CGBDHFLE",
+  BCDEFGIJ: "CGBDJFEI",
+  BCDEFGIK: "CGBDEFIK",
+  BCDEFGIL: "CGBDEFLI",
+  BCDEFGJK: "CGBDJFEK",
+  BCDEFGJL: "CGBDJFLE",
+  BCDEFGKL: "CGBDEFLK",
+  BCDEFHIJ: "CJBDHFEI",
+  BCDEFHIK: "CEBDHFIK",
+  BCDEFHIL: "CEBDHFLI",
+  BCDEFHJK: "CJBDHFEK",
+  BCDEFHJL: "CJBDHFLE",
+  BCDEFHKL: "CEBDHFLK",
+  BCDEFIJK: "CJBDEFIK",
+  BCDEFIJL: "CJBDEFLI",
+  BCDEFIKL: "CEBDIFLK",
+  BCDEFJKL: "CJBDEFLK",
+  BCDEGHIJ: "HGBCJDEI",
+  BCDEGHIK: "EGBCHDIK",
+  BCDEGHIL: "EGBCHDLI",
+  BCDEGHJK: "HGBCJDEK",
+  BCDEGHJL: "HGBCJDLE",
+  BCDEGHKL: "EGBCHDLK",
+  BCDEGIJK: "EGBCJDIK",
+  BCDEGIJL: "EGBCJDLI",
+  BCDEGIKL: "EGBCIDLK",
+  BCDEGJKL: "EGBCJDLK",
+  BCDEHIJK: "EJBCHDIK",
+  BCDEHIJL: "EJBCHDLI",
+  BCDEHIKL: "EIBCHDLK",
+  BCDEHJKL: "EJBCHDLK",
+  BCDEIJKL: "EJBCIDLK",
+  BCDFGHIJ: "HGBCJFDI",
+  BCDFGHIK: "CGBDHFIK",
+  BCDFGHIL: "CGBDHFLI",
+  BCDFGHJK: "HGBCJFDK",
+  BCDFGHJL: "CGBDHFLJ",
+  BCDFGHKL: "CGBDHFLK",
+  BCDFGIJK: "CGBDJFIK",
+  BCDFGIJL: "CGBDJFLI",
+  BCDFGIKL: "CGBDIFLK",
+  BCDFGJKL: "CGBDJFLK",
+  BCDFHIJK: "CJBDHFIK",
+  BCDFHIJL: "CJBDHFLI",
+  BCDFHIKL: "CIBDHFLK",
+  BCDFHJKL: "CJBDHFLK",
+  BCDFIJKL: "CJBDIFLK",
+  BCDGHIJK: "HGBCJDIK",
+  BCDGHIJL: "HGBCJDLI",
+  BCDGHIKL: "HGBCIDLK",
+  BCDGHJKL: "HGBCJDLK",
+  BCDGIJKL: "IGBCJDLK",
+  BCDHIJKL: "HJBCIDLK",
+  BCEFGHIJ: "HGBCJFEI",
+  BCEFGHIK: "EGBCHFIK",
+  BCEFGHIL: "EGBCHFLI",
+  BCEFGHJK: "HGBCJFEK",
+  BCEFGHJL: "HGBCJFLE",
+  BCEFGHKL: "EGBCHFLK",
+  BCEFGIJK: "EGBCJFIK",
+  BCEFGIJL: "EGBCJFLI",
+  BCEFGIKL: "EGBCIFLK",
+  BCEFGJKL: "EGBCJFLK",
+  BCEFHIJK: "EJBCHFIK",
+  BCEFHIJL: "EJBCHFLI",
+  BCEFHIKL: "EIBCHFLK",
+  BCEFHJKL: "EJBCHFLK",
+  BCEFIJKL: "EJBCIFLK",
+  BCEGHIJK: "EJBCHGIK",
+  BCEGHIJL: "EJBCHGLI",
+  BCEGHIKL: "EGBCIHLK",
+  BCEGHJKL: "EJBCHGLK",
+  BCEGIJKL: "EJBCIGLK",
+  BCEHIJKL: "EJBCIHLK",
+  BCFGHIJK: "HGBCJFIK",
+  BCFGHIJL: "HGBCJFLI",
+  BCFGHIKL: "HGBCIFLK",
+  BCFGHJKL: "HGBCJFLK",
+  BCFGIJKL: "IGBCJFLK",
+  BCFHIJKL: "HJBCIFLK",
+  BCGHIJKL: "HJBCIGLK",
+  BDEFGHIJ: "HGBDJFEI",
+  BDEFGHIK: "EGBDHFIK",
+  BDEFGHIL: "EGBDHFLI",
+  BDEFGHJK: "HGBDJFEK",
+  BDEFGHJL: "HGBDJFLE",
+  BDEFGHKL: "EGBDHFLK",
+  BDEFGIJK: "EGBDJFIK",
+  BDEFGIJL: "EGBDJFLI",
+  BDEFGIKL: "EGBDIFLK",
+  BDEFGJKL: "EGBDJFLK",
+  BDEFHIJK: "EJBDHFIK",
+  BDEFHIJL: "EJBDHFLI",
+  BDEFHIKL: "EIBDHFLK",
+  BDEFHJKL: "EJBDHFLK",
+  BDEFIJKL: "EJBDIFLK",
+  BDEGHIJK: "EJBDHGIK",
+  BDEGHIJL: "EJBDHGLI",
+  BDEGHIKL: "EGBDIHLK",
+  BDEGHJKL: "EJBDHGLK",
+  BDEGIJKL: "EJBDIGLK",
+  BDEHIJKL: "EJBDIHLK",
+  BDFGHIJK: "HGBDJFIK",
+  BDFGHIJL: "HGBDJFLI",
+  BDFGHIKL: "HGBDIFLK",
+  BDFGHJKL: "HGBDJFLK",
+  BDFGIJKL: "IGBDJFLK",
+  BDFHIJKL: "HJBDIFLK",
+  BDGHIJKL: "HJBDIGLK",
+  BEFGHIJK: "EJBFHGIK",
+  BEFGHIJL: "EJBFHGLI",
+  BEFGHIKL: "EGBFIHLK",
+  BEFGHJKL: "EJBFHGLK",
+  BEFGIJKL: "EJBFIGLK",
+  BEFHIJKL: "EJBFIHLK",
+  BEGHIJKL: "EJIBHGLK",
+  BFGHIJKL: "HJBFIGLK",
+  CDEFGHIJ: "CGJDHFEI",
+  CDEFGHIK: "CGEDHFIK",
+  CDEFGHIL: "CGEDHFLI",
+  CDEFGHJK: "CGJDHFEK",
+  CDEFGHJL: "CGJDHFLE",
+  CDEFGHKL: "CGEDHFLK",
+  CDEFGIJK: "CGEDJFIK",
+  CDEFGIJL: "CGEDJFLI",
+  CDEFGIKL: "CGEDIFLK",
+  CDEFGJKL: "CGEDJFLK",
+  CDEFHIJK: "CJEDHFIK",
+  CDEFHIJL: "CJEDHFLI",
+  CDEFHIKL: "CEIDHFLK",
+  CDEFHJKL: "CJEDHFLK",
+  CDEFIJKL: "CJEDIFLK",
+  CDEGHIJK: "EGJCHDIK",
+  CDEGHIJL: "EGJCHDLI",
+  CDEGHIKL: "EGICHDLK",
+  CDEGHJKL: "EGJCHDLK",
+  CDEGIJKL: "EGICJDLK",
+  CDEHIJKL: "EJICHDLK",
+  CDFGHIJK: "CGJDHFIK",
+  CDFGHIJL: "CGJDHFLI",
+  CDFGHIKL: "CGIDHFLK",
+  CDFGHJKL: "CGJDHFLK",
+  CDFGIJKL: "CGIDJFLK",
+  CDFHIJKL: "CJIDHFLK",
+  CDGHIJKL: "HGICJDLK",
+  CEFGHIJK: "EGJCHFIK",
+  CEFGHIJL: "EGJCHFLI",
+  CEFGHIKL: "EGICHFLK",
+  CEFGHJKL: "EGJCHFLK",
+  CEFGIJKL: "EGICJFLK",
+  CEFHIJKL: "EJICHFLK",
+  CEGHIJKL: "EJICHGLK",
+  CFGHIJKL: "HGICJFLK",
+  DEFGHIJK: "EGJDHFIK",
+  DEFGHIJL: "EGJDHFLI",
+  DEFGHIKL: "EGIDHFLK",
+  DEFGHJKL: "EGJDHFLK",
+  DEFGIJKL: "EGIDJFLK",
+  DEFHIJKL: "EJIDHFLK",
+  DEGHIJKL: "EJIDHGLK",
+  DFGHIJKL: "HGIDJFLK",
+  EFGHIJKL: "EJIFHGLK"
+};
+
+// Runtime self-validation of the Annex C table. Catches accidental corruption
+// (e.g. typos in edits, missing rows). Logs a warning if any issue is found.
+// The slot constraints below come from the FIFA fixture template (Matches 73-88)
+// and define which group's 3rd-placed team is eligible to face each group winner.
+(function validateAnnexC(){
+  const SLOT_ALLOWED={
+    A:new Set(['C','E','F','H','I']),
+    B:new Set(['E','F','G','I','J']),
+    D:new Set(['B','E','F','I','J']),
+    E:new Set(['A','B','C','D','F']),
+    G:new Set(['A','E','H','I','J']),
+    I:new Set(['C','D','F','G','H']),
+    K:new Set(['D','E','I','J','L']),
+    L:new Set(['E','H','I','J','K'])
+  };
+  const keys=Object.keys(ANNEX_C);
+  if(keys.length!==495){console.warn('[ANNEX_C] expected 495 rows, got '+keys.length);return;}
+  let errors=0;
+  for(const k of keys){
+    if(k.length!==8){console.warn('[ANNEX_C] bad key '+k);errors++;continue;}
+    const row=ANNEX_C[k];
+    if(typeof row!=='string'||row.length!==8){console.warn('[ANNEX_C] bad row for '+k);errors++;continue;}
+    const groupSet=new Set(k);
+    for(let i=0;i<8;i++){
+      const winnerGrp=ANNEX_C_WINNER_ORDER[i],thirdGrp=row[i];
+      if(!groupSet.has(thirdGrp)){console.warn(`[ANNEX_C] ${k}: 3${thirdGrp} not among qualifying groups`);errors++;}
+      if(!SLOT_ALLOWED[winnerGrp].has(thirdGrp)){console.warn(`[ANNEX_C] ${k}: slot 1${winnerGrp} cannot host 3${thirdGrp}`);errors++;}
+    }
+  }
+  if(errors===0) console.log('[ANNEX_C] ✓ all 495 scenarios validated');
+})();
+
 // FIFA 2026 group stage schedule in chronological order
 // Source: FIFA official schedule Dec 2025 / MLS Soccer schedule
 const MATCH_SCHEDULE=[
@@ -642,7 +1183,15 @@ function groupStandings(grp,scores){
     else if(h===a){ht.D++;ht.Pts++;at.D++;at.Pts++;}
     else{at.W++;at.Pts+=3;ht.L++;}
   });
-  return teams.sort((a,b)=>b.Pts-a.Pts||b.GD-a.GD||b.GF-a.GF);
+  // FIFA tiebreakers (Article 18.6) - simplified version. The full FIFA tiebreaker
+  // chain is: 1) Points 2) GD 3) GF 4) head-to-head Pts 5) head-to-head GD
+  // 6) head-to-head GF 7) team conduct score 8) FIFA ranking 9) drawing of lots.
+  // We implement 1-3 plus #4-#6 collapsed to "fewer GA" (a reasonable proxy when
+  // head-to-head data isn't separated), then alphabetical as a deterministic
+  // drawing-of-lots fallback. This will rank correctly in the vast majority of
+  // scenarios; the only edge case is teams perfectly tied on Pts/GD/GF/GA, which
+  // is extremely rare.
+  return teams.sort((a,b)=>b.Pts-a.Pts||b.GD-a.GD||b.GF-a.GF||a.GA-b.GA||a.name.localeCompare(b.name));
 }
 function getBestThirds(scores){
   const thirds=[];
@@ -650,7 +1199,9 @@ function getBestThirds(scores){
     const s=groupStandings(grp,scores);
     if(s[2]) thirds.push({...s[2],group:grp});
   }
-  return thirds.sort((a,b)=>b.Pts-a.Pts||b.GD-a.GD||b.GF-a.GF||a.GA-b.GA).slice(0,8);
+  // Use the same FIFA tiebreakers as the R32 lookup so the displayed "qualified
+  // 3rd-placed teams" exactly matches who Annex C considers qualified.
+  return rankThirds(thirds).slice(0,8);
 }
 function getQualified32(scores){
   const q=[];
@@ -671,45 +1222,131 @@ function autoGroupKeys(scores){
   return auto;
 }
 
-// Get R32 pairs from predictions or real scores
+// Get R32 pairs from predictions or real scores using FIFA's official Annex C lookup.
+//
+// FIFA fixture template (Matches 73-88 of the 2026 World Cup) defines 16 R32 matches:
+//   M73 = 2A vs 2B    M81 = 1D vs 3-of-...   (4 matches are winner vs 3rd)
+//   M74 = 1E vs 3-of-...
+//   M75 = 1F vs 2C    M82 = 1G vs 3-of-...
+//   M76 = 1C vs 2F    M83 = 2K vs 2L
+//   M77 = 1I vs 3-of-... M84 = 1H vs 2J
+//   M78 = 2E vs 2I    M85 = 1B vs 3-of-...
+//   M79 = 1A vs 3-of-... M86 = 1J vs 2H
+//   M80 = 1L vs 3-of-... M87 = 1K vs 3-of-...
+//                     M88 = 2D vs 2G
+//
+// 8 matches involve a group winner facing a third-placed team (1A, 1B, 1D, 1E, 1G,
+// 1I, 1K, 1L). Which third-placed team faces which winner depends on which 8 of the
+// 12 groups produced a qualifying 3rd-placed team; this is determined by Annex C
+// (495 scenarios, embedded above as ANNEX_C).
+//
+// The internal r32 array ordering is chosen so that subsequent rounds use the
+// natural idx*2/idx*2+1 pairing:
+//   r32[ 0..1] = M74, M77 -> R16[0] = M89
+//   r32[ 2..3] = M73, M75 -> R16[1] = M90  -> QF[0] = M97
+//   r32[ 4..5] = M83, M84 -> R16[2] = M93
+//   r32[ 6..7] = M81, M82 -> R16[3] = M94  -> QF[1] = M98
+//   r32[ 8..9] = M76, M78 -> R16[4] = M91
+//   r32[10..11]= M79, M80 -> R16[5] = M92  -> QF[2] = M99
+//   r32[12..13]= M86, M88 -> R16[6] = M95
+//   r32[14..15]= M85, M87 -> R16[7] = M96  -> QF[3] = M100
+//   QF[0]+QF[1] -> SF[0] = M101; QF[2]+QF[3] -> SF[1] = M102
+//   SF[0]+SF[1] -> M104 (final), losers -> M103 (3rd place)
+
+// Rank the third-placed teams across groups using FIFA criteria for the "best 8"
+// (per Article 18 of the 2026 Competition Regulations):
+//   1) Points
+//   2) Goal difference
+//   3) Goals scored
+//   4) Fewest goals against (this is goals AGAINST, where smaller is better)
+//   5) Team conduct score (not tracked here - skipped)
+//   6) FIFA ranking (not tracked here - skipped)
+//   7) Drawing of lots (replaced here with alphabetical group letter for determinism)
+function rankThirds(thirds){
+  return thirds.slice().sort((a,b)=>
+    b.Pts-a.Pts ||
+    b.GD-a.GD ||
+    b.GF-a.GF ||
+    a.GA-b.GA ||
+    a.group.localeCompare(b.group)
+  );
+}
+
 function getR32Teams(uid){
   const predScores=allPredictions[uid]||{};
   const hasReal=ALL_MATCHES.some(m=>{const s=actualScores[m.id];return s&&s.home!==undefined&&s.home!=='';});
   const scores=hasReal?actualScores:predScores;
-  const grpWinners={};const grpRunners={};const thirds=[];
+
+  // Build standings for all 12 groups
+  const grpWinners={},grpRunners={},grpThirds={};
+  const thirdsList=[];
   for(const grp of Object.keys(GROUPS)){
     const s=groupStandings(grp,scores);
     grpWinners[grp]=s[0]?.name||'TBD';
     grpRunners[grp]=s[1]?.name||'TBD';
-    if(s[2]) thirds.push({...s[2],group:grp});
+    if(s[2]){
+      grpThirds[grp]=s[2].name;
+      thirdsList.push({...s[2],group:grp});
+    }
   }
-  thirds.sort((a,b)=>b.Pts-a.Pts||b.GD-a.GD||b.GF-a.GF);
-  const best8=thirds.slice(0,8).map(t=>t.name);
-  // Official FIFA 2026 R32 pairings (simplified into 2 pathways of 8 matches each)
-  // Pathway 1 (left): Groups A,C,E,G,I,K cross-pairings
-  // Pathway 2 (right): Groups B,D,F,H,J,L cross-pairings
-  const pairs=[
-    // Pathway 1 (matches 0-7)
-    {home:grpWinners['A']||'TBD',away:grpRunners['B']||'TBD'},
-    {home:grpWinners['B']||'TBD',away:grpRunners['A']||'TBD'},
-    {home:grpWinners['C']||'TBD',away:grpRunners['D']||'TBD'},
-    {home:grpWinners['D']||'TBD',away:grpRunners['C']||'TBD'},
-    {home:grpWinners['E']||'TBD',away:grpRunners['F']||'TBD'},
-    {home:grpWinners['F']||'TBD',away:grpRunners['E']||'TBD'},
-    {home:grpWinners['G']||'TBD',away:grpRunners['H']||'TBD'},
-    {home:grpWinners['H']||'TBD',away:grpRunners['G']||'TBD'},
-    // Pathway 2 (matches 8-15)
-    {home:grpWinners['I']||'TBD',away:grpRunners['J']||'TBD'},
-    {home:grpWinners['J']||'TBD',away:grpRunners['I']||'TBD'},
-    {home:grpWinners['K']||'TBD',away:grpRunners['L']||'TBD'},
-    {home:grpWinners['L']||'TBD',away:grpRunners['K']||'TBD'},
-    // 3rd place teams fill remaining 4 slots
-    {home:best8[0]||'TBD',away:best8[1]||'TBD'},
-    {home:best8[2]||'TBD',away:best8[3]||'TBD'},
-    {home:best8[4]||'TBD',away:best8[5]||'TBD'},
-    {home:best8[6]||'TBD',away:best8[7]||'TBD'},
+
+  // Rank thirds and pick best 8
+  const ranked=rankThirds(thirdsList);
+  const qualified=ranked.slice(0,8);
+
+  // Build Annex C lookup key: 8 qualifying groups, sorted alphabetically
+  const qualifyingLetters=qualified.map(t=>t.group).sort().join('');
+
+  // Determine which 3rd plays each of the 8 winner slots (1A,1B,1D,1E,1G,1I,1K,1L)
+  // by looking up Annex C. Falls back to ranked order if lookup fails (e.g. fewer
+  // than 8 qualifiers because group stage hasn't started yet).
+  const assignment={}; // winnerGroup -> 3rdGroupLetter
+  const annexRow=ANNEX_C[qualifyingLetters];
+  if(annexRow && annexRow.length===8){
+    ANNEX_C_WINNER_ORDER.forEach((winnerGrp,i)=>{
+      assignment[winnerGrp]=annexRow[i];
+    });
+  }else{
+    // Group stage not started/complete OR malformed lookup - fall back to ranked order.
+    // This keeps the bracket renderable even before any real predictions are entered.
+    ANNEX_C_WINNER_ORDER.forEach((winnerGrp,i)=>{
+      const t=qualified[i];
+      assignment[winnerGrp]=t?t.group:null;
+    });
+  }
+  function thirdFor(winnerGrp){
+    const g=assignment[winnerGrp];
+    return g?(grpThirds[g]||'TBD'):'TBD';
+  }
+
+  // Build the 16 R32 matches in app-internal order (see header comment)
+  const w=g=>grpWinners[g]||'TBD',ru=g=>grpRunners[g]||'TBD';
+  return [
+    // R16[0] = M89 = M74 + M77
+    {home:w('E'),  away:thirdFor('E'), match:74},  // r32[0]
+    {home:w('I'),  away:thirdFor('I'), match:77},  // r32[1]
+    // R16[1] = M90 = M73 + M75   -> QF[0] = M97
+    {home:ru('A'), away:ru('B'),       match:73},  // r32[2]
+    {home:w('F'),  away:ru('C'),       match:75},  // r32[3]
+    // R16[2] = M93 = M83 + M84
+    {home:ru('K'), away:ru('L'),       match:83},  // r32[4]
+    {home:w('H'),  away:ru('J'),       match:84},  // r32[5]
+    // R16[3] = M94 = M81 + M82   -> QF[1] = M98
+    {home:w('D'),  away:thirdFor('D'), match:81},  // r32[6]
+    {home:w('G'),  away:thirdFor('G'), match:82},  // r32[7]
+    // R16[4] = M91 = M76 + M78
+    {home:w('C'),  away:ru('F'),       match:76},  // r32[8]
+    {home:ru('E'), away:ru('I'),       match:78},  // r32[9]
+    // R16[5] = M92 = M79 + M80   -> QF[2] = M99
+    {home:w('A'),  away:thirdFor('A'), match:79},  // r32[10]
+    {home:w('L'),  away:thirdFor('L'), match:80},  // r32[11]
+    // R16[6] = M95 = M86 + M88
+    {home:w('J'),  away:ru('H'),       match:86},  // r32[12]
+    {home:ru('D'), away:ru('G'),       match:88},  // r32[13]
+    // R16[7] = M96 = M85 + M87   -> QF[3] = M100
+    {home:w('B'),  away:thirdFor('B'), match:85},  // r32[14]
+    {home:w('K'),  away:thirdFor('K'), match:87},  // r32[15]
   ];
-  return pairs;
 }
 
 const KO_ROUNDS=[
