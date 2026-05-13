@@ -362,7 +362,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
         <h2 style="font-size:1.1rem;margin-bottom:8px">🥇 Melhor Marcador</h2>
         <div class="form-group" style="max-width:300px">
           <label>Jogador que prevês como melhor marcador</label>
-          <input type="text" id="topscorer-input" placeholder="Escreve o nome..." autocomplete="off"/>
+          <input type="text" id="topscorer-input" placeholder="Escreve o nome..." autocomplete="off" oninput="markUnsaved()"/>
         </div>
       </div>
       <div style="margin-top:14px;text-align:center">
@@ -780,6 +780,12 @@ function fuzzyScore(a,b){
 let currentUser=null,currentComp=null,currentCompId=null;
 let isHost=false,isAdmin=false;
 let userPredictions={},allPredictions={},allUsers={},actualScores={},approvedTopScorers={};
+// True when the user has typed something in the predictions form but not yet
+// submitted. While true, onSnapshot will NOT overwrite userPredictions from
+// Firestore, so concurrent updates from other users / the API can't wipe
+// what the current user is in the middle of entering.
+let hasUnsavedEdits=false;
+function markUnsaved(){hasUnsavedEdits=true;}
 let rules={...DEFAULT_RULES},predictionsLocked=false,countdownInterval=null,prevLb=[];
 let liveData=[],upcomingData=[],recentData=[];
 let apiPollTimer=null;
@@ -1061,8 +1067,14 @@ async function initMainApp(uid){
     actualScores=d.actualScores||{};allPredictions=d.predictions||{};
     allUsers=d.members||{};approvedTopScorers=d.approvedTopScorers||{};
     ptsToggles={groupWinner:true,groupSecond:true,round32:true,...(d.ptsToggles||{})};
-    userPredictions=allPredictions[uid]||{};
-    renderGroupMatches();renderGruposTab();renderBracket();renderBracketMobile();renderBracketSwipe();
+    // Only overwrite local userPredictions from Firestore if the user is NOT
+    // currently editing. Otherwise we'd wipe whatever they just typed but
+    // haven't yet submitted.
+    if(!hasUnsavedEdits){
+      userPredictions=allPredictions[uid]||{};
+      renderGroupMatches();
+    }
+    renderGruposTab();renderBracket();renderBracketMobile();renderBracketSwipe();
     renderLeaderboard();renderOtherPreds();renderLive();
     if(isAdmin){renderHostScores();renderHostMembers();renderHostRules();renderHostPlayerChars();renderPtsToggles();}
   });
@@ -1155,6 +1167,7 @@ function renderGroupMatches(){
       const mid=e.target.dataset.mid,side=e.target.dataset.side;
       if(!userPredictions[mid]) userPredictions[mid]={home:'',away:''};
       userPredictions[mid][side]=e.target.value;
+      hasUnsavedEdits=true;
     }));
   }
 }
@@ -1256,6 +1269,7 @@ function pickWinner(round,matchIdx,team){
   }
 
   setBP(bp);
+  hasUnsavedEdits=true;
   renderBracket();renderBracketMobile();renderBracketSwipe();
 }
 function getActualWinner(round,matchIdx){
@@ -2210,14 +2224,46 @@ async function submitPredictions(mode){
   const uid=currentUser?.uid;if(!uid) return;
   if(!canEdit(uid)){toast(t('predLocked'),true);return;}
   if(mode==='group'){
-    const allFilled=ALL_MATCHES.every(m=>{const p=userPredictions[m.id]||{};return p.home!==''&&p.home!==undefined&&p.away!==''&&p.away!==undefined;});
-    if(!allFilled){toast(t('submitAll'),true);return;}
+    // Read directly from the DOM. userPredictions in memory may be stale because
+    // onSnapshot can re-hydrate it from Firestore at any time (e.g. when another
+    // user saves, the API applies scores, or auto-login migrates a UID).
+    // The DOM is the source of truth for what the user just typed.
+    const inputs=document.querySelectorAll('#group-matches .mp');
+    const collected={};
+    inputs.forEach(inp=>{
+      const mid=inp.dataset.mid,side=inp.dataset.side;
+      if(!collected[mid]) collected[mid]={home:'',away:''};
+      collected[mid][side]=inp.value;
+    });
+    // Merge into userPredictions so we don't lose any keys that aren't currently
+    // rendered (e.g. autoGroupKeys output stored previously).
+    Object.keys(collected).forEach(mid=>{
+      userPredictions[mid]={...(userPredictions[mid]||{}),...collected[mid]};
+    });
+    const allFilled=ALL_MATCHES.every(m=>{
+      const p=userPredictions[m.id]||{};
+      return p.home!==''&&p.home!==undefined&&p.home!==null
+          && p.away!==''&&p.away!==undefined&&p.away!==null;
+    });
+    if(!allFilled){
+      // Help the user find which match is missing
+      const missing=ALL_MATCHES.find(m=>{const p=userPredictions[m.id]||{};return p.home===''||p.home===undefined||p.home===null||p.away===''||p.away===undefined||p.away===null;});
+      console.warn('Missing prediction for match:',missing?.id,missing?.home,'vs',missing?.away,userPredictions[missing?.id]);
+      toast(t('submitAll'),true);return;
+    }
     const auto=autoGroupKeys(userPredictions);for(const[k,v] of Object.entries(auto)) if(!userPredictions[k]) userPredictions[k]=v;
   }
   if(mode==='bracket'){const ts=$('topscorer-input');if(ts) userPredictions.topScorer=ts.value;}
   const{db,doc,updateDoc}=window._fb;
-  await updateDoc(doc(db,'competitions',currentCompId),{[`predictions.${uid}`]:userPredictions});
+  try{
+    await updateDoc(doc(db,'competitions',currentCompId),{[`predictions.${uid}`]:userPredictions});
+  }catch(e){
+    console.error('Failed to save predictions:',e);
+    toast('Erro a guardar: '+e.message,true);
+    return; // keep hasUnsavedEdits=true so user can retry
+  }
   allPredictions[uid]={...userPredictions};
+  hasUnsavedEdits=false;
   toast(t('saved'));updateBanner();renderLeaderboard();renderOtherPreds();renderGruposTab();renderBracket();renderBracketMobile();renderBracketSwipe();
 }
 
@@ -2491,7 +2537,7 @@ function clearStoredAuth(){
 window.addEventListener('firebase-ready',startFirebase);
 if(window._fb) startFirebase();
 
-window.setLang=setLang;window.doSimpleAuth=doSimpleAuth;window.doCreateCompetition=doCreateCompetition;
+window.setLang=setLang;window.doSimpleAuth=doSimpleAuth;window.doCreateCompetition=doCreateCompetition;window.markUnsaved=markUnsaved;
 window.showHostCreate=showHostCreate;window.showAuth=showAuth;window.promptAdminCreate=promptAdminCreate;window.doSignOut=doSignOut;
 window.createComp=createComp;window.initMainApp=initMainApp;
 window.showTab=showTab;window.submitPredictions=submitPredictions;window.saveActualScores=saveActualScores;
