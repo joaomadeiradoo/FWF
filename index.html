@@ -457,8 +457,8 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
 <script>
 // ═══ TRANSLATIONS ═══
 const T={
-  pt:{sub:"2026 · EUA · CANADÁ · MÉXICO",deadlineClosed:"⛔ Apostas encerradas.",deadlineOpen:"Apostas fecham 24h antes do 1.º jogo.",saved:"Guardado!",copied:"Copiado!",predOpen:"✅ Submetido. Podes editar até ao prazo.",predLocked:"🔒 Apostas encerradas.",predSubmittedLocked:"✅ Submetido · 🔒 Prazo encerrado.",predNone:"✏️ Ainda não submeteste.",submitAll:"⚠️ Preenche todos os resultados de grupo antes de submeter.",brLocked:"⚡ Submete primeiro as previsões de grupo.",player:"Jogador",allow:"Permitir editar",relock:"Bloquear novamente",clickWinner:"Clica na equipa vencedora",predTable:"As tuas previsões",realTable:"Resultados reais",bestThirds:"🏅 Melhores 3.ºs classificados que avançam",pathway1:"Pathway 1",pathway2:"Pathway 2",today:"Hoje",totalPts:"Total"},
-  en:{sub:"2026 · USA · CANADA · MEXICO",deadlineClosed:"⛔ Predictions closed.",deadlineOpen:"Predictions close 24h before kick-off.",saved:"Saved!",copied:"Copied!",predOpen:"✅ Submitted. You can edit until deadline.",predLocked:"🔒 Predictions closed.",predSubmittedLocked:"✅ Submitted · 🔒 Deadline passed.",predNone:"✏️ You haven't submitted yet.",submitAll:"⚠️ Fill all group scores before submitting.",brLocked:"⚡ Submit group predictions first.",player:"Player",allow:"Allow editing",relock:"Lock again",clickWinner:"Click the winning team",predTable:"Your predictions",realTable:"Real results",bestThirds:"🏅 Best 3rd-placed teams advancing",pathway1:"Pathway 1",pathway2:"Pathway 2",today:"Today",totalPts:"Total"}
+  pt:{sub:"2026 · EUA · CANADÁ · MÉXICO",deadlineClosed:"⛔ Apostas encerradas.",deadlineOpen:"Apostas fecham 1h antes do 1.º jogo.",saved:"Guardado!",copied:"Copiado!",predOpen:"✅ Submetido. Podes editar até ao prazo.",predLocked:"🔒 Apostas encerradas.",predSubmittedLocked:"✅ Submetido · 🔒 Prazo encerrado.",predNone:"✏️ Ainda não submeteste.",submitAll:"⚠️ Preenche todos os resultados de grupo antes de submeter.",brLocked:"⚡ Submete primeiro as previsões de grupo.",player:"Jogador",allow:"Permitir editar",relock:"Bloquear novamente",clickWinner:"Clica na equipa vencedora",predTable:"As tuas previsões",realTable:"Resultados reais",bestThirds:"🏅 Melhores 3.ºs classificados que avançam",pathway1:"Pathway 1",pathway2:"Pathway 2",today:"Hoje",totalPts:"Total"},
+  en:{sub:"2026 · USA · CANADA · MEXICO",deadlineClosed:"⛔ Predictions closed.",deadlineOpen:"Predictions close 1h before kick-off.",saved:"Saved!",copied:"Copied!",predOpen:"✅ Submitted. You can edit until deadline.",predLocked:"🔒 Predictions closed.",predSubmittedLocked:"✅ Submitted · 🔒 Deadline passed.",predNone:"✏️ You haven't submitted yet.",submitAll:"⚠️ Fill all group scores before submitting.",brLocked:"⚡ Submit group predictions first.",player:"Player",allow:"Allow editing",relock:"Lock again",clickWinner:"Click the winning team",predTable:"Your predictions",realTable:"Real results",bestThirds:"🏅 Best 3rd-placed teams advancing",pathway1:"Pathway 1",pathway2:"Pathway 2",today:"Today",totalPts:"Total"}
 };
 let lang='pt';
 function t(k){return T[lang][k]||k}
@@ -804,6 +804,19 @@ function toast(msg,err=false){
   e.classList.add('show');setTimeout(()=>e.classList.remove('show'),3200);
 }
 function genCode(){return Math.random().toString(36).substr(2,6).toUpperCase();}
+// Escape a string for safe use inside an HTML attribute value enclosed in
+// double quotes (e.g. onclick="foo('${attrEsc(name)}')"). This handles:
+// - HTML special chars (&, <, >, ", ')
+// - characters that would break out of the attribute or the JS string literal
+function attrEsc(s){
+  return String(s==null?'':s)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;')
+    .replace(/\\/g,'\\\\');
+}
 function canEdit(uid){
   const u=allUsers[uid||currentUser?.uid];if(!u) return false;
   const now=new Date();
@@ -1002,6 +1015,10 @@ async function toggleAdmin(uid){
 }
 async function kickUser(uid,name){
   if(!isAdmin) return;
+  // Defensive: never allow kicking the host even if the UI somehow exposed the button
+  if(allUsers[uid]?.role==='host'||currentComp?.hostUid===uid){
+    toast(lang==='pt'?'Não podes expulsar o host':'Cannot kick the host',true);return;
+  }
   if(!confirm(lang==='pt'?`Expulsar ${name}? Esta ação remove o utilizador permanentemente da competição.`:`Kick ${name}? This permanently removes the user from the competition.`)) return;
   const{db,doc,updateDoc}=window._fb;
   const members={...allUsers};delete members[uid];
@@ -1317,8 +1334,8 @@ function bNode(teamA,teamB,round,matchIdx,editable){
   const ptsA=actual&&pick===teamA&&actual===teamA&&teamA!=='TBD'?`<span class="b-pts">+${pts}</span>`:'';
   const ptsB=actual&&pick===teamB&&actual===teamB&&teamB!=='TBD'?`<span class="b-pts">+${pts}</span>`:'';
 
-  const clkA=clickable?`onclick="pickWinner('${round}',${matchIdx},'${teamA.replace(/'/g,"\\'")}')"`:'';
-  const clkB=clickable?`onclick="pickWinner('${round}',${matchIdx},'${teamB.replace(/'/g,"\\'")}')"`:'';
+  const clkA=clickable?`onclick="pickWinner('${round}',${matchIdx},'${attrEsc(teamA)}')"`:'';
+  const clkB=clickable?`onclick="pickWinner('${round}',${matchIdx},'${attrEsc(teamB)}')"`:'';
 
   return`<div class="b-match${clickable?' clickable':''}${isEmpty?' empty':''}">
     <div class="b-team ${teamCls(teamA)}${clickable?' clickable':''}" ${clkA}>
@@ -1485,7 +1502,7 @@ function renderBracketMobile(){
     else if(pick===team) cls='selected';
     const pts=KO_ROUNDS.find(r=>r.id===round)?.pts||0;
     const ptsStr=actual&&pick===team&&actual===team?`+${pts}pts`:'';
-    return`<div class="bm-team ${cls}" onclick="pickWinner('${round}',${matchIdx},'${team.replace(/'/g,"\\'")}')">
+    return`<div class="bm-team ${cls}" onclick="pickWinner('${round}',${matchIdx},'${attrEsc(team)}')">
       ${fi(team,22)}<span style="flex:1">${team}</span>
       ${ptsStr?`<span style="color:var(--gold);font-size:.72rem">${ptsStr}</span>`:''}
     </div>`;
@@ -1528,11 +1545,14 @@ ${[0,1].map(i=>{const a=getWinnerM('qf',i*2),b=getWinnerM('qf',i*2+1);return mMa
   html+=`<div class="bm-round"><div class="bm-rnd-hdr"><span>🥉 ${lang==='pt'?'3.º Lugar':'3rd Place'}</span><span style="font-size:.7rem;color:var(--muted)">+25pts</span></div>
   ${mMatch(f3A,f3B,'f3',0,!f3A&&!f3B)}</div>`;
 
-  // Champion
+  // Champion (auto-derived from Final pick - not clickable)
   const finWin=getWinnerM('fin',0);
-  html+=`<div class="bm-round"><div class="bm-rnd-hdr"><span>🏆 ${lang==='pt'?'Campeão':'Champion'}</span><span style="font-size:.7rem;color:var(--muted)">+30pts</span></div>
+  const actualChamp=getActualWinner('fin',0);
+  let champCls='';
+  if(actualChamp){champCls=finWin===actualChamp?'correct':'wrong';}
+  html+=`<div class="bm-round"><div class="bm-rnd-hdr"><span>🏆 ${lang==='pt'?'Campeão':'Champion'}</span><span style="font-size:.7rem;color:var(--muted)">${lang==='pt'?'auto':'auto'}</span></div>
   <div class="bm-match${!finWin?' empty':''}">
-    ${finWin?mTeam(finWin,'win',0):`<div class="bm-team" style="opacity:.35;cursor:default"><span style="flex:1;color:var(--muted)">${lang==='pt'?'Aguardar final':'Awaiting final'}</span></div>`}
+    ${finWin?`<div class="bm-team ${champCls}" style="cursor:default">${fi(finWin,22)}<span style="flex:1">${finWin}</span></div>`:`<div class="bm-team" style="opacity:.35;cursor:default"><span style="flex:1;color:var(--muted)">${lang==='pt'?'Aguardar final':'Awaiting final'}</span></div>`}
   </div></div>`;
 
   c.innerHTML=html;
@@ -1558,7 +1578,7 @@ function renderBracketSwipe(){
     else if(pick===team) cls='selected';
     const pts=KO_ROUNDS.find(r=>r.id===round)?.pts||0;
     const ptsStr=actual&&pick===team&&actual===team?`+${pts}pts`:'';
-    return`<div class="bm-team ${cls}" onclick="pickWinner('${round}',${matchIdx},'${team.replace(/'/g,"\\'")}')">
+    return`<div class="bm-team ${cls}" onclick="pickWinner('${round}',${matchIdx},'${attrEsc(team)}')">
       ${fi(team,22)}<span style="flex:1">${team}</span>
       ${ptsStr?`<span style="color:var(--gold);font-size:.72rem">${ptsStr}</span>`:''}
     </div>`;
@@ -1629,8 +1649,13 @@ function renderBracketSwipe(){
 }
 
 function calcMatch(pred,act){
-  if(pred.home===''||pred.away===''||act.home===undefined||act.home==='') return null;
+  if(!pred||!act) return null;
+  if(pred.home===''||pred.home===undefined||pred.home===null) return null;
+  if(pred.away===''||pred.away===undefined||pred.away===null) return null;
+  if(act.home===undefined||act.home===''||act.home===null) return null;
+  if(act.away===undefined||act.away===''||act.away===null) return null;
   const ph=parseInt(pred.home),pa=parseInt(pred.away),ah=parseInt(act.home),aa=parseInt(act.away);
+  if(isNaN(ph)||isNaN(pa)||isNaN(ah)||isNaN(aa)) return null;
   if(ph===ah&&pa===aa) return rules.correct_result;
   const po=ph>pa?'H':ph<pa?'A':'D',ao=ah>aa?'H':ah<aa?'A':'D';
   let p=0;if(po!==ao) p+=rules.wrong_outcome;
@@ -1660,13 +1685,25 @@ function calcTotal(uid,toggleOverride=null){
   }
   // Knockout bracket picks
   const bp=pr.bracket||{};
-  const ruleMap={r32:'round32',r16:'round16',qf:'quarters',sf:'semis',f3:'third',fin:'finalist',win:'winner'};
+  // r32/r16/qf/sf/f3 award per-correct-slot. The 'fin' round is special:
+  // - each correct finalist (regardless of slot) earns rules.finalist
+  // - bonus rules.winner if slot 0 matches actual champion
+  // - bonus rules.runner_up if slot 1 matches actual runner-up
+  // The 'win' bucket is derived from fin[0] and not scored separately.
+  const ruleMap={r32:'round32',r16:'round16',qf:'quarters',sf:'semis',f3:'third'};
   for(const r of KO_ROUNDS){
-    // R32 respects round32 toggle
+    if(r.id==='fin'||r.id==='win') continue; // handled below
     if(r.id==='r32'&&!tgl.round32) continue;
     const pk=bp[r.id]||[];const ak=actualScores[`ko_${r.id}`]||[];
     pk.forEach((pick,i)=>{if(ak[i]&&pick===ak[i]) tot+=rules[ruleMap[r.id]]||r.pts;});
   }
+  // Final: count correct finalists + bonus for correct order
+  const finPk=bp.fin||[];const finAk=actualScores.ko_fin||[];
+  const actualFinalists=new Set((finAk||[]).filter(Boolean));
+  const predFinalists=new Set((finPk||[]).filter(Boolean));
+  predFinalists.forEach(team=>{if(actualFinalists.has(team)) tot+=rules.finalist||25;});
+  if(finPk[0]&&finAk[0]&&finPk[0]===finAk[0]) tot+=rules.winner||30;
+  if(finPk[1]&&finAk[1]&&finPk[1]===finAk[1]) tot+=rules.runner_up||30;
   if(actualScores.topScorer&&pr.topScorer){
     const score=fuzzyScore(pr.topScorer,actualScores.topScorer);
     if(score===1||(score>=0.5&&(approvedTopScorers[uid]===true))) tot+=rules.top_scorer;
@@ -1954,7 +1991,26 @@ async function shareLeaderboard(){
   });
   ctx.fillStyle='#253a52';ctx.fillRect(0,H-38,W,38);ctx.fillStyle='#7a94b0';ctx.font='11px Georgia,serif';ctx.textAlign='center';ctx.fillText('joaomadeiradoo.github.io/FWF',W/2,H-12);
   wrap.style.display='block';
-  try{canvas.toBlob(async blob=>{if(navigator.share&&blob){const f=new File([blob],'classificacao.png',{type:'image/png'});await navigator.share({files:[f],title:'Classificação FWF'});}});}catch(e){}
+  // Share immediately on the user gesture. iOS Safari rejects navigator.share
+  // calls that happen after an async boundary (like canvas.toBlob's callback),
+  // so we convert via synchronous toDataURL -> Blob inside the same tick.
+  try{
+    if(navigator.share){
+      const dataUrl=canvas.toDataURL('image/png');
+      // Sync data URL -> Blob (no fetch, no async)
+      const bin=atob(dataUrl.split(',')[1]);
+      const arr=new Uint8Array(bin.length);
+      for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
+      const blob=new Blob([arr],{type:'image/png'});
+      const f=new File([blob],'classificacao.png',{type:'image/png'});
+      // Probe canShare on iOS - if it can't share files, fall back to text-only share
+      if(navigator.canShare&&navigator.canShare({files:[f]})){
+        navigator.share({files:[f],title:'Classificação FWF'}).catch(()=>{});
+      }else{
+        navigator.share({title:'Classificação FWF',text:'Classificação FWF'}).catch(()=>{});
+      }
+    }
+  }catch(e){console.warn('share failed:',e);}
 }
 function downloadLb(){const a=document.createElement('a');a.href=$('lb-canvas').toDataURL();a.download='classificacao.png';a.click();}
 function downloadCSV(){
@@ -2148,7 +2204,11 @@ function renderHostRules(){
 }
 async function saveRules(){
   if(!isHost) return;const{db,doc,updateDoc}=window._fb;
-  const nr={...rules};document.querySelectorAll('.rule-val-edit').forEach(i=>nr[i.dataset.rule]=parseInt(i.value));
+  const nr={...rules};
+  document.querySelectorAll('.rule-val-edit').forEach(i=>{
+    const v=parseInt(i.value);
+    if(!isNaN(v)) nr[i.dataset.rule]=v;
+  });
   await updateDoc(doc(db,'competitions',currentCompId),{rules:nr});toast(t('saved'));
 }
 
@@ -2230,8 +2290,8 @@ function renderHostMembers(){
     <td><span class="badge ${role==='host'?'badge-host':role==='admin'?'badge-admin':'badge-locked'}">${role.toUpperCase()}</span></td>
     <td class="${calcTotal(uid)>=0?'pts-pos':'pts-neg'}">${calcTotal(uid)>=0?'+':''}${calcTotal(uid)}</td>
     <td style="display:flex;gap:4px;flex-wrap:wrap">
-      ${isHost&&role!=='host'?`<button class="btn btn-ghost btn-sm" onclick="toggleAdmin('${uid}')">${role==='admin'?'↓ Remover':'↑ Admin'}</button>`:''} 
-      ${isAdmin&&role!=='host'?`<button class="btn btn-red btn-sm" onclick="kickUser('${uid}','${u.name}')" style="padding:6px 10px">🚫 Expulsar</button>`:''}
+      ${isHost&&role!=='host'?`<button class="btn btn-ghost btn-sm" onclick="toggleAdmin('${attrEsc(uid)}')">${role==='admin'?'↓ Remover':'↑ Admin'}</button>`:''} 
+      ${isAdmin&&role!=='host'?`<button class="btn btn-red btn-sm" onclick="kickUser('${attrEsc(uid)}','${attrEsc(u.name)}')" style="padding:6px 10px">🚫 Expulsar</button>`:''}
     </td>
   </tr>`;}).join('')}</tbody></table>`;
   const uw=$('host-unlock');if(!uw) return;
@@ -2239,7 +2299,7 @@ function renderHostMembers(){
     <div><span style="font-size:.86rem;font-weight:600">${u.name}</span>
     <span class="badge ${allPredictions[uid]?'badge-open':'badge-locked'}" style="margin-left:6px">${allPredictions[uid]?'✓':'?'}</span>
     ${u.unlockedEdit?`<span class="badge" style="background:rgba(255,215,0,.15);color:var(--gold);margin-left:4px">editing</span>`:''}</div>
-    <button class="btn btn-ghost btn-sm" onclick="toggleUnlock('${uid}')">${u.unlockedEdit?t('relock'):t('allow')}</button>
+    <button class="btn btn-ghost btn-sm" onclick="toggleUnlock('${attrEsc(uid)}')">${u.unlockedEdit?t('relock'):t('allow')}</button>
   </div>`).join('');
 }
 async function toggleUnlock(uid){
