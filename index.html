@@ -1245,19 +1245,32 @@ function pickWinner(round,matchIdx,team){
   if(!bp[round]) bp[round]=[];
   const r32=getR32Teams(currentUser?.uid);
 
-  function getLoser(r,idx,winner){
-    let tA=null,tB=null;
-    if(r==='r32'){tA=r32[idx]?.home;tB=r32[idx]?.away;}
-    else if(r==='r16'){tA=getWinner('r32',idx*2);tB=getWinner('r32',idx*2+1);}
-    else if(r==='qf'){tA=getWinner('r16',idx*2);tB=getWinner('r16',idx*2+1);}
-    else if(r==='sf'){tA=getWinner('qf',idx*2);tB=getWinner('qf',idx*2+1);}
-    else if(r==='fin'){tA=getWinner('sf',0);tB=getWinner('sf',1);}
-    if(!tA||!tB) return null;
-    return tA===winner?tB:tA;
+  // Resolve the two teams that should be in this match RIGHT NOW
+  function pairFor(r,idx){
+    if(r==='r32') return [r32[idx]?.home,r32[idx]?.away];
+    if(r==='r16') return [getWinner('r32',idx*2),getWinner('r32',idx*2+1)];
+    if(r==='qf')  return [getWinner('r16',idx*2),getWinner('r16',idx*2+1)];
+    if(r==='sf')  return [getWinner('qf',idx*2),getWinner('qf',idx*2+1)];
+    if(r==='fin') return [getWinner('sf',0),getWinner('sf',1)];
+    if(r==='f3')  return getThirdPlaceTeams();
+    return [null,null];
+  }
+  const [tA,tB]=pairFor(round,matchIdx);
+  // Refuse to set a winner that isn't in this match (prevents stale picks
+  // from re-appearing as if valid)
+  if(team!==tA&&team!==tB) return;
+
+  // If the user is changing a previously-set pick, clear everything that
+  // depended on the old pick so we don't carry forward an impossible team
+  const prev=bp[round]&&bp[round][matchIdx];
+  if(prev&&prev!==team){
+    clearDownstreamPicks(bp,round,matchIdx);
   }
 
   bp[round][matchIdx]=team;
-  const loser=getLoser(round,matchIdx,team);
+
+  // Compute loser for special cases (f3 derived from SF, runner-up = final loser)
+  const loser=team===tA?tB:tA;
 
   if(round==='sf'){
     if(!bp.f3) bp.f3=[];
@@ -1282,7 +1295,10 @@ function bNode(teamA,teamB,round,matchIdx,editable){
   if(!teamA||teamA==='') teamA='TBD';
   if(!teamB||teamB==='') teamB='TBD';
   const bp=getBP();
-  const pick=bp[round]&&bp[round][matchIdx];
+  let pick=bp[round]&&bp[round][matchIdx];
+  // Ignore stale picks - if the saved pick isn't one of the two current teams,
+  // it's left over from a previous version of the bracket and should be hidden
+  if(pick&&pick!==teamA&&pick!==teamB) pick=null;
   const actual=getActualWinner(round,matchIdx);
   const isEmpty=(teamA==='TBD'&&teamB==='TBD');
   const pts=KO_ROUNDS.find(r=>r.id===round)?.pts||0;
@@ -1321,6 +1337,43 @@ function getWinner(round,idx){
   return bp[round]&&bp[round][idx]?bp[round][idx]:null;
 }
 
+// Derive the two teams that meet in the 3rd-place playoff: the losers of the
+// two semifinals. This is computed live from the current SF picks so it never
+// goes stale when the user changes their bracket upstream.
+function getThirdPlaceTeams(){
+  function loser(sfIdx){
+    const a=getWinner('qf',sfIdx*2);
+    const b=getWinner('qf',sfIdx*2+1);
+    if(!a||!b) return null;
+    const winner=getWinner('sf',sfIdx);
+    if(!winner) return null;
+    if(winner!==a&&winner!==b) return null; // stale pick, ignore
+    return winner===a?b:a;
+  }
+  return [loser(0),loser(1)];
+}
+
+// Clear picks in later rounds when an earlier-round winner changes. Without
+// this, picks for r16/qf/sf/etc. can reference a team that's no longer
+// progressing through that path, leading to weird states like the same team
+// appearing in both 3rd-place slots.
+function clearDownstreamPicks(bp,round,matchIdx){
+  const order=['r32','r16','qf','sf','fin'];
+  const i=order.indexOf(round);
+  if(i<0) return;
+  // For each later round, the affected slot index halves each time we go up.
+  let affected=matchIdx;
+  for(let j=i+1;j<order.length;j++){
+    affected=Math.floor(affected/2);
+    const r=order[j];
+    if(bp[r]&&bp[r][affected]!==undefined) bp[r][affected]=undefined;
+  }
+  // f3 and win are derived from sf/fin; clear them too
+  bp.f3=[];
+  if(bp.win)bp.win=[];
+  if(bp.fin&&bp.fin[1]!==undefined) bp.fin[1]=undefined;
+}
+
 function renderBracket(){
   const c=$('bracket-content');if(!c) return;
   const uid=currentUser?.uid;
@@ -1333,8 +1386,7 @@ function renderBracket(){
   function sfTeams(i){const a=getWinner('qf',i*2)||null;const b=getWinner('qf',i*2+1)||null;return{home:a,away:b};}
   const finA=getWinner('sf',0)||null;
   const finB=getWinner('sf',1)||null;
-  const f3A=getBP().f3?.[0]||null;
-  const f3B=getBP().f3?.[1]||null;
+  const [f3A,f3B]=getThirdPlaceTeams();
   const champion=getWinner('fin',0)||null;
   const runnerUp=getBP().fin?.[1]||null;
   const third=getWinner('f3',0)||null;
@@ -1422,9 +1474,12 @@ function renderBracketMobile(){
   if(!sub&&!isAdmin){c.innerHTML=`<div style="text-align:center;padding:24px;color:var(--muted)">${t('brLocked')}</div>`;return;}
   const r32=getR32Teams(uid);
 
-  function mTeam(team,round,matchIdx){
+  function mTeam(team,round,matchIdx,pairOther){
     if(!team||team==='TBD') return`<div class="bm-team" style="opacity:.35;cursor:default"><span style="flex:1;color:var(--muted)">–</span></div>`;
-    const bp=getBP();const pick=bp[round]&&bp[round][matchIdx];const actual=getActualWinner(round,matchIdx);
+    const bp=getBP();let pick=bp[round]&&bp[round][matchIdx];
+    // Ignore stale picks that don't belong to either current team
+    if(pick&&pick!==team&&pick!==pairOther) pick=null;
+    const actual=getActualWinner(round,matchIdx);
     let cls='';
     if(actual){cls=actual===team?(pick===team?'correct':''):'loser';}
     else if(pick===team) cls='selected';
@@ -1438,7 +1493,7 @@ function renderBracketMobile(){
   function mMatch(tA,tB,round,idx,empty=false){
     if(!tA) tA='';if(!tB) tB='';
     return`<div class="bm-match${empty?' empty':''}">
-      ${mTeam(tA,round,idx)}${mTeam(tB,round,idx)}
+      ${mTeam(tA,round,idx,tB)}${mTeam(tB,round,idx,tA)}
     </div>`;
   }
 
@@ -1467,7 +1522,7 @@ function renderBracketMobile(){
 ${[0,1].map(i=>{const a=getWinnerM('qf',i*2),b=getWinnerM('qf',i*2+1);return mMatch(a,b,'sf',i,!a&&!b);}).join('')}</div>`;
   // Final & 3rd place
  const finA=getWinnerM('sf',0),finB=getWinnerM('sf',1);
-  const f3A=getBP().f3?.[0]||null,f3B=getBP().f3?.[1]||null;
+  const [f3A,f3B]=getThirdPlaceTeams();
   html+=`<div class="bm-round"><div class="bm-rnd-hdr"><span>${lang==='pt'?'Final':'Final'}</span><span style="font-size:.7rem;color:var(--muted)">+25pts</span></div>
   ${mMatch(finA,finB,'fin',0,!finA&&!finB)}</div>`;
   html+=`<div class="bm-round"><div class="bm-rnd-hdr"><span>🥉 ${lang==='pt'?'3.º Lugar':'3rd Place'}</span><span style="font-size:.7rem;color:var(--muted)">+25pts</span></div>
@@ -1492,9 +1547,12 @@ function renderBracketSwipe(){
   if(!sub&&!isAdmin){c.innerHTML=`<div style="text-align:center;padding:24px;color:var(--muted);min-width:90vw">${t('brLocked')}</div>`;if(nav)nav.innerHTML='';return;}
   const r32=getR32Teams(uid);
   
-  function mTeam(team,round,matchIdx){
+  function mTeam(team,round,matchIdx,pairOther){
     if(!team||team==='TBD') return`<div class="bm-team" style="opacity:.35;cursor:default"><span style="flex:1;color:var(--muted)">–</span></div>`;
-    const bp=getBP();const pick=bp[round]&&bp[round][matchIdx];const actual=getActualWinner(round,matchIdx);
+    const bp=getBP();let pick=bp[round]&&bp[round][matchIdx];
+    // Ignore stale picks that don't belong to either current team
+    if(pick&&pick!==team&&pick!==pairOther) pick=null;
+    const actual=getActualWinner(round,matchIdx);
     let cls='';
     if(actual){cls=actual===team?(pick===team?'correct':''):'loser';}
     else if(pick===team) cls='selected';
@@ -1508,7 +1566,7 @@ function renderBracketSwipe(){
   function mMatch(tA,tB,round,idx,empty=false){
     if(!tA) tA='';if(!tB) tB='';
     return`<div class="bm-match${empty?' empty':''}">
-      ${mTeam(tA,round,idx)}${mTeam(tB,round,idx)}
+      ${mTeam(tA,round,idx,tB)}${mTeam(tB,round,idx,tA)}
     </div>`;
   }
   function getWinnerM(round,idx){return getWinner(round,idx)||null;}
@@ -1520,8 +1578,30 @@ function renderBracketSwipe(){
     {id:'qf',title:lang==='pt'?'Quartos':'Quarterfinals',pts:10,content:()=>Array.from({length:4},(_,i)=>{const a=getWinnerM('r16',i*2),b=getWinnerM('r16',i*2+1);return mMatch(a,b,'qf',i,!a&&!b);}).join('')},
     {id:'sf',title:lang==='pt'?'Meias-Finais':'Semifinals',pts:15,content:()=>[0,1].map(i=>{const a=getWinnerM('qf',i*2),b=getWinnerM('qf',i*2+1);return mMatch(a,b,'sf',i,!a&&!b);}).join('')},
     {id:'fin',title:lang==='pt'?'Final':'Final',pts:25,content:()=>{const a=getWinnerM('sf',0),b=getWinnerM('sf',1);return mMatch(a,b,'fin',0,!a&&!b);}},
-    {id:'f3',title:'🥉 '+(lang==='pt'?'3.º Lugar':'3rd Place'),pts:25,content:()=>{const a=getBP().f3?.[0]||null,b=getBP().f3?.[1]||null;return mMatch(a,b,'f3',0,!a&&!b);}},
-    {id:'win',title:'🏆 '+(lang==='pt'?'Campeão':'Champion'),pts:30,content:()=>{const w=getWinnerM('fin',0);return w?mTeam(w,'win',0):`<div class="bm-team" style="opacity:.35;cursor:default"><span style="flex:1;color:var(--muted)">${lang==='pt'?'Aguardar':'Awaiting'}</span></div>`;}},
+    {id:'f3',title:'🥉 '+(lang==='pt'?'3.º Lugar':'3rd Place'),pts:25,content:()=>{const [a,b]=getThirdPlaceTeams();return mMatch(a,b,'f3',0,!a&&!b);}},
+    {id:'podium',title:'🏆 '+(lang==='pt'?'Pódio Final':'Final Podium'),pts:30,content:()=>{
+      const champion=getWinner('fin',0)||null;
+      const runnerUp=getBP().fin?.[1]||null;
+      const third=getWinner('f3',0)||null;
+      function row(medal,name,label,colorVar){
+        if(!name){
+          return`<div style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:rgba(255,255,255,.04);border-radius:10px;margin-bottom:8px;opacity:.4">
+            <span style="font-size:1.4rem">${medal}</span>
+            <div style="flex:1"><div style="font-size:.65rem;color:var(--muted);letter-spacing:1px">${label}</div><div style="font-size:.85rem;color:var(--muted)">–</div></div>
+          </div>`;
+        }
+        return`<div style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:rgba(255,255,255,.06);border-radius:10px;margin-bottom:8px;border-left:3px solid ${colorVar}">
+          <span style="font-size:1.4rem">${medal}</span>
+          ${fi(name,28)}
+          <div style="flex:1"><div style="font-size:.62rem;color:var(--muted);letter-spacing:1px">${label}</div><div style="font-size:.95rem;font-weight:700">${name}</div></div>
+        </div>`;
+      }
+      return`<div style="margin-top:4px">
+        ${row('🥇',champion,lang==='pt'?'CAMPEÃO':'CHAMPION','var(--gold)')}
+        ${row('🥈',runnerUp,lang==='pt'?'VICE-CAMPEÃO':'RUNNER-UP','#C0C0C0')}
+        ${row('🥉',third,lang==='pt'?'3.º LUGAR':'3RD PLACE','#cd7f32')}
+      </div>`;
+    }},
   ];
   
   c.innerHTML=rounds.map((r,i)=>`<div class="bracket-swipe-round" data-round="${i}">
