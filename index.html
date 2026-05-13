@@ -257,12 +257,16 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
 </div>
 <div id="app">
 <header><h1>⚽ PLAY FOOTBALL WITH FRIENDS</h1><p id="hdr-sub">2026 · USA · CANADA · MEXICO</p></header>
-<div id="screen-auth" class="card">
+<div id="screen-loading" class="card" style="text-align:center;padding:40px 20px">
+  <div style="font-size:2.5rem;margin-bottom:10px">⚽</div>
+  <div style="font-size:1rem;color:var(--muted)">A carregar...</div>
+</div>
+<div id="screen-auth" class="card hidden">
   <h2 style="text-align:center;margin-bottom:16px">Play Football with Friends</h2>
   <div class="form-group"><label>Nome / Name</label><input type="text" id="auth-name" placeholder="O teu nome" autocomplete="name"/></div>
   <div class="form-group"><label>PIN (4 dígitos)</label><input type="password" id="auth-pin" placeholder="••••" maxlength="4" pattern="[0-9]{4}" inputmode="numeric" autocomplete="off"/></div>
   <div class="form-group"><label>Código de Convite</label><input type="text" id="auth-code" placeholder="XXXXXX" style="text-transform:uppercase" autocomplete="off"/></div>
-  <button class="btn btn-gold btn-full" onclick="(async()=>{const $=id=>document.getElementById(id);const toast=(msg,err)=>{const e=$('toast');if(e){e.textContent=msg;e.classList.toggle('error',!!err);e.classList.add('show');setTimeout(()=>e.classList.remove('show'),3200);}};if(!window._fb){toast('A carregar...',true);return;}const name=$('auth-name').value.trim();const pin=$('auth-pin').value.trim();const code=$('auth-code').value.trim().toUpperCase();if(!name||!pin||!code){toast('Preenche todos os campos',true);return;}if(pin.length!==4||!/^\d{4}$/.test(pin)){toast('PIN deve ter 4 dígitos',true);return;}const{db,getDocs,collection,doc,updateDoc,signInAnonymously}=window._fb;try{const snap=await getDocs(collection(db,'competitions'));let compDoc=null;snap.forEach(d=>{if(d.data().inviteCode===code) compDoc={id:d.id,...d.data()};});if(!compDoc){toast('Código inválido',true);return;}const members=compDoc.members||{};let existingUid=null;Object.keys(members).forEach(uid=>{if(members[uid].name===name&&members[uid].pin===pin) existingUid=uid;});if(existingUid){window.currentUser={uid:existingUid,displayName:name};window.currentCompId=compDoc.id;localStorage.setItem('fwf_uid',existingUid);localStorage.setItem('fwf_name',name);localStorage.setItem('fwf_pin',pin);localStorage.setItem('fwf_comp',compDoc.id);if(window.initMainApp){await window.initMainApp(existingUid);}else{location.reload();}}else{const cred=await signInAnonymously(window._fb.auth);const uid=cred.user.uid;members[uid]={name,pin,role:'member',joinedAt:new Date().toISOString()};await updateDoc(doc(db,'competitions',compDoc.id),{members});window.currentUser={uid,displayName:name};window.currentCompId=compDoc.id;localStorage.setItem('fwf_uid',uid);localStorage.setItem('fwf_name',name);localStorage.setItem('fwf_pin',pin);localStorage.setItem('fwf_comp',compDoc.id);if(window.initMainApp){await window.initMainApp(uid);}else{location.reload();}toast('Bem-vindo, '+name+'!');}}catch(e){console.error(e);toast('Erro: '+e.message,true);}})()">Entrar / Join</button>
+  <button class="btn btn-gold btn-full" onclick="doSimpleAuth()">Entrar / Join</button>
   <p style="color:var(--muted);font-size:.75rem;margin-top:12px;text-align:center">Primeira vez? Escolhe um nome e PIN. Próximas vezes usa o mesmo PIN para entrar.</p>
   <div style="margin-top:16px;text-align:center;padding-top:16px;border-top:1px solid var(--border)">
     <p style="color:var(--muted);font-size:.7rem;margin-bottom:8px">Apenas para administradores</p>
@@ -274,7 +278,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
   <div class="form-group"><label>Teu Nome / Your Name</label><input type="text" id="host-name" placeholder="João Madeira" autocomplete="name"/></div>
   <div class="form-group"><label>Teu PIN (4 dígitos)</label><input type="password" id="host-pin" placeholder="••••" maxlength="4" pattern="[0-9]{4}" inputmode="numeric" autocomplete="off"/></div>
   <div class="form-group"><label>Nome da Competição</label><input type="text" id="host-comp-name" placeholder="World Cup 2026" value="Play Football with Friends"/></div>
-  <button class="btn btn-gold btn-full" onclick="(async()=>{const $=id=>document.getElementById(id);const toast=(msg,err)=>{const e=$('toast');if(e){e.textContent=msg;e.classList.toggle('error',!!err);e.classList.add('show');setTimeout(()=>e.classList.remove('show'),3200);}};if(!window._fb){toast('A carregar...',true);return;}const name=$('host-name').value.trim();const pin=$('host-pin').value.trim();const compName=$('host-comp-name').value.trim();if(!name||!pin){toast('Preenche nome e PIN',true);return;}if(pin.length!==4||!/^\d{4}$/.test(pin)){toast('PIN deve ter 4 dígitos',true);return;}try{const cred=await window._fb.signInAnonymously(window._fb.auth);const uid=cred.user.uid;const{db,doc,setDoc}=window._fb;const code=Math.random().toString(36).substr(2,6).toUpperCase();const compId='comp_'+Date.now();await setDoc(doc(db,'competitions',compId),{name:compName||'Play Football with Friends',inviteCode:code,hostUid:uid,rules:window.DEFAULT_RULES||{},members:{[uid]:{name,pin,joinedAt:Date.now(),role:'host'}},actualScores:{},predictions:{},playerChars:{},approvedTopScorers:{},ptsToggles:{groupWinner:true,groupSecond:true,round32:true},createdAt:Date.now()});window.currentUser={uid,displayName:name};window.currentCompId=compId;localStorage.setItem('fwf_uid',uid);localStorage.setItem('fwf_name',name);localStorage.setItem('fwf_pin',pin);localStorage.setItem('fwf_comp',compId);if(window.initMainApp){await window.initMainApp(uid);}else{location.reload();}toast('Competição criada! Código: '+code);}catch(e){console.error(e);toast('Erro: '+e.message,true);}})()">Criar / Create</button>
+  <button class="btn btn-gold btn-full" onclick="doCreateCompetition()">Criar / Create</button>
   <button class="btn btn-ghost btn-full" style="margin-top:8px" onclick="document.getElementById('screen-host-create').classList.add('hidden');document.getElementById('screen-auth').classList.remove('hidden');">← Voltar</button>
 </div>
 <div id="screen-main" class="hidden">
@@ -836,55 +840,72 @@ async function doSimpleAuth(){
   const name=$('auth-name').value.trim();
   const pin=$('auth-pin').value.trim();
   const code=$('auth-code').value.trim().toUpperCase();
-  
+
   if(!name||!pin||!code){toast('Preenche todos os campos',true);return;}
   if(pin.length!==4||!/^\d{4}$/.test(pin)){toast('PIN deve ter 4 dígitos',true);return;}
-  
-  const{db,getDocs,collection,doc,updateDoc,signInAnonymously}=window._fb;
-  
+
+  const{auth,db,getDocs,collection,doc,getDoc,updateDoc,signInAnonymously}=window._fb;
+
   try{
+    // Ensure we have a Firebase anonymous session BEFORE any Firestore call
+    // (Firestore rules require request.auth != null)
+    let fbUid=auth.currentUser?auth.currentUser.uid:null;
+    if(!fbUid){
+      const cred=await signInAnonymously(auth);
+      fbUid=cred.user.uid;
+    }
+
     // Find competition by code
     const snap=await getDocs(collection(db,'competitions'));
     let compDoc=null;
     snap.forEach(d=>{if(d.data().inviteCode===code) compDoc={id:d.id,...d.data()};});
-    
+
     if(!compDoc){toast('Código inválido',true);return;}
-    
+
     // Check if name+PIN combo exists
     const members=compDoc.members||{};
     let existingUid=null;
     Object.keys(members).forEach(uid=>{
       if(members[uid].name===name&&members[uid].pin===pin) existingUid=uid;
     });
-    
+
+    let effectiveUid=fbUid;
     if(existingUid){
-      // Returning user
-      currentUser={uid:existingUid,displayName:name};
-      currentCompId=compDoc.id;
-      localStorage.setItem('fwf_uid',existingUid);
-      localStorage.setItem('fwf_name',name);
-      localStorage.setItem('fwf_pin',pin);
-      localStorage.setItem('fwf_comp',compDoc.id);
-      await initMainApp(existingUid);
+      // Returning user. If the stored UID differs from current Firebase UID,
+      // migrate the membership entry + predictions to the new UID so writes work.
+      if(existingUid!==fbUid){
+        const compRef=doc(db,'competitions',compDoc.id);
+        const fresh=await getDoc(compRef);
+        if(fresh.exists()){
+          const fd=fresh.data();
+          const newMembers={...(fd.members||{})};
+          const oldMember=newMembers[existingUid];
+          if(oldMember){
+            newMembers[fbUid]=oldMember;
+            delete newMembers[existingUid];
+            const newPreds={...(fd.predictions||{})};
+            if(newPreds[existingUid]){newPreds[fbUid]=newPreds[existingUid];delete newPreds[existingUid];}
+            const writes={members:newMembers,predictions:newPreds};
+            if(fd.hostUid===existingUid) writes.hostUid=fbUid;
+            await updateDoc(compRef,writes);
+          }
+        }
+      }
     }else{
-      // New user - create anonymous account
-      const cred=await signInAnonymously(window._fb.auth);
-      const uid=cred.user.uid;
-      
-      // Add to competition
-      members[uid]={name,pin,role:'member',joinedAt:new Date().toISOString()};
-      await updateDoc(doc(db,'competitions',compDoc.id),{members});
-      
-      currentUser={uid,displayName:name};
-      currentCompId=compDoc.id;
-      localStorage.setItem('fwf_uid',uid);
-      localStorage.setItem('fwf_name',name);
-      localStorage.setItem('fwf_pin',pin);
-      localStorage.setItem('fwf_comp',compDoc.id);
-      
-      await initMainApp(uid);
-      toast(`Bem-vindo, ${name}!`);
+      // New user - add to competition under the Firebase UID
+      const newMembers={...members};
+      newMembers[fbUid]={name,pin,role:'member',joinedAt:new Date().toISOString()};
+      await updateDoc(doc(db,'competitions',compDoc.id),{members:newMembers});
     }
+
+    currentUser={uid:effectiveUid,displayName:name};
+    currentCompId=compDoc.id;
+    localStorage.setItem('fwf_uid',effectiveUid);
+    localStorage.setItem('fwf_name',name);
+    localStorage.setItem('fwf_pin',pin);
+    localStorage.setItem('fwf_comp',compDoc.id);
+    await initMainApp(effectiveUid);
+    if(!existingUid) toast(`Bem-vindo, ${name}!`);
   }catch(e){
     console.error(e);
     toast('Erro: '+e.message,true);
@@ -931,27 +952,19 @@ function showAuth(){hide('screen-host-create');show('screen-auth');}
 // ADMIN VERIFICATION - Only authorized users can create competitions
 const ADMIN_PIN='2026'; // Secret PIN - only you know this
 function promptAdminCreate(){
-  console.log('promptAdminCreate called'); // DEBUG
   const pin=prompt('PIN de Administrador / Admin PIN:');
-  console.log('PIN entered:', pin); // DEBUG
   if(pin===ADMIN_PIN){
-    console.log('PIN correct, showing create screen'); // DEBUG
     hide('screen-auth');
     show('screen-host-create');
   }else if(pin!==null){ // null means cancelled
-    console.log('PIN incorrect'); // DEBUG
     toast('PIN incorreto. Apenas administradores podem criar competições.',true);
   }
 }
 
 async function doSignOut(){
   clearInterval(countdownInterval);clearInterval(apiPollTimer);
-  localStorage.removeItem('fwf_uid');
-  localStorage.removeItem('fwf_name');
-  localStorage.removeItem('fwf_pin');
-  localStorage.removeItem('fwf_comp');
-  currentUser=null;currentCompId=null;
-  hide('screen-main');show('screen-auth');
+  clearStoredAuth();
+  try{if(window._fb&&window._fb.signOut)await window._fb.signOut(window._fb.auth);}catch(e){}
   location.reload();
 }
 
@@ -993,11 +1006,31 @@ async function kickUser(uid,name){
 
 // ═══ INIT ═══
 async function initMainApp(uid){
-  const{db,getDocs,collection,onSnapshot,doc}=window._fb;
-  const snap=await getDocs(collection(db,'competitions'));
-  if(snap.empty){toast('Nenhuma competição encontrada',true);return;}
-  currentCompId=snap.docs[0].id;
-  currentComp={id:currentCompId,...snap.docs[0].data()};
+  const{db,getDocs,collection,onSnapshot,doc,getDoc}=window._fb;
+  // Load the specific competition the user joined. currentCompId should be set
+  // by the auth flow (doSimpleAuth, doCreateCompetition, or startFirebase).
+  // Fallback: if currentCompId isn't set, find the first competition this user is a member of.
+  let compSnap=null;
+  if(currentCompId){
+    compSnap=await getDoc(doc(db,'competitions',currentCompId));
+    if(!compSnap.exists()) compSnap=null;
+  }
+  if(!compSnap){
+    const all=await getDocs(collection(db,'competitions'));
+    if(all.empty){toast('Nenhuma competição encontrada',true);return;}
+    // Find a competition where this UID is a member
+    let found=null;
+    all.forEach(d=>{const data=d.data();if(!found&&data.members&&data.members[uid]) found={id:d.id,snap:d};});
+    if(!found){
+      // No competition contains this user -> shouldn't happen post-auth, but bail safely
+      toast('Não estás em nenhuma competição',true);
+      throw new Error('user not in any competition');
+    }
+    currentCompId=found.id;
+    currentComp={id:found.id,...found.snap.data()};
+  }else{
+    currentComp={id:currentCompId,...compSnap.data()};
+  }
   isHost=currentComp.hostUid===uid;
   const member=currentComp.members?.[uid];
   isAdmin=isHost||(member?.role==='admin');
@@ -1038,7 +1071,7 @@ async function initMainApp(uid){
   renderRules();renderLeaderboard();renderOtherPreds();renderLive();
   renderCountdown();updateBanner();
   if(isAdmin){renderHostScores();renderHostMembers();renderHostRules();renderHostPlayerChars();renderPtsToggles();getApiUsage().then(updateApiCounter);}
-  hide('screen-auth');show('screen-main');
+  hide('screen-loading');hide('screen-auth');show('screen-main');
   scheduleApi();
 }
 
@@ -2355,30 +2388,105 @@ function showTab(id){
 function copyInvite(){navigator.clipboard.writeText(currentComp?.inviteCode||'');toast(t('copied'));}
 
 // ═══ BOOTSTRAP ═══
-function startFirebase(){
-  if(!window._fb) return;
-  
-  // Check localStorage for auto-login
-  const storedUid=localStorage.getItem('fwf_uid');
+// Auto-login flow:
+// 1. Wait for Firebase auth state (it persists anonymous sessions in IndexedDB)
+// 2. If no Firebase user but we have stored name+PIN+code -> silently signInAnonymously
+//    and re-match user via name+PIN against the competition (UID may have changed)
+// 3. Update stored UID, then load main app
+// This handles iOS Safari ITP, private mode, and any case where Firebase auth was lost
+// while localStorage still has the stored credentials.
+let _bootstrapped=false;
+async function startFirebase(){
+  if(!window._fb||_bootstrapped) return;
+  _bootstrapped=true;
+
   const storedName=localStorage.getItem('fwf_name');
   const storedPin=localStorage.getItem('fwf_pin');
   const storedComp=localStorage.getItem('fwf_comp');
-  
-  if(storedUid&&storedName&&storedPin&&storedComp){
-    // Auto-login from localStorage
-    currentUser={uid:storedUid,displayName:storedName};
-    currentCompId=storedComp;
-    initMainApp(storedUid).catch(()=>{
-      // If init fails, clear localStorage and show auth
-      localStorage.removeItem('fwf_uid');
-      localStorage.removeItem('fwf_name');
-      localStorage.removeItem('fwf_pin');
-      localStorage.removeItem('fwf_comp');
-      hide('screen-main');show('screen-auth');
-    });
-  }else{
-    hide('screen-main');show('screen-auth');
+  const storedUid=localStorage.getItem('fwf_uid');
+
+  // No stored credentials at all -> show auth screen
+  if(!storedName||!storedPin||!storedComp){
+    hide('screen-loading');hide('screen-main');show('screen-auth');
+    return;
   }
+
+  const{auth,db,doc,getDoc,updateDoc,signInAnonymously,onAuthStateChanged}=window._fb;
+
+  // Wait for Firebase to report its auth state (it reads IndexedDB async on load)
+  const fbUser=await new Promise(resolve=>{
+    const unsub=onAuthStateChanged(auth,user=>{unsub();resolve(user);});
+  });
+
+  try{
+    let activeUid=fbUser?fbUser.uid:null;
+
+    // No Firebase session (iOS ITP cleared it, etc.) -> sign in anonymously
+    if(!activeUid){
+      const cred=await signInAnonymously(auth);
+      activeUid=cred.user.uid;
+    }
+
+    // Load the specific competition the user joined (not the first one in the DB)
+    const compRef=doc(db,'competitions',storedComp);
+    const compSnap=await getDoc(compRef);
+    if(!compSnap.exists()){
+      // Competition was deleted -> force re-login
+      clearStoredAuth();
+      hide('screen-loading');hide('screen-main');show('screen-auth');
+      toast('Competição não encontrada. Entra de novo.',true);
+      return;
+    }
+
+    const compData=compSnap.data();
+    const members=compData.members||{};
+
+    // Try to match user by name+PIN (UID may have changed since last session)
+    let matchedUid=null;
+    Object.keys(members).forEach(uid=>{
+      if(members[uid].name===storedName&&members[uid].pin===storedPin) matchedUid=uid;
+    });
+
+    if(matchedUid){
+      // Found existing membership. If Firebase gave us a new UID, migrate the
+      // membership entry so this user's predictions/role move to the new UID.
+      if(matchedUid!==activeUid){
+        const oldMember=members[matchedUid];
+        const preds=compData.predictions||{};
+        // Move membership entry from old UID to new UID
+        const newMembers={...members};
+        newMembers[activeUid]=oldMember;
+        delete newMembers[matchedUid];
+        const newPreds={...preds};
+        if(newPreds[matchedUid]){newPreds[activeUid]=newPreds[matchedUid];delete newPreds[matchedUid];}
+        const writes={members:newMembers,predictions:newPreds};
+        // If this user was the host, update hostUid too
+        if(compData.hostUid===matchedUid) writes.hostUid=activeUid;
+        await updateDoc(compRef,writes);
+      }
+      localStorage.setItem('fwf_uid',activeUid);
+      currentUser={uid:activeUid,displayName:storedName};
+      currentCompId=storedComp;
+      await initMainApp(activeUid);
+    }else{
+      // No name+PIN match in this competition -> they were kicked or PIN was wrong
+      clearStoredAuth();
+      hide('screen-loading');hide('screen-main');show('screen-auth');
+      toast('Conta não encontrada nesta competição. Entra de novo.',true);
+    }
+  }catch(e){
+    console.error('Auto-login failed:',e);
+    clearStoredAuth();
+    hide('screen-loading');hide('screen-main');show('screen-auth');
+    toast('Erro a entrar: '+e.message,true);
+  }
+}
+function clearStoredAuth(){
+  localStorage.removeItem('fwf_uid');
+  localStorage.removeItem('fwf_name');
+  localStorage.removeItem('fwf_pin');
+  localStorage.removeItem('fwf_comp');
+  currentUser=null;currentCompId=null;
 }
 window.addEventListener('firebase-ready',startFirebase);
 if(window._fb) startFirebase();
