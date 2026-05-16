@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="apple-mobile-web-app-title" content="FWF 2026"/>
-<title>Play Football with Friends</title>
+<title>Previsões do Professor Karamba</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/lipis/flag-icons@7.2.3/css/flag-icons.min.css"/>
 <script type="module">
@@ -37,7 +37,7 @@
 :root{--gold:#FFD700;--red:#E63946;--green:#2DC653;--dark:#0D1B2A;--card:#162232;--border:#253a52;--text:#EEF2FF;--muted:#7a94b0;--radius:12px;--fh:'Bebas Neue',sans-serif;--fb:'Nunito',sans-serif;--nav-h:64px}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html{scroll-behavior:smooth}
-body{background:var(--dark);color:var(--text);font-family:var(--fb);min-height:100vh;overflow-x:hidden;padding-bottom:var(--nav-h)}
+body{background:var(--dark);color:var(--text);font-family:var(--fb);min-height:100vh;overflow-x:hidden;padding-bottom:calc(var(--nav-h) + env(safe-area-inset-bottom, 0px))}
 body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 20% 20%,rgba(229,57,70,.15) 0%,transparent 60%),radial-gradient(ellipse at 80% 80%,rgba(45,198,83,.10) 0%,transparent 60%),radial-gradient(ellipse at 50% 50%,rgba(255,215,0,.05) 0%,transparent 70%);pointer-events:none;z-index:0}
 #app{position:relative;z-index:1;max-width:1200px;margin:0 auto;padding:10px 12px}
 .hidden{display:none!important}
@@ -63,7 +63,7 @@ input:focus-visible,select:focus-visible{outline:2px solid var(--gold);outline-o
 .form-group label{display:block;font-size:.82rem;color:var(--muted);margin-bottom:5px;font-weight:600}
 .form-group input,.form-group select{width:100%;background:#0D1B2A;border:1px solid var(--border);border-radius:10px;padding:13px 14px;color:var(--text);font-family:var(--fb);font-size:1rem;outline:none;transition:border-color .2s;-webkit-appearance:none}
 .form-group input:focus,.form-group select:focus{border-color:var(--gold)}
-#bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;height:var(--nav-h);background:rgba(22,34,50,.97);border-top:1px solid var(--border);z-index:200;flex-direction:row;align-items:stretch;backdrop-filter:blur(10px)}
+#bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;height:calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));padding-bottom:env(safe-area-inset-bottom, 0px);background:rgba(22,34,50,.97);border-top:1px solid var(--border);z-index:200;flex-direction:row;align-items:stretch;backdrop-filter:blur(10px)}
 .bnav-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border:none;background:transparent;color:var(--muted);font-family:var(--fb);font-size:.55rem;font-weight:700;cursor:pointer;padding:4px 2px;touch-action:manipulation}
 .bnav-btn .bi{font-size:1.2rem;line-height:1;transition:transform .15s}
 .bnav-btn.active{color:var(--gold)}.bnav-btn.active .bi{transform:translateY(-2px)}
@@ -171,8 +171,8 @@ table.gct tr:nth-child(3) td{background:rgba(255,215,0,.03)}
 .cd-block{text-align:center;background:rgba(255,215,0,.07);border:1px solid rgba(255,215,0,.18);border-radius:8px;padding:8px 10px;flex:1;max-width:72px}
 .cd-num{font-family:var(--fh);font-size:1.8rem;color:var(--gold);line-height:1}
 .cd-lbl{font-size:.56rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
-#toast{position:fixed;bottom:calc(var(--nav-h) + 12px);left:50%;transform:translateX(-50%) translateY(80px);background:var(--green);color:var(--dark);padding:10px 24px;border-radius:22px;font-weight:700;z-index:9999;transition:transform .3s;white-space:nowrap;font-size:.88rem;max-width:calc(100vw - 32px);text-align:center}
-#toast.show{transform:translateX(-50%) translateY(0)}#toast.error{background:var(--red);color:#fff}
+#toast{position:fixed;bottom:calc(var(--nav-h) + 12px + env(safe-area-inset-bottom, 0px));left:50%;transform:translateX(-50%) translateY(20px);background:var(--green);color:var(--dark);padding:10px 24px;border-radius:22px;font-weight:700;z-index:199;transition:transform .3s,opacity .3s;opacity:0;white-space:nowrap;font-size:.88rem;max-width:calc(100vw - 32px);text-align:center;pointer-events:none}
+#toast.show{transform:translateX(-50%) translateY(0);opacity:1}#toast.error{background:var(--red);color:#fff}
 .invite-box{background:rgba(255,215,0,.06);border:1px solid rgba(255,215,0,.25);border-radius:10px;padding:14px;text-align:center;margin:10px 0}
 .invite-code{font-family:var(--fh);font-size:2rem;letter-spacing:6px;color:var(--gold)}
 .rules-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:6px}
@@ -256,13 +256,13 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
   <button onclick="setLang('en')">🇬🇧 EN</button>
 </div>
 <div id="app">
-<header><h1>⚽ PLAY FOOTBALL WITH FRIENDS</h1><p id="hdr-sub">2026 · USA · CANADA · MEXICO</p></header>
+<header><h1>🏆 PREVISÕES DO PROFESSOR KARAMBA</h1><p id="hdr-sub">2026 · USA · CANADA · MEXICO</p></header>
 <div id="screen-loading" class="card" style="text-align:center;padding:40px 20px">
   <div style="font-size:2.5rem;margin-bottom:10px">⚽</div>
   <div style="font-size:1rem;color:var(--muted)">A carregar...</div>
 </div>
 <div id="screen-auth" class="card hidden">
-  <h2 style="text-align:center;margin-bottom:16px">Play Football with Friends</h2>
+  <h2 style="text-align:center;margin-bottom:16px">Previsões do Professor Karamba</h2>
   <div class="form-group"><label>Nome / Name</label><input type="text" id="auth-name" placeholder="O teu nome" autocomplete="name"/></div>
   <div class="form-group"><label>PIN (4 dígitos)</label><input type="password" id="auth-pin" placeholder="••••" maxlength="4" pattern="[0-9]{4}" inputmode="numeric" autocomplete="off"/></div>
   <div class="form-group"><label>Código de Convite</label><input type="text" id="auth-code" placeholder="XXXXXX" style="text-transform:uppercase" autocomplete="off"/></div>
@@ -277,7 +277,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
   <h2 style="text-align:center;margin-bottom:16px">Criar Competição</h2>
   <div class="form-group"><label>Teu Nome / Your Name</label><input type="text" id="host-name" placeholder="João Madeira" autocomplete="name"/></div>
   <div class="form-group"><label>Teu PIN (4 dígitos)</label><input type="password" id="host-pin" placeholder="••••" maxlength="4" pattern="[0-9]{4}" inputmode="numeric" autocomplete="off"/></div>
-  <div class="form-group"><label>Nome da Competição</label><input type="text" id="host-comp-name" placeholder="World Cup 2026" value="Play Football with Friends"/></div>
+  <div class="form-group"><label>Nome da Competição</label><input type="text" id="host-comp-name" placeholder="World Cup 2026" value="Previsões do Professor Karamba"/></div>
   <button class="btn btn-gold btn-full" onclick="doCreateCompetition()">Criar / Create</button>
   <button class="btn btn-ghost btn-full" style="margin-top:8px" onclick="document.getElementById('screen-host-create').classList.add('hidden');document.getElementById('screen-auth').classList.remove('hidden');">← Voltar</button>
 </div>
@@ -1063,82 +1063,94 @@ const ANNEX_C = {
 const MATCH_SCHEDULE=[
   // June 11
   {d:'11 Jun',home:'México',away:'África do Sul',group:'A'},
+  {d:'11 Jun',home:'Coreia do Sul',away:'Czechia',group:'A'},
   // June 12
-  {d:'12 Jun',home:'EUA',away:'Paraguai',group:'D'},
   {d:'12 Jun',home:'Canadá',away:'Bósnia e Herzegovina',group:'B'},
+  {d:'12 Jun',home:'EUA',away:'Paraguai',group:'D'},
   // June 13
+  {d:'13 Jun',home:'Qatar',away:'Suíça',group:'B'},
   {d:'13 Jun',home:'Brasil',away:'Marrocos',group:'C'},
   {d:'13 Jun',home:'Haiti',away:'Escócia',group:'C'},
+  {d:'13 Jun',home:'Austrália',away:'Türkiye',group:'D'},
   // June 14
   {d:'14 Jun',home:'Países Baixos',away:'Japão',group:'F'},
   {d:'14 Jun',home:'Alemanha',away:'Curaçao',group:'E'},
   {d:'14 Jun',home:'Suécia',away:'Tunísia',group:'F'},
+  {d:'14 Jun',home:'Costa do Marfim',away:'Equador',group:'E'},
   // June 15
+  {d:'15 Jun',home:'Bélgica',away:'Egipto',group:'G'},
   {d:'15 Jun',home:'Espanha',away:'Cabo Verde',group:'H'},
   {d:'15 Jun',home:'Irão',away:'Nova Zelândia',group:'G'},
   {d:'15 Jun',home:'Arábia Saudita',away:'Uruguai',group:'H'},
   // June 16
-  {d:'16 Jun',home:'Argentina',away:'Argélia',group:'J'},
   {d:'16 Jun',home:'França',away:'Senegal',group:'I'},
   {d:'16 Jun',home:'Iraque',away:'Noruega',group:'I'},
+  {d:'16 Jun',home:'Argentina',away:'Argélia',group:'J'},
   // June 17
   {d:'17 Jun',home:'Inglaterra',away:'Croácia',group:'L'},
   {d:'17 Jun',home:'Portugal',away:'Congo DR',group:'K'},
   // June 18
-  {d:'18 Jun',home:'México',away:'Coreia do Sul',group:'A'},
   {d:'18 Jun',home:'Czechia',away:'África do Sul',group:'A'},
   {d:'18 Jun',home:'Suíça',away:'Bósnia e Herzegovina',group:'B'},
-  {d:'18 Jun',home:'EUA',away:'Austrália',group:'D'},
+  {d:'18 Jun',home:'Canadá',away:'Qatar',group:'B'},
+  {d:'18 Jun',home:'México',away:'Coreia do Sul',group:'A'},
   // June 19
-  {d:'19 Jun',home:'Bélgica',away:'Egipto',group:'G'},
-  {d:'19 Jun',home:'Irão',away:'Nova Zelândia',group:'G'},
+  {d:'19 Jun',home:'Escócia',away:'Marrocos',group:'C'},
+  {d:'19 Jun',home:'EUA',away:'Austrália',group:'D'},
+  {d:'19 Jun',home:'Brasil',away:'Haiti',group:'C'},
+  {d:'19 Jun',home:'Türkiye',away:'Paraguai',group:'D'},
   // June 20
   {d:'20 Jun',home:'Países Baixos',away:'Suécia',group:'F'},
-  {d:'20 Jun',home:'Tunísia',away:'Japão',group:'F'},
+  {d:'20 Jun',home:'Alemanha',away:'Costa do Marfim',group:'E'},
   {d:'20 Jun',home:'Equador',away:'Curaçao',group:'E'},
+  {d:'20 Jun',home:'Tunísia',away:'Japão',group:'F'},
   // June 21
+  {d:'21 Jun',home:'Bélgica',away:'Irão',group:'G'},
   {d:'21 Jun',home:'Espanha',away:'Arábia Saudita',group:'H'},
+  {d:'21 Jun',home:'Nova Zelândia',away:'Egipto',group:'G'},
   {d:'21 Jun',home:'Uruguai',away:'Cabo Verde',group:'H'},
   {d:'21 Jun',home:'Argentina',away:'Áustria',group:'J'},
   // June 22
-  {d:'22 Jun',home:'Noruega',away:'Senegal',group:'I'},
   {d:'22 Jun',home:'França',away:'Iraque',group:'I'},
+  {d:'22 Jun',home:'Noruega',away:'Senegal',group:'I'},
   {d:'22 Jun',home:'Portugal',away:'Uzbequistão',group:'K'},
   // June 23
   {d:'23 Jun',home:'Colômbia',away:'Congo DR',group:'K'},
   {d:'23 Jun',home:'Gana',away:'Panamá',group:'L'},
-  {d:'23 Jun',home:'Costa do Marfim',away:'Alemanha',group:'E'},
+  {d:'23 Jun',home:'Argélia',away:'Áustria',group:'J'},
   // June 24
   {d:'24 Jun',home:'Marrocos',away:'Haiti',group:'C'},
   {d:'24 Jun',home:'Escócia',away:'Brasil',group:'C'},
-  {d:'24 Jun',home:'Áustria',away:'Argélia',group:'J'},
+  {d:'24 Jun',home:'Suíça',away:'Canadá',group:'B'},
+  {d:'24 Jun',home:'Bósnia e Herzegovina',away:'Qatar',group:'B'},
+  {d:'24 Jun',home:'México',away:'Czechia',group:'A'},
+  {d:'24 Jun',home:'África do Sul',away:'Coreia do Sul',group:'A'},
+  {d:'24 Jun',home:'Áustria',away:'Jordânia',group:'J'},
   // June 25
-  {d:'25 Jun',home:'Bélgica',away:'Irão',group:'G'},
+  {d:'25 Jun',home:'EUA',away:'Türkiye',group:'D'},
+  {d:'25 Jun',home:'Paraguai',away:'Austrália',group:'D'},
   {d:'25 Jun',home:'Equador',away:'Alemanha',group:'E'},
+  {d:'25 Jun',home:'Curaçao',away:'Costa do Marfim',group:'E'},
   {d:'25 Jun',home:'Japão',away:'Suécia',group:'F'},
+  {d:'25 Jun',home:'Tunísia',away:'Países Baixos',group:'F'},
   // June 26
-  {d:'26 Jun',home:'México',away:'Czechia',group:'A'},
-  {d:'26 Jun',home:'Coreia do Sul',away:'África do Sul',group:'A'},
-  {d:'26 Jun',home:'Canadá',away:'Qatar',group:'B'},
-  {d:'26 Jun',home:'Bósnia e Herzegovina',away:'Suíça',group:'B'},
+  {d:'26 Jun',home:'Egipto',away:'Irão',group:'G'},
+  {d:'26 Jun',home:'Nova Zelândia',away:'Bélgica',group:'G'},
+  {d:'26 Jun',home:'Cabo Verde',away:'Arábia Saudita',group:'H'},
+  {d:'26 Jun',home:'Uruguai',away:'Espanha',group:'H'},
+  {d:'26 Jun',home:'Noruega',away:'França',group:'I'},
+  {d:'26 Jun',home:'Senegal',away:'Iraque',group:'I'},
+  {d:'26 Jun',home:'Argélia',away:'Jordânia',group:'J'},
+  {d:'26 Jun',home:'Áustria',away:'Argentina',group:'J'},
   // June 27
-  {d:'27 Jun',home:'Paraguai',away:'Austrália',group:'D'},
-  {d:'27 Jun',home:'Türkiye',away:'EUA',group:'D'},
-  {d:'27 Jun',home:'Argélia',away:'Áustria',group:'J'},
-  {d:'27 Jun',home:'Jordânia',away:'Argentina',group:'J'},
   {d:'27 Jun',home:'Congo DR',away:'Uzbequistão',group:'K'},
   {d:'27 Jun',home:'Colômbia',away:'Portugal',group:'K'},
-  // June 28-30 (3rd matchdays)
-  {d:'28 Jun',home:'Egipto',away:'Nova Zelândia',group:'G'},
-  {d:'28 Jun',home:'Bélgica',away:'Irão',group:'G'},
-  {d:'28 Jun',home:'Croácia',away:'Gana',group:'L'},
-  {d:'28 Jun',home:'Panamá',away:'Inglaterra',group:'L'},
-  {d:'29 Jun',home:'Espanha',away:'Uruguai',group:'H'},
-  {d:'29 Jun',home:'Cabo Verde',away:'Arábia Saudita',group:'H'},
-  {d:'29 Jun',home:'Noruega',away:'França',group:'I'},
-  {d:'29 Jun',home:'Senegal',away:'Iraque',group:'I'},
-  {d:'30 Jun',home:'Japão',away:'Tunísia',group:'F'},
-  {d:'30 Jun',home:'Países Baixos',away:'Suécia',group:'F'},
+  {d:'27 Jun',home:'Uzbequistão',away:'Colômbia',group:'K'},
+  {d:'27 Jun',home:'Croácia',away:'Gana',group:'L'},
+  {d:'27 Jun',home:'Panamá',away:'Inglaterra',group:'L'},
+  {d:'27 Jun',home:'Croácia',away:'Panamá',group:'L'},
+  {d:'27 Jun',home:'Inglaterra',away:'Gana',group:'L'},
+  {d:'27 Jun',home:'Jordânia',away:'Argentina',group:'J'},
 ];
 
 // Build ALL_MATCHES with IDs matching schedule order
@@ -1585,7 +1597,7 @@ async function doCreateCompetition(){
     const uid=cred.user.uid;
     
     // Create competition
-    const result=await createComp(uid,name,compName||'Play Football with Friends',pin);
+    const result=await createComp(uid,name,compName||'Previsões do Professor Karamba',pin);
     
     currentUser={uid,displayName:name};
     currentCompId=result.id;
@@ -1625,7 +1637,7 @@ async function doSignOut(){
 }
 
 // ═══ COMPETITION ═══
-async function createComp(uid,name,compName='Play Football with Friends',pin='0000'){
+async function createComp(uid,name,compName='Previsões do Professor Karamba',pin='0000'){
   const{db,doc,setDoc}=window._fb;
   const code=genCode(),id=`comp_${Date.now()}`;
   await setDoc(doc(db,'competitions',id),{
@@ -2618,7 +2630,7 @@ async function shareLeaderboard(){
   const W=600,RH=44,H=78+rows.length*RH+38;canvas.width=W;canvas.height=H;
   const ctx=canvas.getContext('2d');
   ctx.fillStyle='#0D1B2A';ctx.fillRect(0,0,W,H);
-  ctx.fillStyle='#FFD700';ctx.font='bold 22px Georgia,serif';ctx.textAlign='center';ctx.fillText('PLAY FOOTBALL WITH FRIENDS',W/2,34);
+  ctx.fillStyle='#FFD700';ctx.font='bold 22px Georgia,serif';ctx.textAlign='center';ctx.fillText('PREVISÕES DO PROFESSOR KARAMBA',W/2,34);
   ctx.fillStyle='#7a94b0';ctx.font='12px Georgia,serif';ctx.fillText(new Date().toLocaleDateString(),W/2,54);
   rows.forEach((r,i)=>{
     const y=78+i*RH;ctx.fillStyle=i%2?'#0D1B2A':'#162232';ctx.fillRect(0,y,W,RH);
