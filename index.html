@@ -2,12 +2,16 @@
 <html lang="pt">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
 <meta name="theme-color" content="#0D1B2A"/>
-<meta name="description" content="World Cup 2026 prediction game with friends"/>
+<meta name="description" content="Previsões do Professor Karamba — Mundial 2026"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
-<meta name="apple-mobile-web-app-title" content="FWF 2026"/>
+<meta name="apple-mobile-web-app-title" content="Karamba"/>
+<link rel="manifest" href="manifest.json"/>
+<link rel="apple-touch-icon" href="apple-touch-icon.png"/>
+<link rel="icon" type="image/png" href="icon-192.png"/>
 <title>Previsões do Professor Karamba</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/lipis/flag-icons@7.2.3/css/flag-icons.min.css"/>
@@ -173,6 +177,18 @@ table.gct tr:nth-child(3) td{background:rgba(255,215,0,.03)}
 .cd-lbl{font-size:.56rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
 #toast{position:fixed;bottom:calc(var(--nav-h) + 12px + env(safe-area-inset-bottom, 0px));left:50%;transform:translateX(-50%) translateY(20px);background:var(--green);color:var(--dark);padding:10px 24px;border-radius:22px;font-weight:700;z-index:199;transition:transform .3s,opacity .3s;opacity:0;white-space:nowrap;font-size:.88rem;max-width:calc(100vw - 32px);text-align:center;pointer-events:none}
 #toast.show{transform:translateX(-50%) translateY(0);opacity:1}#toast.error{background:var(--red);color:#fff}
+.a2hs-card{position:fixed;left:50%;transform:translateX(-50%) translateY(20px);bottom:calc(var(--nav-h) + 16px + env(safe-area-inset-bottom, 0px));width:calc(100vw - 28px);max-width:420px;background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px 16px 14px;z-index:201;box-shadow:0 10px 40px rgba(0,0,0,.5);opacity:0;transition:opacity .35s,transform .35s}
+.a2hs-card.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.a2hs-close{position:absolute;top:8px;right:12px;background:none;border:none;color:var(--muted);font-size:1.5rem;line-height:1;cursor:pointer;padding:2px 6px}
+.a2hs-row{display:flex;align-items:center;gap:13px}
+.a2hs-icon{width:46px;height:46px;border-radius:11px;flex-shrink:0}
+.a2hs-title{font-weight:800;font-size:.98rem;color:var(--text)}
+.a2hs-sub{font-size:.8rem;color:var(--muted);margin-top:2px;line-height:1.35}
+.a2hs-actions{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
+.a2hs-actions .btn{flex:1;min-width:120px}
+.a2hs-steps{margin-top:11px;font-size:.84rem;color:var(--text);line-height:1.7}
+.a2hs-steps b{color:var(--gold)}
+.a2hs-share-ico{display:inline-block;vertical-align:-3px;width:15px;height:15px;margin:0 1px}
 .invite-box{background:rgba(255,215,0,.06);border:1px solid rgba(255,215,0,.25);border-radius:10px;padding:14px;text-align:center;margin:10px 0}
 .invite-code{font-family:var(--fh);font-size:2rem;letter-spacing:6px;color:var(--gold)}
 .rules-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:6px}
@@ -454,6 +470,17 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
 </div>
 </div>
 <div id="toast"></div>
+<div id="a2hs" class="a2hs-card" style="display:none">
+  <button id="a2hs-close" class="a2hs-close" onclick="dismissA2HS()" aria-label="Fechar">&times;</button>
+  <div class="a2hs-row">
+    <img src="icon-192.png" alt="" class="a2hs-icon"/>
+    <div class="a2hs-text">
+      <div class="a2hs-title">Adiciona ao ecrã principal</div>
+      <div class="a2hs-sub" id="a2hs-sub">Abre as previsões com um toque, como uma app.</div>
+    </div>
+  </div>
+  <div id="a2hs-actions" class="a2hs-actions"></div>
+</div>
 <script>
 // ═══ TRANSLATIONS ═══
 const T={
@@ -3077,6 +3104,10 @@ async function submitPredictions(mode){
   allPredictions[uid]={...userPredictions};
   hasUnsavedEdits=false;
   toast(t('saved'));updateBanner();renderLeaderboard();renderOtherPreds();renderGruposTab();renderBracket();renderBracketMobile();renderBracketSwipe();
+  // After the user submits predictions for the first time, gently offer the
+  // "add to home screen" hint (once, dismissable). Delay so the "Guardado!"
+  // toast is seen first.
+  maybeOfferA2HS();
 }
 
 // ═══ LIVE SCORES ═══
@@ -3346,6 +3377,79 @@ function clearStoredAuth(){
   localStorage.removeItem('fwf_comp');
   currentUser=null;currentCompId=null;
 }
+// ═══ ADD TO HOME SCREEN (install hint) ═══
+// Shown once, after the user's first prediction submit. Dismissable.
+// Android/Chrome: capture beforeinstallprompt and offer a one-tap install.
+// iOS Safari: no install API exists, so show manual "Share -> Add to Home Screen" steps.
+let deferredInstallPrompt=null;
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstallPrompt=e;});
+
+function isStandalone(){
+  return window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches
+    || window.navigator.standalone===true;
+}
+function isIOS(){
+  return /iphone|ipad|ipod/i.test(navigator.userAgent)
+    || (navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1); // iPadOS
+}
+function a2hsAlreadyHandled(){
+  // Persist the "seen" flag on the member record (survives Safari storage clearing).
+  const u=currentUser&&allUsers[currentUser.uid];
+  if(u&&u.a2hsSeen) return true;
+  // localStorage as a secondary guard (e.g. before member record loads)
+  try{ if(localStorage.getItem('fwf_a2hs_seen')==='1') return true; }catch(e){}
+  return false;
+}
+async function markA2HSSeen(){
+  try{ localStorage.setItem('fwf_a2hs_seen','1'); }catch(e){}
+  // Also write to the member record so it follows the user across devices/sessions
+  try{
+    if(window._fb&&currentUser&&currentCompId){
+      const{db,doc,updateDoc}=window._fb;
+      await updateDoc(doc(db,'competitions',currentCompId),{[`members.${currentUser.uid}.a2hsSeen`]:true});
+    }
+  }catch(e){/* best effort */}
+}
+function maybeOfferA2HS(){
+  // Don't show: already installed, already seen, or not on a phone-ish device
+  if(isStandalone()||a2hsAlreadyHandled()) return;
+  const card=$('a2hs');if(!card) return;
+  const actions=$('a2hs-actions');const sub=$('a2hs-sub');
+
+  if(deferredInstallPrompt){
+    // Android / desktop Chrome: real one-tap install
+    actions.innerHTML=`<button class="btn btn-gold" onclick="doInstallA2HS()">📲 Instalar</button>
+      <button class="btn btn-ghost" onclick="dismissA2HS()">Agora não</button>`;
+  }else if(isIOS()){
+    // iOS Safari: manual instructions (no API available)
+    sub.textContent='Abre as previsões com um toque, como uma app.';
+    actions.innerHTML=`<div class="a2hs-steps">
+      1. Toca em <b>Partilhar</b>
+      <svg class="a2hs-share-ico" viewBox="0 0 24 24" fill="none" stroke="#FFD700" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M5 12v7a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-7"/></svg>
+      na barra do Safari<br>
+      2. Escolhe <b>"Adicionar ao ecrã principal"</b></div>
+      <div style="margin-top:10px"><button class="btn btn-ghost btn-full" onclick="dismissA2HS()">Entendido</button></div>`;
+  }else{
+    // Other browsers without the install API and not iOS: nothing useful to offer
+    return;
+  }
+
+  // small delay so the "Guardado!" toast lands first
+  setTimeout(()=>{card.style.display='block';requestAnimationFrame(()=>card.classList.add('show'));},900);
+}
+async function doInstallA2HS(){
+  if(!deferredInstallPrompt){dismissA2HS();return;}
+  deferredInstallPrompt.prompt();
+  try{ await deferredInstallPrompt.userChoice; }catch(e){}
+  deferredInstallPrompt=null;
+  dismissA2HS();
+}
+function dismissA2HS(){
+  const card=$('a2hs');if(card){card.classList.remove('show');setTimeout(()=>{card.style.display='none';},350);}
+  markA2HSSeen();
+}
+window.doInstallA2HS=doInstallA2HS;window.dismissA2HS=dismissA2HS;
+
 window.addEventListener('firebase-ready',startFirebase);
 if(window._fb) startFirebase();
 
