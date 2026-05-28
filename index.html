@@ -263,7 +263,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
 </div>
 <div id="screen-auth" class="card hidden">
   <h2 style="text-align:center;margin-bottom:16px">Previsões do Professor Karamba</h2>
-  <div class="form-group"><label>Nome / Name</label><input type="text" id="auth-name" placeholder="O teu nome" autocomplete="name"/></div>
+  <div class="form-group"><label>Nome e Apelido / Full Name</label><input type="text" id="auth-name" placeholder="Ex: Paulo Silva" autocomplete="name"/></div>
   <div class="form-group"><label>PIN (4 dígitos)</label><input type="password" id="auth-pin" placeholder="••••" maxlength="4" pattern="[0-9]{4}" inputmode="numeric" autocomplete="off"/></div>
   <div class="form-group"><label>Código de Convite</label><input type="text" id="auth-code" placeholder="XXXXXX" style="text-transform:uppercase" autocomplete="off"/></div>
   <button class="btn btn-gold btn-full" onclick="doSimpleAuth()">Entrar / Join</button>
@@ -1510,6 +1510,9 @@ async function doSimpleAuth(){
   const code=$('auth-code').value.trim().toUpperCase();
 
   if(!name||!pin||!code){toast('Preenche todos os campos',true);return;}
+  // Require a full name: at least two words, each with 2+ letters (e.g. "Paulo Silva")
+  const nameParts=name.split(/\s+/).filter(p=>p.length>=2);
+  if(nameParts.length<2){toast(lang==='pt'?'Escreve o nome e apelido (ex: Paulo Silva)':'Enter first and last name (e.g. Paulo Silva)',true);return;}
   if(pin.length!==4||!/^\d{4}$/.test(pin)){toast('PIN deve ter 4 dígitos',true);return;}
 
   const{auth,db,getDocs,collection,doc,getDoc,updateDoc,signInAnonymously}=window._fb;
@@ -1587,6 +1590,8 @@ async function doCreateCompetition(){
   const compName=$('host-comp-name').value.trim();
   
   if(!name||!pin){toast('Preenche nome e PIN',true);return;}
+  const hostNameParts=name.split(/\s+/).filter(p=>p.length>=2);
+  if(hostNameParts.length<2){toast(lang==='pt'?'Escreve o nome e apelido (ex: Paulo Silva)':'Enter first and last name (e.g. Paulo Silva)',true);return;}
   if(pin.length!==4||!/^\d{4}$/.test(pin)){toast('PIN deve ter 4 dígitos',true);return;}
   
   const{signInAnonymously}=window._fb;
@@ -1831,9 +1836,22 @@ function renderGroupMatches(){
   if(editable){
     c.querySelectorAll('.mp').forEach(inp=>inp.addEventListener('input',e=>{
       const mid=e.target.dataset.mid,side=e.target.dataset.side;
+      // Block negative / out-of-range values. A number input still lets users
+      // TYPE "-3" even with min="0", so we sanitize here.
+      let raw=e.target.value;
+      if(raw!==''){
+        let n=parseInt(raw,10);
+        if(isNaN(n)||n<0) n=0;
+        if(n>20) n=20;
+        if(String(n)!==raw){raw=String(n);e.target.value=raw;}
+      }
       if(!userPredictions[mid]) userPredictions[mid]={home:'',away:''};
-      userPredictions[mid][side]=e.target.value;
+      userPredictions[mid][side]=raw;
       hasUnsavedEdits=true;
+    }));
+    // Also block the minus key and 'e'/'+' entirely on these inputs
+    c.querySelectorAll('.mp').forEach(inp=>inp.addEventListener('keydown',e=>{
+      if(e.key==='-'||e.key==='+'||e.key==='e'||e.key==='E') e.preventDefault();
     }));
   }
 }
@@ -2963,7 +2981,9 @@ async function saveActualScores(){
     const id=i.dataset.mid,side=i.dataset.side;
     if(!scores[id])scores[id]={source:'manual'};
     if(i.value!==''){
-      scores[id][side]=parseInt(i.value);
+      let n=parseInt(i.value,10);
+      if(isNaN(n)||n<0)n=0;if(n>20)n=20;
+      scores[id][side]=n;
       scores[id].source='manual'; // Mark as manually entered
     }
   });
@@ -3022,7 +3042,10 @@ async function submitPredictions(mode){
     inputs.forEach(inp=>{
       const mid=inp.dataset.mid,side=inp.dataset.side;
       if(!collected[mid]) collected[mid]={home:'',away:''};
-      collected[mid][side]=inp.value;
+      // Safety clamp: never store negative or out-of-range scores
+      let v=inp.value;
+      if(v!==''){let n=parseInt(v,10);if(isNaN(n)||n<0)n=0;if(n>20)n=20;v=String(n);}
+      collected[mid][side]=v;
     });
     // Merge into userPredictions so we don't lose any keys that aren't currently
     // rendered (e.g. autoGroupKeys output stored previously).
