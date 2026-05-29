@@ -1445,6 +1445,7 @@ const TOURNAMENT_HISTORY=[
   {year:2020,name:'Euro',type:'EURO',winner:'Vlad Zhuravlev',runnerUp:'João Luís Mota',third:'Luís Mota'},
   {year:2021,name:'CAN Camarões',type:'CAN',winner:'Paulo Niza',runnerUp:'João do Ó',third:'Luís Mota'},
   {year:2022,name:'Mundial Qatar',type:'WC',winner:'Luís Vargas Mota',runnerUp:'Manuel Reis',third:'Humberto Martins'},
+  {year:2024,name:'Euro Alemanha',type:'EURO',winner:'Ligia Gomes',runnerUp:'Miguel Lopes',third:'Pedro Santos'},
   {year:2025,name:'CAN Marrocos',type:'CAN',winner:'João Eira',runnerUp:'Paulo Niza',third:'João do Ó'},
   {year:2026,name:'Mundial',type:'WC',winner:'TBD',runnerUp:'TBD',third:'TBD'},
 ];
@@ -1868,24 +1869,42 @@ function renderGroupMatches(){
   if(cg) html+='</div></div>';
   c.innerHTML=html;
   if(editable){
+    c.querySelectorAll('.mp').forEach(inp=>{
+      // Ensure mobile keyboards show integer-only keypads
+      inp.setAttribute('inputmode','numeric');
+      inp.setAttribute('pattern','[0-9]*');
+    });
     c.querySelectorAll('.mp').forEach(inp=>inp.addEventListener('input',e=>{
       const mid=e.target.dataset.mid,side=e.target.dataset.side;
-      // Block negative / out-of-range values. A number input still lets users
-      // TYPE "-3" even with min="0", so we sanitize here.
-      let raw=e.target.value;
+      // Strip ANYTHING that isn't a digit: minus signs, decimals, letters, etc.
+      // This handles values like "0.5", "-3", ".", "1e2" - all become digits-only
+      // or empty. We sanitise the displayed text first, then clamp 0-20.
+      let raw=String(e.target.value||'').replace(/[^0-9]/g,'');
       if(raw!==''){
         let n=parseInt(raw,10);
         if(isNaN(n)||n<0) n=0;
         if(n>20) n=20;
-        if(String(n)!==raw){raw=String(n);e.target.value=raw;}
+        raw=String(n);
       }
+      if(raw!==e.target.value) e.target.value=raw;
       if(!userPredictions[mid]) userPredictions[mid]={home:'',away:''};
       userPredictions[mid][side]=raw;
       hasUnsavedEdits=true;
     }));
-    // Also block the minus key and 'e'/'+' entirely on these inputs
+    // Block keys that produce non-digit values (decimals, signs, exponent, etc.)
     c.querySelectorAll('.mp').forEach(inp=>inp.addEventListener('keydown',e=>{
-      if(e.key==='-'||e.key==='+'||e.key==='e'||e.key==='E') e.preventDefault();
+      if(['-','+','.',',','e','E'].includes(e.key)) e.preventDefault();
+    }));
+    // Also strip on paste (someone pasting "0.5" or "1,5")
+    c.querySelectorAll('.mp').forEach(inp=>inp.addEventListener('paste',e=>{
+      e.preventDefault();
+      const text=(e.clipboardData||window.clipboardData).getData('text');
+      const clean=String(text||'').replace(/[^0-9]/g,'').slice(0,2);
+      let n=parseInt(clean,10);
+      if(isNaN(n)) return;
+      if(n<0)n=0;if(n>20)n=20;
+      inp.value=String(n);
+      inp.dispatchEvent(new Event('input',{bubbles:true}));
     }));
   }
 }
@@ -2325,11 +2344,25 @@ function renderBracketSwipe(){
     }},
   ];
   
+  // Preserve scroll position across re-renders. iOS Safari (and some other
+  // browsers) reset scrollLeft to 0 when innerHTML is replaced - which would
+  // snap the user back to the first slide after they tap a winner.
+  const swipeContainer=$('bracket-swipe');
+  const savedScroll=swipeContainer?swipeContainer.scrollLeft:0;
+
   c.innerHTML=rounds.map((r,i)=>`<div class="bracket-swipe-round" data-round="${i}">
     <div class="bm-rnd-hdr"><span>${r.title}</span><span style="font-size:.7rem;color:var(--muted)">+${r.pts}pts</span></div>
     <div style="margin-top:8px">${r.content()}</div>
   </div>`).join('');
-  
+
+  // Restore scroll position. Use both a sync and an rAF restore: the sync one
+  // covers most browsers; the rAF one catches iOS Safari which occasionally
+  // resets scrollLeft AFTER the synchronous innerHTML assignment completes.
+  if(swipeContainer){
+    swipeContainer.scrollLeft=savedScroll;
+    requestAnimationFrame(()=>{swipeContainer.scrollLeft=savedScroll;});
+  }
+
   if(nav){
     nav.innerHTML=rounds.map((_,i)=>`<div class="bracket-nav-dot ${i===0?'active':''}" data-idx="${i}"></div>`).join('');
     const container=$('bracket-swipe');
@@ -2339,7 +2372,20 @@ function renderBracketSwipe(){
       const activeIdx=Math.round(scrollLeft/itemWidth);
       nav.querySelectorAll('.bracket-nav-dot').forEach((d,i)=>d.classList.toggle('active',i===activeIdx));
     };
-    container.addEventListener('scroll',updateDots);
+    // Only attach the scroll listener once - otherwise every re-render piles
+    // on a new listener, leaking memory and firing updateDots N times per scroll
+    if(!container._dotsListenerAttached){
+      container.addEventListener('scroll',()=>{
+        // Read fresh nav each time since renderBracketSwipe re-builds the dots
+        const n=$('bracket-swipe-nav');if(!n) return;
+        const scrollLeft=container.scrollLeft;
+        const itemWidth=container.scrollWidth/(n.children.length||1);
+        const activeIdx=Math.round(scrollLeft/itemWidth);
+        n.querySelectorAll('.bracket-nav-dot').forEach((d,i)=>d.classList.toggle('active',i===activeIdx));
+      });
+      container._dotsListenerAttached=true;
+    }
+    updateDots(); // initial sync so the right dot lights up after restore
     nav.querySelectorAll('.bracket-nav-dot').forEach(d=>d.addEventListener('click',()=>{
       const idx=parseInt(d.dataset.idx);
       const itemWidth=container.scrollWidth/rounds.length;
@@ -3114,8 +3160,9 @@ async function saveActualScores(){
   document.querySelectorAll('.ha').forEach(i=>{
     const id=i.dataset.mid,side=i.dataset.side;
     if(!scores[id])scores[id]={source:'manual'};
-    if(i.value!==''){
-      let n=parseInt(i.value,10);
+    const clean=String(i.value||'').replace(/[^0-9]/g,'');
+    if(clean!==''){
+      let n=parseInt(clean,10);
       if(isNaN(n)||n<0)n=0;if(n>20)n=20;
       scores[id][side]=n;
       scores[id].source='manual'; // Mark as manually entered
@@ -3176,8 +3223,8 @@ async function submitPredictions(mode){
     inputs.forEach(inp=>{
       const mid=inp.dataset.mid,side=inp.dataset.side;
       if(!collected[mid]) collected[mid]={home:'',away:''};
-      // Safety clamp: never store negative or out-of-range scores
-      let v=inp.value;
+      // Safety net: strip ALL non-digits (handles "0.5", ".", etc.) then clamp 0-20
+      let v=String(inp.value||'').replace(/[^0-9]/g,'');
       if(v!==''){let n=parseInt(v,10);if(isNaN(n)||n<0)n=0;if(n>20)n=20;v=String(n);}
       collected[mid][side]=v;
     });
