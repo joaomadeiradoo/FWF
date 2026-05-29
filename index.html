@@ -189,6 +189,8 @@ table.gct tr:nth-child(3) td{background:rgba(255,215,0,.03)}
 .a2hs-steps{margin-top:11px;font-size:.84rem;color:var(--text);line-height:1.7}
 .a2hs-steps b{color:var(--gold)}
 .a2hs-share-ico{display:inline-block;vertical-align:-3px;width:15px;height:15px;margin:0 1px}
+.adj-badge{font-size:.7rem;font-weight:700;cursor:pointer;white-space:nowrap;opacity:.85}
+.adj-badge:active{opacity:1}
 .invite-box{background:rgba(255,215,0,.06);border:1px solid rgba(255,215,0,.25);border-radius:10px;padding:14px;text-align:center;margin:10px 0}
 .invite-code{font-family:var(--fh);font-size:2rem;letter-spacing:6px;color:var(--gold)}
 .rules-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:6px}
@@ -437,6 +439,11 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
         <h3 style="font-family:var(--fh);color:var(--gold);letter-spacing:1px;margin-bottom:6px;font-size:.95rem">🔓 Permitir Re-submissão</h3>
         <p style="color:var(--muted);font-size:.73rem;margin-bottom:8px">O utilizador mantém previsões anteriores e edita até bloqueares novamente.</p>
         <div id="host-unlock"></div>
+      </div>
+      <div style="margin-bottom:18px" id="pts-adjust-section">
+        <h3 style="font-family:var(--fh);color:var(--gold);letter-spacing:1px;margin-bottom:5px;font-size:.95rem">➕➖ Ajustar Pontos</h3>
+        <p style="color:var(--muted);font-size:.73rem;margin-bottom:10px">Salvaguarda manual: soma ou subtrai pontos a um jogador (ex: aposta paralela, penalização). A pontuação automática continua a funcionar por baixo — isto é só um ajuste por cima. Cada ajuste fica registado com o motivo e é reversível.</p>
+        <div id="host-adjust"></div>
       </div>
       <!-- POINTS TOGGLES - NEW -->
       <div style="margin-bottom:18px" id="pts-toggles-section">
@@ -1675,7 +1682,7 @@ async function createComp(uid,name,compName='Previsões do Professor Karamba',pi
   await setDoc(doc(db,'competitions',id),{
     name:compName,inviteCode:code,hostUid:uid,
     rules:{...DEFAULT_RULES},members:{[uid]:{name,pin,joinedAt:Date.now(),role:'host'}},
-    actualScores:{},predictions:{},playerChars:{},approvedTopScorers:{},
+    actualScores:{},predictions:{},playerChars:{},approvedTopScorers:{},adjustments:{},
     ptsToggles:{groupWinner:true,groupSecond:true,round32:true},
     createdAt:Date.now()
   });
@@ -1774,13 +1781,13 @@ async function initMainApp(uid){
     }
     renderGruposTab();renderBracket();renderBracketMobile();renderBracketSwipe();
     renderLeaderboard();renderOtherPreds();renderLive();
-    if(isAdmin){renderHostScores();renderHostMembers();renderHostRules();renderHostPlayerChars();renderPtsToggles();}
+    if(isAdmin){renderHostScores();renderHostMembers();renderHostAdjust();renderHostRules();renderHostPlayerChars();renderPtsToggles();}
   });
 
   renderGroupMatches();renderGruposTab();renderBracket();renderBracketMobile();renderBracketSwipe();
   renderRules();renderLeaderboard();renderOtherPreds();renderLive();
   renderCountdown();updateBanner();
-  if(isAdmin){renderHostScores();renderHostMembers();renderHostRules();renderHostPlayerChars();renderPtsToggles();getApiUsage().then(updateApiCounter);}
+  if(isAdmin){renderHostScores();renderHostMembers();renderHostAdjust();renderHostRules();renderHostPlayerChars();renderPtsToggles();getApiUsage().then(updateApiCounter);}
   hide('screen-loading');hide('screen-auth');show('screen-main');
   scheduleApi();
 }
@@ -2402,7 +2409,37 @@ function calcTotal(uid,toggleOverride=null){
     const score=fuzzyScore(pr.topScorer,actualScores.topScorer);
     if(score===1||(score>=0.5&&(approvedTopScorers[uid]===true))) tot+=rules.top_scorer;
   }
+  // Manual host adjustments (offset layer). The automatic scoring above always
+  // runs; these just ride on top. Each user's adjustments is an array of
+  // {delta, reason, by, ts}. Sum the deltas.
+  tot+=adjustmentTotal(uid);
   return tot;
+}
+// Sum of all manual point adjustments for a user (0 if none)
+function adjustmentTotal(uid){
+  const adj=(currentComp&&currentComp.adjustments&&currentComp.adjustments[uid])||[];
+  if(!Array.isArray(adj)) return 0;
+  return adj.reduce((s,a)=>s+(Number(a.delta)||0),0);
+}
+// Small transparency badge shown on the leaderboard next to anyone whose total
+// includes a manual host adjustment. Tap to see the reasons.
+function adjBadge(uid){
+  const total=adjustmentTotal(uid);
+  if(!total) return '';
+  const sign=total>0?'+':'';
+  const color=total>0?'var(--green)':'var(--red)';
+  return ` <span class="adj-badge" style="color:${color}" onclick="showAdjReasons('${attrEsc(uid)}')" title="Ajuste manual do host">⚙${sign}${total}</span>`;
+}
+function showAdjReasons(uid){
+  const adj=(currentComp&&currentComp.adjustments&&currentComp.adjustments[uid])||[];
+  const u=allUsers[uid];
+  if(!adj.length){toast('Sem ajustes',false);return;}
+  const lines=adj.map(a=>{
+    const sign=a.delta>0?'+':'';
+    const when=a.ts?new Date(a.ts).toLocaleDateString('pt-PT',{day:'2-digit',month:'short'}):'';
+    return `${sign}${a.delta} — ${a.reason||'(sem motivo)'}${a.by?` · ${a.by}`:''}${when?` · ${when}`:''}`;
+  }).join('\n');
+  alert(`Ajustes de pontos — ${u?u.name:''}\n\n${lines}\n\nTotal: ${adjustmentTotal(uid)>0?'+':''}${adjustmentTotal(uid)}`);
 }
 
 // ═══ DAILY SNAPSHOT for "points today" column ═══
@@ -2442,7 +2479,7 @@ function renderLeaderboard(){
     const todayStr=todayDiff>0?`+${todayDiff}`:todayDiff<0?`${todayDiff}`:'0';
     html+=`<tr>
       <td class="${rc}">${rank===1?'🥇':rank===2?'🥈':rank===3?'🥉':rank}</td>
-      <td>${r.name}${r.uid===currentUser?.uid?' 👈':''}</td>
+      <td>${r.name}${r.uid===currentUser?.uid?' 👈':''}${adjBadge(r.uid)}</td>
       <td class="${todayCls}">${todayStr}</td>
       <td class="${r.pts>=0?'pts-pos':'pts-neg'}">${r.pts>=0?'+':''}${r.pts}</td>
       <td>${trend} <span class="badge ${r.sub?'badge-open':'badge-locked'}">${r.sub?'✓':'?'}</span></td>
@@ -3001,6 +3038,76 @@ async function toggleUnlock(uid){
   members[uid].unlockedEdit=!members[uid].unlockedEdit;
   await updateDoc(doc(db,'competitions',currentCompId),{members});toast(t('saved'));
 }
+
+// ═══ POINTS ADJUSTMENTS (host-only manual override layer) ═══
+function renderHostAdjust(){
+  const c=$('host-adjust');if(!c) return;
+  // Host-only feature
+  if(!isHost){const sec=$('pts-adjust-section');if(sec)sec.style.display='none';return;}
+  const sec=$('pts-adjust-section');if(sec)sec.style.display='';
+  const members=Object.entries(allUsers);
+  if(!members.length){c.innerHTML='<p style="color:var(--muted)">Nenhum participante</p>';return;}
+  const adjustments=(currentComp&&currentComp.adjustments)||{};
+  c.innerHTML=members.map(([uid,u])=>{
+    const base=calcTotal(uid)-adjustmentTotal(uid); // automatic-only total
+    const adj=adjustmentTotal(uid);
+    const log=(adjustments[uid]||[]);
+    const logHtml=log.length?`<div style="margin-top:7px;display:flex;flex-direction:column;gap:4px">${log.map((a,idx)=>{
+      const sign=a.delta>0?'+':'';const when=a.ts?new Date(a.ts).toLocaleDateString('pt-PT',{day:'2-digit',month:'short'}):'';
+      return `<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;background:#0D1B2A;border:1px solid var(--border);border-radius:7px;padding:6px 9px">
+        <span style="font-size:.74rem"><b style="color:${a.delta>0?'var(--green)':'var(--red)'}">${sign}${a.delta}</b> · ${a.reason?a.reason.replace(/</g,'&lt;'):'(sem motivo)'}<span style="color:var(--muted)">${when?' · '+when:''}</span></span>
+        <button class="btn btn-ghost btn-sm" style="padding:3px 8px;font-size:.7rem" onclick="removeAdjustment('${attrEsc(uid)}',${idx})">🗑️</button>
+      </div>`;
+    }).join('')}</div>`:'';
+    return `<div style="padding:11px 0;border-bottom:1px solid var(--border)">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+        <div><span style="font-weight:700;font-size:.88rem">${u.name}</span>
+          <span style="color:var(--muted);font-size:.72rem"> auto ${base>=0?'+':''}${base}${adj?` · ajuste <b style="color:${adj>0?'var(--green)':'var(--red)'}">${adj>0?'+':''}${adj}</b>`:''} · total <b>${calcTotal(uid)>=0?'+':''}${calcTotal(uid)}</b></span>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:7px;flex-wrap:wrap;align-items:center">
+        <input type="number" class="adj-delta" data-uid="${attrEsc(uid)}" placeholder="±pts" style="width:74px;background:var(--card);border:1px solid var(--border);border-radius:7px;padding:7px 9px;color:var(--text);font-family:var(--fb);font-size:.85rem;outline:none">
+        <input type="text" class="adj-reason" data-uid="${attrEsc(uid)}" placeholder="Motivo (ex: aposta)" style="flex:1;min-width:120px;background:var(--card);border:1px solid var(--border);border-radius:7px;padding:7px 9px;color:var(--text);font-family:var(--fb);font-size:.85rem;outline:none">
+        <button class="btn btn-gold btn-sm" onclick="addAdjustment('${attrEsc(uid)}')">Aplicar</button>
+      </div>
+      ${logHtml}
+    </div>`;
+  }).join('');
+}
+async function addAdjustment(uid){
+  if(!isHost){toast('Apenas o host',true);return;}
+  const deltaInp=document.querySelector(`.adj-delta[data-uid="${cssEsc(uid)}"]`);
+  const reasonInp=document.querySelector(`.adj-reason[data-uid="${cssEsc(uid)}"]`);
+  if(!deltaInp) return;
+  const delta=parseInt(deltaInp.value,10);
+  if(isNaN(delta)||delta===0){toast(lang==='pt'?'Insere um valor (+ ou −)':'Enter a value',true);return;}
+  const reason=(reasonInp?reasonInp.value:'').trim().slice(0,80);
+  const{db,doc,updateDoc}=window._fb;
+  const adjustments={...((currentComp&&currentComp.adjustments)||{})};
+  const list=Array.isArray(adjustments[uid])?[...adjustments[uid]]:[];
+  list.push({delta,reason,by:currentUser?.displayName||'host',ts:Date.now()});
+  adjustments[uid]=list;
+  try{
+    await updateDoc(doc(db,'competitions',currentCompId),{adjustments});
+    toast(lang==='pt'?'Ajuste aplicado':'Adjustment applied');
+  }catch(e){console.error(e);toast('Erro: '+e.message,true);}
+}
+async function removeAdjustment(uid,idx){
+  if(!isHost){toast('Apenas o host',true);return;}
+  const adjustments={...((currentComp&&currentComp.adjustments)||{})};
+  const list=Array.isArray(adjustments[uid])?[...adjustments[uid]]:[];
+  if(idx<0||idx>=list.length) return;
+  if(!confirm(lang==='pt'?'Remover este ajuste?':'Remove this adjustment?')) return;
+  list.splice(idx,1);
+  if(list.length) adjustments[uid]=list; else delete adjustments[uid];
+  const{db,doc,updateDoc}=window._fb;
+  try{
+    await updateDoc(doc(db,'competitions',currentCompId),{adjustments});
+    toast(lang==='pt'?'Ajuste removido':'Adjustment removed');
+  }catch(e){console.error(e);toast('Erro: '+e.message,true);}
+}
+// Escape a string for use inside a CSS attribute selector [data-uid="..."]
+function cssEsc(s){return String(s).replace(/["\\]/g,'\\$&');}
 async function saveActualScores(){
   if(!isAdmin) return;const{db,doc,updateDoc}=window._fb;
   const scores={...actualScores};
@@ -3272,7 +3379,7 @@ function showTab(id){
   if(id==='tab-bracket'){renderBracket();renderBracketMobile();renderBracketSwipe();}
   if(id==='tab-historia') renderHistoria();
   if(id==='tab-rules') renderRules();
-  if(id==='tab-host'){renderHostScores();renderHostMembers();renderHostRules();renderHostPlayerChars();renderPtsToggles();getApiUsage().then(updateApiCounter);}
+  if(id==='tab-host'){renderHostScores();renderHostMembers();renderHostAdjust();renderHostRules();renderHostPlayerChars();renderPtsToggles();getApiUsage().then(updateApiCounter);}
 }
 function copyInvite(){navigator.clipboard.writeText(currentComp?.inviteCode||'');toast(t('copied'));}
 
@@ -3458,6 +3565,7 @@ window.showHostCreate=showHostCreate;window.showAuth=showAuth;window.promptAdmin
 window.createComp=createComp;window.initMainApp=initMainApp;
 window.showTab=showTab;window.submitPredictions=submitPredictions;window.saveActualScores=saveActualScores;
 window.toggleUnlock=toggleUnlock;window.copyInvite=copyInvite;window.regenerateCode=regenerateCode;
+window.addAdjustment=addAdjustment;window.removeAdjustment=removeAdjustment;window.showAdjReasons=showAdjReasons;
 window.toggleAdmin=toggleAdmin;window.kickUser=kickUser;window.shareLeaderboard=shareLeaderboard;window.downloadLb=downloadLb;
 window.downloadCSV=downloadCSV;window.saveRules=saveRules;window.savePlayerChars=savePlayerChars;
 window.reviewTopScorer=reviewTopScorer;window.approveTopScorer=approveTopScorer;window.forceFetch=forceFetch;
