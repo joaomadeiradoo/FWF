@@ -48,8 +48,8 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 header{text-align:center;padding:18px 44px 14px}
 header h1{font-family:var(--fh);font-size:clamp(1.3rem,5vw,3rem);letter-spacing:2px;background:linear-gradient(135deg,var(--gold),#fff 50%,var(--gold));-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1.1}
 header p{color:var(--muted);font-size:.78rem;margin-top:3px}
-.lang-toggle{position:absolute;top:12px;right:12px;display:flex;gap:5px;z-index:10}
-.lang-toggle button{background:var(--card);border:1px solid var(--border);color:var(--text);padding:5px 10px;border-radius:6px;cursor:pointer;font-size:.75rem;font-family:var(--fb);min-height:36px}
+.lang-toggle{display:flex;gap:5px;justify-content:center;margin-top:6px}
+.lang-toggle button{background:var(--card);border:1px solid var(--border);color:var(--text);padding:4px 10px;border-radius:6px;cursor:pointer;font-size:.72rem;font-family:var(--fb)}
 .lang-toggle button.active{background:var(--gold);color:var(--dark);font-weight:700}
 .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px}
 .card h2{font-family:var(--fh);font-size:1.3rem;letter-spacing:1px;margin-bottom:10px;color:var(--gold)}
@@ -295,12 +295,13 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
   <button class="bnav-btn" onclick="showTab('tab-rules')" id="bnav-rules"><span class="bi">📖</span><span>Regras</span></button>
   <button class="bnav-btn hidden" onclick="showTab('tab-host')" id="bnav-host"><span class="bi">⚙️</span><span>Host</span></button>
 </nav>
+<div id="app">
+<header><h1>🏆 PREVISÕES DO PROFESSOR KARAMBA</h1><p id="hdr-sub">2026 · USA · CANADA · MEXICO</p>
 <div class="lang-toggle">
   <button class="active" onclick="setLang('pt')">🇵🇹 PT</button>
   <button onclick="setLang('en')">🇬🇧 EN</button>
 </div>
-<div id="app">
-<header><h1>🏆 PREVISÕES DO PROFESSOR KARAMBA</h1><p id="hdr-sub">2026 · USA · CANADA · MEXICO</p></header>
+</header>
 <div id="screen-loading" class="card" style="text-align:center;padding:40px 20px">
   <div style="font-size:2.5rem;margin-bottom:10px">⚽</div>
   <div style="font-size:1rem;color:var(--muted)">A carregar...</div>
