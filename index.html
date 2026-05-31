@@ -3418,14 +3418,6 @@ async function toggleUnpaidAnnounce(uid,name){
   await updateDoc(doc(db,'competitions',currentCompId),{members});
   toast(nowAnnounced?`€ ${name} anunciado como não pago`:`Aviso removido de ${name}`);
 }
-  const uw=$('host-unlock');if(!uw) return;
-  uw.innerHTML=members.map(([uid,u])=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);gap:7px;flex-wrap:wrap">
-    <div><span style="font-size:.86rem;font-weight:600">${u.name}</span>
-    <span class="badge ${allPredictions[uid]?'badge-open':'badge-locked'}" style="margin-left:6px">${allPredictions[uid]?'✓':'?'}</span>
-    ${u.unlockedEdit?`<span class="badge" style="background:rgba(255,215,0,.15);color:var(--gold);margin-left:4px">editing</span>`:''}</div>
-    <button class="btn btn-ghost btn-sm" onclick="toggleUnlock('${attrEsc(uid)}')">${u.unlockedEdit?t('relock'):t('allow')}</button>
-  </div>`).join('');
-}
 async function toggleUnlock(uid){
   const{db,doc,updateDoc}=window._fb;const members={...allUsers};if(!members[uid]) return;
   members[uid].unlockedEdit=!members[uid].unlockedEdit;
