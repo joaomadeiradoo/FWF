@@ -3950,15 +3950,24 @@ window.doInstallA2HS=doInstallA2HS;window.dismissA2HS=dismissA2HS;
 // install our custom implementation on iOS to avoid a double-reload conflict.
 (function initPTR(){
   const onIOS=/iphone|ipad|ipod/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
-  if(!onIOS) return; // Android and desktop: native PTR works fine
+  if(!onIOS) return;
 
-  const THRESHOLD=70;
+  const THRESHOLD=60;
   let startY=0,pulling=false,triggered=false;
   const ptr=document.getElementById('ptr');
   if(!ptr) return;
 
+  function isAtTop(){
+    // In iOS standalone the scrolling element can be document.scrollingElement,
+    // document.documentElement, document.body, or a child — check all.
+    if((document.scrollingElement||document.documentElement).scrollTop>2) return false;
+    if(window.scrollY>2) return false;
+    if(document.body.scrollTop>2) return false;
+    return true;
+  }
+
   document.addEventListener('touchstart',e=>{
-    if(window.scrollY>0||document.documentElement.scrollTop>0) return;
+    if(!isAtTop()) return;
     startY=e.touches[0].clientY;
     pulling=true;triggered=false;
   },{passive:true});
