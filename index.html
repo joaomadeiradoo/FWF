@@ -2706,49 +2706,48 @@ function shoutBadDay(name,pts,char){
 // Guarantees every player is mentioned ≥2x across ~30 days (3/day rotation).
 // Templates take (name, char, rank, totalPlayers, pts). Standing-anchored.
 const ROLL_CALL_PT=[
-  (n,c,r,N,p)=>`${n} em ${r}º — ${c?`o suposto "${c}"`:'o nosso génio'} ainda não percebeu que isto não é o Euromilhões.`,
-  (n,c,r,N,p)=>`${r}º lugar para ${n}.${c?` Quem diria que ser ${c} não dava jeito nenhum?`:' Estamos chocados.'}`,
-  (n,c,r,N,p)=>`${n}: ${r}º. ${c?`Disseram-me que "${c}" era uma vantagem.`:'Estava no ranking, e está bem onde merece.'}`,
-  (n,c,r,N,p)=>`${c?`O ${c} `:''}${n} está em ${r}º. ${r<=5?'Improvável mas aqui estamos.':r>=N-5?'Previsível.':'Mediano como o caldo verde sem chouriço.'}`,
-  (n,c,r,N,p)=>`${n} (${p>=0?'+':''}${p} pts) em ${r}º.${c?` Para ${c}, era esperado mais. Ou menos. Não sei.`:' Existe. É algo.'}`,
-  (n,c,r,N,p)=>`${r}º — ${n}.${c?` ${c} dizem eles. Eu vejo é ${p>=0?'+':''}${p} pontos.`:''}`,
-  (n,c,r,N,p)=>`Notícia: ${n} ainda joga isto.${c?` Sim, o "${c}".`:''} Está em ${r}º de ${N}.`,
-  (n,c,r,N,p)=>`${n}, ${r}º.${c?` Como ${c}, claramente confunde "achismo" com "análise tática".`:' Apostou a olhómetro e nota-se.'}`,
-  (n,c,r,N,p)=>`${c?`${c}: `:''}${n} em ${r}º. ${r<=10?'Surpreendentemente competente.':'Surpreendentemente não-competente.'}`,
-  (n,c,r,N,p)=>`${n} senta-se confortavelmente no ${r}º lugar.${c?` Ser ${c} não impede a mediania.`:''}`,
-  (n,c,r,N,p)=>`${r}º: ${n}. ${c?`Pensei que "${c}" era trunfo. Era handicap.`:'Continua a achar que sabe de futebol.'}`,
-  (n,c,r,N,p)=>`${n} em ${r}º com ${p>=0?'+':''}${p}. ${c?`O ${c} pediu mais cabazes de Natal do que pontos certos.`:'A matemática é cruel.'}`,
-  (n,c,r,N,p)=>`Para ${n} (${r}º), o Mundial é ${r<=5?'um copo-d\'água':'um exame de recuperação'}.${c?` Para ${c}, é uma humilhação pública.`:''}`,
-  (n,c,r,N,p)=>`${n} em ${r}º.${c?` Já agora, "${c}" não é qualificação para vidente.`:' Mas obrigado por participares.'}`,
-  (n,c,r,N,p)=>`${c?`${n}, o ${c}, `:`${n} `}vive no ${r}º andar deste prédio.${r<=5?' Penthouse.':r>=N-5?' Cave.':' Apartamento sem vista.'}`,
-  (n,c,r,N,p)=>`Em ${r}º: ${n}. ${c?`Achei que ser ${c} dava telepatia. Aparentemente dá é dor de cabeça.`:'Mais um na multidão do meio da tabela.'}`,
-  (n,c,r,N,p)=>`${n} em ${r}º (${p>=0?'+':''}${p}).${c?` Faz tudo como ${c} faria. Errado.`:''}`,
-  (n,c,r,N,p)=>`${r}º: ${n}.${c?` Já lhe disseram que "${c}" não conta como currículo aqui?`:' A subir? A descer? Aborrecido.'}`,
-  (n,c,r,N,p)=>`${n}: ${r}º entre ${N}. ${r<=3?'Suspeito. Vamos investigar.':r>=N-3?'Coerente. Coerentemente péssimo.':'Bem-vindo à zona neutra do tédio.'}`,
-  (n,c,r,N,p)=>`${c?`${c} aka `:''}${n} está em ${r}º. ${p<0?'Negativo. Como o saldo bancário em Janeiro.':'Positivo mas não exagera.'}`,
-  (n,c,r,N,p)=>`${n} (${r}º) escolheu as previsões${c?` à ${c}`:''}: com confiança total e zero fundamentos.`,
-  (n,c,r,N,p)=>`Em ${r}º, ${n}.${c?` "${c}" no LinkedIn, "?" no ranking.`:' Sem comentários adicionais.'}`,
-  (n,c,r,N,p)=>`${n}, eternamente em ${r}º.${c?` O ${c} merece melhor. As previsões dele não.`:''}`,
-  (n,c,r,N,p)=>`${r}º — ${n}. ${c?`Já fui à net ver se "${c}" tinha alguma relação com futebol. Não tem.`:'Aposta como se fosse a primeira vez. Talvez seja.'}`,
-  (n,c,r,N,p)=>`${n}: ${p>=0?'+':''}${p} pts, ${r}º lugar.${c?` Sendo ${c}, eu esperava drama. Está só morno.`:''}`,
-  (n,c,r,N,p)=>`${c?`O ${c}, `:''}${n}, ocupa o ${r}º lugar com a dignidade de quem perdeu há muito a esperança.`,
-  (n,c,r,N,p)=>`${n} em ${r}º.${c?` "${c}" — soa bem em papel, falha na prática.`:' Pelo menos é consistente.'}`,
-  (n,c,r,N,p)=>`${r}º: ${n}.${c?` Ser ${c} traz responsabilidades. Ele claramente ignora todas.`:''}`,
-  (n,c,r,N,p)=>`${n} (${r}º) prevê com a paixão de ${c||'um adepto'} e a precisão de um meteorologista.`,
-  (n,c,r,N,p)=>`Em ${r}º está ${n}.${c?` ${c}, dizem. Eu cá só vejo previsões aleatórias.`:''}`,
+  (n,c,r,N,p)=>`${n} em ${r}º.${c?` Dizem que ${c}. As previsões não confirmam.`:''}`,
+  (n,c,r,N,p)=>`${r}º: ${n}. ${c?`"${c}" — e mesmo assim está em ${r}º de ${N}.`:'Sem comentários adicionais.'}`,
+  (n,c,r,N,p)=>`${n} (${p>=0?'+':''}${p} pts, ${r}º).${c?` Consta que ${c}. Não ajudou.`:''}`,
+  (n,c,r,N,p)=>`${n} em ${r}º de ${N}. ${c?`Sabendo que ${c}, eu esperava mais drama.`:'Esperava mais drama. Não houve.'}`,
+  (n,c,r,N,p)=>`${r}º — ${n}. ${c?`Perguntaram-lhe se ${c} ajuda a prever futebol. Respondeu que sim. Está em ${r}º.`:'Aposta a olhómetro e nota-se.'}`,
+  (n,c,r,N,p)=>`${n}: ${r}º.${c?` Parece que ${c}. A tabela classifica isso em ${r}º lugar.`:''}`,
+  (n,c,r,N,p)=>`Notícia: ${n} ainda joga isto. Está em ${r}º.${c?` Já agora, ${c}.`:''}`,
+  (n,c,r,N,p)=>`${n} senta-se no ${r}º lugar.${c?` Tendo em conta que ${c}, não é surpreendente.`:' Confortavelmente mediocre.'}`,
+  (n,c,r,N,p)=>`${r}º: ${n}.${c?` ${c} — claramente não é qualificação para vidente.`:' Continua a achar que sabe de futebol.'}`,
+  (n,c,r,N,p)=>`${n} em ${r}º (${p>=0?'+':''}${p}).${c?` Ouvi dizer que ${c}. Ouvi também que está em ${r}º.`:''}`,
+  (n,c,r,N,p)=>`Para ${n} (${r}º), o Mundial é ${r<=5?'um copo-d\'água':'um exame de recuperação'}.${c?` Especialmente porque ${c}.`:''}`,
+  (n,c,r,N,p)=>`${n} em ${r}º.${c?` O facto de ${c} não o impediu de chegar aqui. Impressionante, de que forma errada.`:''}`,
+  (n,c,r,N,p)=>`${n}: ${p>=0?'+':''}${p} pts, ${r}º lugar.${c?` Já me disseram que ${c}. A matemática discorda.`:''}`,
+  (n,c,r,N,p)=>`${n} ocupa o ${r}º lugar com a dignidade de quem ${c?`sabe que ${c} e mesmo assim apostou assim`:'já não tem esperança'}.`,
+  (n,c,r,N,p)=>`${r}º — ${n}. ${c?`Fui à net tentar perceber como "${c}" se relaciona com futebol. Não encontrei.`:'Aposta como se fosse a primeira vez. Talvez seja.'}`,
+  (n,c,r,N,p)=>`${n} (${r}º) prevê com a paixão de quem ${c||'adora futebol'} e a precisão de um meteorologista de Famalicão.`,
+  (n,c,r,N,p)=>`Em ${r}º: ${n}. ${c?`Dizem que ${c}. A tabela diz ${r}º de ${N}.`:'Mais um na multidão do meio.'}`,
+  (n,c,r,N,p)=>`${n} em ${r}º.${c?` Reconheço que ${c} é uma característica. Não sei é de quê.`:' Existe. É algo.'}`,
+  (n,c,r,N,p)=>`${r}º: ${n}. ${c?`O facto de ${c} devia contar para alguma coisa. Conta — para chegar a ${r}º.`:'Coerente. Coerentemente assim.'}`,
+  (n,c,r,N,p)=>`${n} está em ${r}º. ${c?`Com tudo o que implica ${c}, eu esperava pelo menos top 10.`:'Com tudo o que implica existir, eu esperava mais.'}`,
+  (n,c,r,N,p)=>`${n} (${r}º): ${p>=0?'+':''}${p} pontos. ${c?`Sendo que ${c}, podemos dizer que há consistência. Toda ela na direção errada.`:''}`,
+  (n,c,r,N,p)=>`${r}º lugar, ${n}. ${c?`Curioso que ${c} e ainda assim as previsões saíam assim.`:'Curioso.'}`,
+  (n,c,r,N,p)=>`${n} em ${r}º de ${N}. ${c?`Perguntei ao ${n} se ${c} era vantagem. Disse que sim. Está em ${r}º.`:''}`,
+  (n,c,r,N,p)=>`${n}: ${r}º. ${c?`"${c}" — escreve-se bem no perfil. Pontua-se mal na tabela.`:'Pelo menos é consistente.'}`,
+  (n,c,r,N,p)=>`${n} vive no ${r}º andar deste prédio.${r<=5?' Penthouse.':r>=N-5?' Cave.':' Sem vista.'}${c?` Curiosamente, ${c}.`:''}`,
+  (n,c,r,N,p)=>`${r}º: ${n}.${c?` ${c} — responsabilidades que claramente ignora na hora de apostar.`:''}`,
+  (n,c,r,N,p)=>`${n} em ${r}º.${c?` Já sabíamos que ${c}. Agora sabemos também que é ${r}º.`:'Surpreendentemente não-surpreendente.'}`,
+  (n,c,r,N,p)=>`${n} (${p>=0?'+':''}${p}, ${r}º).${c?` ${c} — e com isso chegou a ${r}º de ${N}. Respeito.`:''}`,
+  (n,c,r,N,p)=>`${r}º — ${n}. ${c?`Tendo em conta que ${c}, a questão não é porquê ${r}º. É porquê não pior.`:'Tendo em conta tudo, poderia ser pior.'}`,
+  (n,c,r,N,p)=>`Em ${r}º está ${n}.${c?` Reza a lenda que ${c}. As previsões rezam outra coisa.`:''}`,
 ];
 const ROLL_CALL_EN=[
-  (n,c,r,N,p)=>`${n} sits in ${r}th.${c?` Being "${c}" hasn't translated into points yet.`:''}`,
-  (n,c,r,N,p)=>`${r}th: ${n}.${c?` ${c} on paper, lost on the pitch.`:' Carrying on.'}`,
-  (n,c,r,N,p)=>`${n} (${p>=0?'+':''}${p}) in ${r}th.${c?` ${c}? Sure. Doesn't help.`:''}`,
-  (n,c,r,N,p)=>`${c?`The ${c} `:''}${n} parked at ${r}th. ${r<=5?'Suspiciously good.':r>=N-5?'Predictable.':'Beautifully mediocre.'}`,
-  (n,c,r,N,p)=>`${n}, ${r}th of ${N}.${c?` "${c}" was supposed to be an edge. It wasn't.`:''}`,
+  (n,c,r,N,p)=>`${n} in ${r}th.${c?` Word is that ${c}. The table disagrees.`:''}`,
+  (n,c,r,N,p)=>`${r}th: ${n}.${c?` Apparently ${c}. Still ${r}th.`:' Carrying on.'}`,
+  (n,c,r,N,p)=>`${n} (${p>=0?'+':''}${p}) in ${r}th.${c?` Given that ${c}, I expected more.`:''}`,
+  (n,c,r,N,p)=>`${n} parked at ${r}th. ${c?`Knowing that ${c} should count for something. It counts for ${r}th.`:'Beautifully mediocre.'}`,
+  (n,c,r,N,p)=>`${n}, ${r}th of ${N}.${c?` They say ${c}. The ranking says ${r}.`:''}`,
 ];
 // Pick K players from the sorted-by-uid list, deterministically rotating by date
 function rotateForDay(uids,K,today){
   const N=uids.length;if(N===0) return [];
   const dayHash=today.split('-').reduce((a,b)=>a+parseInt(b,10),0);
-  // stride coprime to most N: 7 works for any N not divisible by 7
   const stride=(N%7===0)?11:7;
   const start=(dayHash*stride)%N;
   const out=[];
@@ -2756,12 +2755,9 @@ function rotateForDay(uids,K,today){
   return out;
 }
 function dailyRollCall(rows,excludeUids,today){
-  // rows is the leaderboard sorted desc by pts. We want a STABLE rotation that
-  // doesn't change when the leaderboard shuffles, so we sort by uid for picking.
   const sortedUids=rows.map(r=>r.uid).slice().sort();
   if(sortedUids.length<2) return [];
   const exclude=new Set(excludeUids.filter(Boolean));
-  // Pick a generous batch then filter so we still end with ~3 after exclusions
   const pool=rotateForDay(sortedUids,Math.min(sortedUids.length,8),today);
   const picked=pool.filter(uid=>!exclude.has(uid)).slice(0,3);
   const chars=currentComp?.playerChars||{};
@@ -2771,12 +2767,17 @@ function dailyRollCall(rows,excludeUids,today){
   return picked.map((uid,i)=>{
     const r=rows.find(x=>x.uid===uid);if(!r) return null;
     const rank=rows.indexOf(r)+1;
+    // Split by comma, pick ONE characteristic deterministically per day
+    const rawChar=chars[uid]||'';
+    const charList=rawChar.split(',').map(s=>s.trim()).filter(Boolean);
+    const charIdx=charList.length?(dayHash+sortedUids.indexOf(uid)*7)%charList.length:-1;
+    const char=charIdx>=0?charList[charIdx]:'';
     const tplIdx=(dayHash+i*13+sortedUids.indexOf(uid))%bank.length;
-    const tpl=bank[tplIdx];
     const name=`<strong>${r.name}</strong>`;
-    return tpl(name,chars[uid]||'',rank,N,r.pts);
+    return bank[tplIdx](name,char,rank,N,r.pts);
   }).filter(Boolean);
 }
+
 
 function renderDailySummary(rows){
   const wrap=$('dsum-wrap');if(!wrap) return;
