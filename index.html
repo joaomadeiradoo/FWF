@@ -2771,7 +2771,9 @@ function dailyRollCall(rows,excludeUids,today){
     const rawChar=chars[uid]||'';
     const charList=rawChar.split(',').map(s=>s.trim()).filter(Boolean);
     const charIdx=charList.length?(dayHash+sortedUids.indexOf(uid)*7)%charList.length:-1;
-    const char=charIdx>=0?charList[charIdx]:'';
+    const rawPick=charIdx>=0?charList[charIdx]:'';
+    // lowercase first character so it reads naturally mid-sentence
+    const char=rawPick?rawPick.charAt(0).toLowerCase()+rawPick.slice(1):'';
     const tplIdx=(dayHash+i*13+sortedUids.indexOf(uid))%bank.length;
     const name=`<strong>${r.name}</strong>`;
     return bank[tplIdx](name,char,rank,N,r.pts);
@@ -2811,38 +2813,44 @@ function renderDailySummary(rows){
   const isHype=lang==='pt'?SAVAGE_COMMENTARY.hype_pt:SAVAGE_EN.hype;
   const isChaos=lang==='pt'?SAVAGE_COMMENTARY.chaos_pt:SAVAGE_EN.chaos;
   const isBottom=lang==='pt'?SAVAGE_COMMENTARY.bottom_pt:SAVAGE_EN.bottom;
-  
   const dayHash=today.split('-').reduce((a,b)=>a+parseInt(b),0);
+  // lowercase first char so characteristics read naturally mid-sentence
+  // ("Dizem que Alto" → "Dizem que alto"; internal caps like "Rui Costa" preserved)
+  const lc=s=>s?s.charAt(0).toLowerCase()+s.slice(1):'';
+  const ch=uid=>lc(chars[uid]||'');
   
   if(badDay.diff<-5){
     const idx=dayHash%isSavage.length;
-    sum=isSavage[idx](badDay.name,chars[badDay.uid],Math.abs(badDay.diff));
+    sum=isSavage[idx](badDay.name,lc(chars[badDay.uid]||''),Math.abs(badDay.diff));
   }else if(bigDay.diff>5){
     const idx=dayHash%isHype.length;
-    sum=isHype[idx](bigDay.name,chars[bigDay.uid],bigDay.diff);
+    sum=isHype[idx](bigDay.name,lc(chars[bigDay.uid]||''),bigDay.diff);
   }else if(bigClimb.diff>=3||bigFall.diff<=-3){
     const idx=dayHash%isChaos.length;
     const target=bigClimb.diff>=3?bigClimb:bigFall;
-    sum=isChaos[idx](target.name,chars[target.uid],target.diff);
+    sum=isChaos[idx](target.name,lc(chars[target.uid]||''),target.diff);
   }else if(last.pts<-10){
     const idx=dayHash%isBottom.length;
-    sum=isBottom[idx](last.name,chars[last.uid],rows.length);
+    sum=isBottom[idx](last.name,lc(chars[last.uid]||''),rows.length);
   }else{
     // Fallback to hype for leader
     const idx=dayHash%isHype.length;
-    sum=isHype[idx](leader.name,chars[leader.uid],leader.pts);
+    sum=isHype[idx](leader.name,lc(chars[leader.uid]||''),leader.pts);
   }
 
+  // Who was the subject of the main `sum` line?
+  const sumSubjectUid=badDay.diff<-5?badDay.uid:bigDay.diff>5?bigDay.uid:(bigClimb.diff>=3||bigFall.diff<=-3)?(bigClimb.diff>=3?bigClimb.uid:bigFall.uid):last.pts<-10?last.uid:leader.uid;
+
   const shouts=[];
-  // Leader shoutout
-  shouts.push(shoutLeader(`<strong style="color:var(--gold)">${leader.name}</strong>`,chars[leader.uid]));
+  // Leader shoutout — only if leader wasn't already the subject of sum
+  if(sumSubjectUid!==leader.uid) shouts.push(shoutLeader(`<strong style="color:var(--gold)">${leader.name}</strong>`,ch(leader.uid)));
   // Biggest climber
-  if(bigClimb.diff>0&&bigClimb.uid!==leader.uid) shouts.push(shoutClimb(bigClimb.name,bigClimb.diff,chars[bigClimb.uid]));
+  if(bigClimb.diff>0&&bigClimb.uid!==leader.uid&&bigClimb.uid!==sumSubjectUid) shouts.push(shoutClimb(bigClimb.name,bigClimb.diff,ch(bigClimb.uid)));
   // Biggest faller
-  if(bigFall.diff<0&&bigFall.uid!==bigClimb.uid) shouts.push(shoutFall(bigFall.name,Math.abs(bigFall.diff),chars[bigFall.uid]));
+  if(bigFall.diff<0&&bigFall.uid!==bigClimb.uid&&bigFall.uid!==sumSubjectUid) shouts.push(shoutFall(bigFall.name,Math.abs(bigFall.diff),ch(bigFall.uid)));
   // Big day bonus
-  if(bigDay.diff>=6&&bigDay.uid!==leader.uid) shouts.push(shoutBigDay(bigDay.name,bigDay.diff,chars[bigDay.uid]));
-  else if(badDay.diff<=-4) shouts.push(shoutBadDay(badDay.name,badDay.diff,chars[badDay.uid]));
+  if(bigDay.diff>=6&&bigDay.uid!==leader.uid&&bigDay.uid!==sumSubjectUid) shouts.push(shoutBigDay(bigDay.name,bigDay.diff,ch(bigDay.uid)));
+  else if(badDay.diff<=-4&&badDay.uid!==sumSubjectUid) shouts.push(shoutBadDay(badDay.name,badDay.diff,ch(badDay.uid)));
 
   // Daily roll-call: rotating 3 players/day so everyone is mentioned ≥2x across
   // the tournament. Excludes anyone already featured in main commentary/shouts.
