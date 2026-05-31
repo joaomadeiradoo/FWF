@@ -2407,7 +2407,12 @@ function calcMatch(pred,act){
   if(pred.away===''||pred.away===undefined||pred.away===null) return null;
   if(act.home===undefined||act.home===''||act.home===null) return null;
   if(act.away===undefined||act.away===''||act.away===null) return null;
-  const ph=parseInt(pred.home),pa=parseInt(pred.away),ah=parseInt(act.home),aa=parseInt(act.away);
+  // Clamp to a sane range. Legacy/corrupt data could contain negative values
+  // (e.g. a "-2" entered before input hardening), which would otherwise inflate
+  // the goal-difference penalty wildly (a predicted 2-3 vs an actual -2-4 would
+  // wrongly score -5 instead of -1). Scores can only be 0..20.
+  const cl=v=>{let n=parseInt(v,10);if(isNaN(n))return NaN;return Math.max(0,Math.min(20,n));};
+  const ph=cl(pred.home),pa=cl(pred.away),ah=cl(act.home),aa=cl(act.away);
   if(isNaN(ph)||isNaN(pa)||isNaN(ah)||isNaN(aa)) return null;
   if(ph===ah&&pa===aa) return rules.correct_result;
   const po=ph>pa?'H':ph<pa?'A':'D',ao=ah>aa?'H':ah<aa?'A':'D';
