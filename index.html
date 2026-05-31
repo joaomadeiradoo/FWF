@@ -209,6 +209,24 @@ table.gct tr:nth-child(3) td{background:rgba(255,215,0,.03)}
 .lmin{font-size:.65rem;color:var(--red);font-weight:700}
 .sec-lbl{font-size:.63rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;font-weight:700}
 .dsum{background:linear-gradient(135deg,rgba(255,215,0,.06),rgba(45,198,83,.03));border:1px solid rgba(255,215,0,.15);border-radius:10px;padding:14px 16px;margin-bottom:12px;line-height:1.75;animation:fadeIn .5s ease-in}
+.podium-card{background:linear-gradient(160deg,#152844,#0D1B2A);border:1px solid rgba(255,215,0,.35);border-radius:14px;padding:18px 14px 14px;margin-bottom:12px;animation:fadeIn .6s ease-in}
+.podium-card-title{font-family:var(--fh);color:var(--gold);font-size:1rem;letter-spacing:2px;text-align:center;margin-bottom:2px}
+.podium-card-sub{color:var(--muted);font-size:.7rem;text-align:center;margin-bottom:18px;letter-spacing:1px}
+.podium-row{display:flex;align-items:flex-end;justify-content:center;gap:6px;margin-bottom:16px}
+.podium-slot{display:flex;flex-direction:column;align-items:center;gap:5px}
+.podium-avatar{border-radius:50%;width:72px;height:72px;display:flex;align-items:center;justify-content:center;font-family:var(--fh);font-size:1.5rem;color:#0D1B2A;flex-shrink:0;overflow:hidden;border:3px solid rgba(255,215,0,.5)}
+.podium-slot-1 .podium-avatar{width:82px;height:82px;border-color:var(--gold);font-size:1.7rem}
+.podium-slot-3 .podium-avatar{border-color:#cd7f32}
+.podium-slot-2 .podium-avatar{border-color:#bbb}
+.podium-name{color:#fff;font-weight:800;font-size:.75rem;text-align:center;max-width:88px;line-height:1.2}
+.podium-pts{font-size:.65rem;color:var(--muted)}
+.podium-block{border-radius:6px 6px 0 0;display:flex;align-items:center;justify-content:center;font-family:var(--fh);font-size:1.6rem;color:#0D1B2A;width:88px}
+.podium-slot-1 .podium-block{height:72px;background:var(--gold);width:96px}
+.podium-slot-2 .podium-block{height:50px;background:#ccc}
+.podium-slot-3 .podium-block{height:36px;background:#cd7f32}
+.podium-quip{background:rgba(13,27,42,.6);border-radius:10px;padding:11px 13px;margin-bottom:12px}
+.podium-quip p{color:#ccd6e0;font-size:.78rem;line-height:1.55}
+.podium-quip p+p{margin-top:6px}
 @keyframes fadeIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
 .dsum-hl{font-family:var(--fh);font-size:.92rem;color:var(--gold);margin-bottom:8px;letter-spacing:1px}
 .dsum-p{font-size:.84rem;color:var(--text);margin-bottom:5px}.dsum-p:last-child{margin-bottom:0}
@@ -329,6 +347,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
   <div id="tab-leaderboard" class="tab-content active">
     <div class="card"><h2>⚡ Ao Vivo &amp; Próximos</h2><div id="live-content"><p style="color:var(--muted);font-size:.84rem">A carregar...</p></div></div>
     <div id="dsum-wrap"></div>
+    <div id="podium-wrap"></div>
     <div class="card">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:7px;margin-bottom:12px">
         <h2 style="margin:0">🏆 Classificação</h2>
@@ -473,6 +492,11 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
         <h3 style="font-family:var(--fh);color:var(--gold);letter-spacing:1px;margin-bottom:6px;font-size:.95rem">📥 Backup CSV</h3>
         <button class="btn btn-ghost btn-sm" onclick="downloadCSV()">⬇️ Download todas as previsões</button>
       </div>
+      <div style="margin-bottom:18px" id="podium-host-section">
+        <h3 style="font-family:var(--fh);color:var(--gold);letter-spacing:1px;margin-bottom:6px;font-size:.95rem">🏆 Pódio Final</h3>
+        <p style="color:var(--muted);font-size:.73rem;margin-bottom:10px">Ativa o pódio quando a competição terminar. Aparece na homepage e na História. Irreversível (ou fala com o Claude).</p>
+        <div id="podium-host-btns"></div>
+      </div>
       <div id="rules-edit-section" class="hidden">
         <h3 style="font-family:var(--fh);color:var(--gold);letter-spacing:1px;margin-bottom:7px;font-size:.95rem">🔧 Editar Pontuação</h3>
         <div id="host-rules-edit"></div>
@@ -506,7 +530,7 @@ function setLang(l){
   lang=l;
   document.querySelectorAll('.lang-toggle button').forEach(b=>b.classList.toggle('active',b.textContent.includes(l.toUpperCase())));
   const hs=document.getElementById('hdr-sub');if(hs)hs.textContent=t('sub');
-  renderGroupMatches();renderGruposTab();renderBracket();renderBracketMobile();renderBracketSwipe();renderBracketSwipe();renderRules();renderLeaderboard();renderLive();
+  renderGroupMatches();renderGruposTab();renderBracket();renderBracketMobile();renderBracketSwipe();renderBracketSwipe();renderRules();renderLeaderboard();renderPodium();renderLive();
 }
 
 // ═══ FLAG HELPER ═══
@@ -1787,14 +1811,14 @@ async function initMainApp(uid){
       renderGroupMatches();
     }
     renderGruposTab();renderBracket();renderBracketMobile();renderBracketSwipe();
-    renderLeaderboard();renderOtherPreds();renderLive();
-    if(isAdmin){renderHostScores();renderHostMembers();renderHostAdjust();renderHostRules();renderHostPlayerChars();renderPtsToggles();}
+    renderLeaderboard();renderPodium();renderOtherPreds();renderLive();
+    if(isAdmin){renderHostScores();renderHostMembers();renderHostAdjust();renderHostRules();renderHostPlayerChars();renderPtsToggles();renderPodiumHostSection();}
   });
 
   renderGroupMatches();renderGruposTab();renderBracket();renderBracketMobile();renderBracketSwipe();
-  renderRules();renderLeaderboard();renderOtherPreds();renderLive();
+  renderRules();renderLeaderboard();renderPodium();renderOtherPreds();renderLive();
   renderCountdown();updateBanner();
-  if(isAdmin){renderHostScores();renderHostMembers();renderHostAdjust();renderHostRules();renderHostPlayerChars();renderPtsToggles();getApiUsage().then(updateApiCounter);}
+  if(isAdmin){renderHostScores();renderHostMembers();renderHostAdjust();renderHostRules();renderHostPlayerChars();renderPtsToggles();renderPodiumHostSection();getApiUsage().then(updateApiCounter);}
   hide('screen-loading');hide('screen-auth');show('screen-main');
   scheduleApi();
 }
@@ -3031,6 +3055,151 @@ function renderRules(){
 }
 
 // ═══ HISTÓRIA / WALL OF FAME ═══
+// ═══ FINAL PODIUM ═══
+// Funny one-liners for each podium position, using one characteristic.
+function podiumQuip(pos,name,char){
+  const lc=s=>s?s.charAt(0).toLowerCase()+s.slice(1):'';
+  const c=lc(char||'');
+  const first=[
+    `O Professor Karamba fez as suas contas. <strong>${name}</strong> venceu. Não há recurso.`,
+    `<strong>${name}</strong> venceu. ${c?`Consta que ${c}. Agora também consta que é campeão.`:'Parabéns. Ou desculpa. Depende dos outros.'}`,
+    `<strong>${name}</strong> campeão. ${c?`Dizem que ${c} — e aparentemente isso traduz-se em pontos.`:'Inesperado. Merecido. Inesperadamente merecido.'}`,
+  ];
+  const second=[
+    `<strong>${name}</strong> ficou tão perto que até ele próprio ficou surpreendido.${c?` Sendo que ${c}, é uma conquista.`:''}`,
+    `Segundo lugar para <strong>${name}</strong>. ${c?`O facto de ${c} só lhe valeu a prata. Desta vez.`:'Honra sem troféu. Clássico.'}`,
+  ];
+  const third=[
+    `<strong>${name}</strong> em 3º. ${c?`Tendo em conta que ${c}, poderia ter sido pior. Poderia.`:'Pelo menos não foi o último. Esta vez.'}`,
+    `Pódio para <strong>${name}</strong> — 3º lugar. ${c?`Reza a lenda que ${c}. A tabela rezou bronze.`:'Um pódio é um pódio.'}`,
+  ];
+  const h=(today||new Date().toISOString().split('T')[0]).split('-').reduce((a,b)=>a+parseInt(b),0);
+  if(pos===1)return first[h%first.length];
+  if(pos===2)return second[h%second.length];
+  return third[h%third.length];
+}
+function avatarHtml(uid,size,borderClass){
+  // Placeholder: coloured circle with initials. When real photos are added
+  // (via currentComp.podiumPhotos[uid] as base64), we use those instead.
+  const photos=(currentComp&&currentComp.podiumPhotos)||{};
+  const u=allUsers[uid]||{};
+  const initials=(u.name||'?').split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
+  // deterministic colour per uid
+  const colours=['#E74C3C','#3498DB','#2ECC71','#9B59B6','#E67E22','#1ABC9C','#E91E63','#FF5722'];
+  const bg=colours[(uid||'').split('').reduce((a,c)=>a+c.charCodeAt(0),0)%colours.length];
+  if(photos[uid]){
+    return `<img src="${photos[uid]}" class="podium-avatar ${borderClass}" style="width:${size}px;height:${size}px;object-fit:cover" alt="${u.name}"/>`;
+  }
+  return `<div class="podium-avatar ${borderClass}" style="width:${size}px;height:${size}px;background:${bg}">${initials}</div>`;
+}
+function renderPodium(){
+  const wrap=$('podium-wrap');if(!wrap) return;
+  if(!currentComp||!currentComp.podiumActive){wrap.innerHTML='';return;}
+  // Top 3 by calcTotal (submitted only)
+  const top3=Object.entries(allUsers)
+    .filter(([uid,u])=>allPredictions[uid]&&Object.keys(allPredictions[uid]).length>0)
+    .map(([uid,u])=>({uid,name:u.name,pts:calcTotal(uid)}))
+    .sort((a,b)=>b.pts-a.pts).slice(0,3);
+  if(top3.length<1){wrap.innerHTML='';return;}
+  const chars=(currentComp&&currentComp.playerChars)||{};
+  const getChar=uid=>{
+    const raw=chars[uid]||'';
+    const list=raw.split(',').map(s=>s.trim()).filter(Boolean);
+    if(!list.length)return '';
+    const h=new Date().toISOString().split('T')[0].split('-').reduce((a,b)=>a+parseInt(b),0);
+    return list[h%list.length];
+  };
+  const p1=top3[0],p2=top3[1],p3=top3[2];
+  // podium visual order: 2nd left, 1st centre, 3rd right
+  const slots=[
+    p2?{...p2,pos:2,sz:68,bc:'podium-slot-2',blkH:50,blkBg:'#ccc',medal:'🥈',slotCls:'podium-slot-2'}:{empty:true},
+    p1?{...p1,pos:1,sz:82,bc:'podium-slot-1',blkH:72,blkBg:'var(--gold)',medal:'🥇',slotCls:'podium-slot-1'}:{empty:true},
+    p3?{...p3,pos:3,sz:68,bc:'podium-slot-3',blkH:36,blkBg:'#cd7f32',medal:'🥉',slotCls:'podium-slot-3'}:{empty:true},
+  ];
+  const podiumHtml=slots.filter(s=>!s.empty).map(s=>`
+    <div class="podium-slot ${s.slotCls}">
+      <span style="font-size:${s.pos===1?'1.6rem':'1.2rem'}">${s.medal}</span>
+      ${avatarHtml(s.uid,s.sz,s.bc)}
+      <div class="podium-name">${s.name}</div>
+      <div class="podium-pts">${s.pts>=0?'+':''}${s.pts} pts</div>
+      <div class="podium-block" style="height:${s.blkH}px;background:${s.blkBg};width:${s.pos===1?'96px':'88px'}">${s.pos}</div>
+    </div>`).join('');
+  const quips=[p1,p2,p3].filter(Boolean).map((p,i)=>`<p>${podiumQuip(i+1,`<strong>${p.name}</strong>`,getChar(p.uid))}</p>`).join('');
+  wrap.innerHTML=`<div class="podium-card">
+    <div class="podium-card-title">🏆 PREVISÕES DO PROFESSOR KARAMBA</div>
+    <div class="podium-card-sub">MUNDIAL 2026 · CAMPEÕES</div>
+    <div class="podium-row">${podiumHtml}</div>
+    <div class="podium-quip">${quips}</div>
+    <button class="btn btn-gold btn-full" onclick="sharePodium()">📤 Partilhar Pódio</button>
+  </div>`;
+  // Also update the 2026 entry in história
+  const entry=TOURNAMENT_HISTORY.find(t=>t.year===2026&&t.type==='WC');
+  if(entry&&p1){entry.winner=p1.name;if(p2)entry.runnerUp=p2.name;if(p3)entry.third=p3.name;}
+}
+async function activatePodium(){
+  if(!isHost)return;
+  if(!confirm(lang==='pt'?'Revelar o pódio final? Esta ação é visível para todos.':'Reveal the final podium? This is visible to everyone.'))return;
+  const{db,doc,updateDoc}=window._fb;
+  try{
+    await updateDoc(doc(db,'competitions',currentCompId),{podiumActive:true});
+    toast('🏆 Pódio revelado!');
+  }catch(e){toast('Erro: '+e.message,true);}
+}
+async function hidePodium(){
+  if(!isHost)return;
+  const{db,doc,updateDoc}=window._fb;
+  try{await updateDoc(doc(db,'competitions',currentCompId),{podiumActive:false});toast('Pódio ocultado');}
+  catch(e){toast('Erro: '+e.message,true);}
+}
+function renderPodiumHostSection(){
+  const c=$('podium-host-btns');if(!c||!isHost)return;
+  const active=currentComp&&currentComp.podiumActive;
+  c.innerHTML=active
+    ?`<span class="badge badge-open" style="margin-right:8px">✓ Pódio ativo</span><button class="btn btn-ghost btn-sm" onclick="hidePodium()">Ocultar</button>`
+    :`<button class="btn btn-gold" onclick="activatePodium()">🏆 Revelar Pódio Final</button>`;
+}
+function sharePodium(){
+  const card=$('podium-wrap');if(!card)return;
+  const W=360,H=480;
+  const canvas=document.createElement('canvas');canvas.width=W;canvas.height=H;
+  const ctx=canvas.getContext('2d');
+  // bg
+  ctx.fillStyle='#0D1B2A';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='rgba(255,215,0,.08)';ctx.fillRect(0,0,W,H);
+  // title
+  ctx.fillStyle='#FFD700';ctx.font='bold 18px Georgia,serif';ctx.textAlign='center';
+  ctx.fillText('🏆 PREVISÕES DO PROFESSOR KARAMBA',W/2,34);
+  ctx.fillStyle='#8899aa';ctx.font='11px sans-serif';
+  ctx.fillText('MUNDIAL 2026 · CAMPEÕES',W/2,52);
+  // podium blocks
+  const tops=[{x:60,bh:50,by:200,col:'#cccccc',medal:'🥈'},{x:160,bh:72,by:178,col:'#FFD700',medal:'🥇'},{x:260,bh:36,by:214,col:'#cd7f32',medal:'🥉'}];
+  const top3=Object.entries(allUsers).filter(([uid])=>allPredictions[uid]&&Object.keys(allPredictions[uid]).length>0).map(([uid,u])=>({uid,name:u.name,pts:calcTotal(uid)})).sort((a,b)=>b.pts-a.pts).slice(0,3);
+  const order=[top3[1],top3[0],top3[2]];
+  tops.forEach((t,i)=>{
+    if(!order[i])return;
+    const p=order[i];
+    ctx.fillStyle=t.col;ctx.fillRect(t.x-36,t.by,72,t.bh);
+    ctx.fillStyle='#0D1B2A';ctx.font='bold 22px Georgia,serif';ctx.textAlign='center';
+    ctx.fillText(i===1?'1':i===0?'2':'3',t.x,t.by+t.bh/2+8);
+    ctx.fillStyle='#fff';ctx.font='bold 12px sans-serif';ctx.textAlign='center';
+    const words=p.name.split(' ');
+    words.forEach((w,wi)=>ctx.fillText(w,t.x,t.by-30+(wi*14)));
+    ctx.fillStyle='#8899aa';ctx.font='10px sans-serif';
+    ctx.fillText((p.pts>=0?'+':'')+p.pts+' pts',t.x,t.by-10);
+    ctx.font='18px sans-serif';ctx.fillText(t.medal,t.x,t.by-50);
+  });
+  const dataUrl=canvas.toDataURL('image/png');
+  if(navigator.share&&navigator.canShare&&navigator.canShare({files:[]})){
+    const bin=atob(dataUrl.split(',')[1]);const arr=new Uint8Array(bin.length);
+    for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
+    const f=new File([new Blob([arr],{type:'image/png'})],'podium.png',{type:'image/png'});
+    navigator.share({files:[f],title:'Pódio Final'}).catch(()=>{});
+  }else{
+    const a=document.createElement('a');a.href=dataUrl;a.download='podium_karamba.png';a.click();
+  }
+}
+window.activatePodium=activatePodium;window.hidePodium=hidePodium;window.sharePodium=sharePodium;
+
 function renderHistoria(){
   const c=$('historia-content');if(!c) return;
   const getIcon=type=>{
@@ -3564,12 +3733,12 @@ function showTab(id){
   const tb=$(`tab-btn-${id.replace('tab-','')}`);if(tb) tb.classList.add('active');
   document.querySelectorAll('.bnav-btn').forEach(el=>el.classList.remove('active'));
   const nb=$(`bnav-${id.replace('tab-','')}`);if(nb) nb.classList.add('active');
-  if(id==='tab-leaderboard'){renderLeaderboard();renderOtherPreds();renderLive();}
+  if(id==='tab-leaderboard'){renderLeaderboard();renderPodium();renderOtherPreds();renderLive();}
   if(id==='tab-grupos') renderGruposTab();
   if(id==='tab-bracket'){renderBracket();renderBracketMobile();renderBracketSwipe();}
-  if(id==='tab-historia') renderHistoria();
+  if(id==='tab-historia'){renderPodium();renderHistoria();}
   if(id==='tab-rules') renderRules();
-  if(id==='tab-host'){renderHostScores();renderHostMembers();renderHostAdjust();renderHostRules();renderHostPlayerChars();renderPtsToggles();getApiUsage().then(updateApiCounter);}
+  if(id==='tab-host'){renderHostScores();renderHostMembers();renderHostAdjust();renderHostRules();renderHostPlayerChars();renderPtsToggles();renderPodiumHostSection();getApiUsage().then(updateApiCounter);}
 }
 function copyInvite(){navigator.clipboard.writeText(currentComp?.inviteCode||'');toast(t('copied'));}
 
