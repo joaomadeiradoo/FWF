@@ -196,6 +196,7 @@ table.gct tr:nth-child(3) td{background:rgba(255,215,0,.03)}
 .a2hs-share-ico{display:inline-block;vertical-align:-3px;width:15px;height:15px;margin:0 1px}
 .adj-badge{font-size:.7rem;font-weight:700;cursor:pointer;white-space:nowrap;opacity:.85}
 .adj-badge:active{opacity:1}
+.unpaid-badge{display:inline-block;margin-left:4px;font-size:.72rem;font-weight:800;color:#ff8040;cursor:help;border:1px solid rgba(255,128,0,.35);border-radius:4px;padding:0 3px;vertical-align:middle;animation:unpaid-pulse 2.5s infinite}
 .invite-box{background:rgba(255,215,0,.06);border:1px solid rgba(255,215,0,.25);border-radius:10px;padding:14px;text-align:center;margin:10px 0}
 .invite-code{font-family:var(--fh);font-size:2rem;letter-spacing:6px;color:var(--gold)}
 .rules-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:6px}
@@ -228,6 +229,7 @@ table.gct tr:nth-child(3) td{background:rgba(255,215,0,.03)}
 .podium-quip p{color:#ccd6e0;font-size:.78rem;line-height:1.55}
 .podium-quip p+p{margin-top:6px}
 @keyframes fadeIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes unpaid-pulse{0%,100%{opacity:1}50%{opacity:.45}}
 .dsum-hl{font-family:var(--fh);font-size:.92rem;color:var(--gold);margin-bottom:8px;letter-spacing:1px}
 .dsum-p{font-size:.84rem;color:var(--text);margin-bottom:5px}.dsum-p:last-child{margin-bottom:0}
 .api-bar{height:7px;border-radius:4px;background:rgba(255,255,255,.08);overflow:hidden;margin:5px 0}
@@ -2569,7 +2571,7 @@ function renderLeaderboard(){
     const trendStr=!r.sub?'':trend;
     html+=`<tr>
       <td class="${rc}">${rank===1?'🥇':rank===2?'🥈':rank===3?'🥉':rank}</td>
-      <td>${r.name}${r.uid===currentUser?.uid?' 👈':''}${adjBadge(r.uid)}</td>
+      <td>${r.name}${r.uid===currentUser?.uid?' 👈':''}${adjBadge(r.uid)}${allUsers[r.uid]?.unpaidAnnounced?`<span class="unpaid-badge" title="Pagamento em falta — fala com o host">€</span>`:''}</td>
       <td class="${todayCls}">${todayStr}</td>
       <td class="${ptsCls}">${ptsStr}</td>
       <td>${trendStr} <span class="badge ${r.sub?'badge-open':'badge-locked'}">${r.sub?'✓':'?'}</span></td>
@@ -3373,16 +3375,49 @@ function renderHostMembers(){
   if(!isAdmin) return;const c=$('host-members');if(!c) return;
   const members=Object.entries(allUsers);
   if(!members.length){c.innerHTML='<p style="color:var(--muted)">Nenhum participante</p>';return;}
-  c.innerHTML=`<table class="leaderboard" style="margin-bottom:0"><thead><tr><th>Nome</th><th>Role</th><th>Pts</th><th></th></tr></thead><tbody>
-  ${members.map(([uid,u])=>{const role=u.role||'member';return`<tr>
+  c.innerHTML=`<table class="leaderboard" style="margin-bottom:0;font-size:.78rem"><thead><tr><th>Nome</th><th>Role</th><th>Pts</th><th style="min-width:200px"></th></tr></thead><tbody>
+  ${members.map(([uid,u])=>{const role=u.role||'member';const paid=!!u.paid;const unpaid=!!u.unpaidAnnounced;return`<tr>
     <td>${u.name}${uid===currentUser.uid?' ⭐':''}</td>
-    <td><span class="badge ${role==='host'?'badge-host':role==='admin'?'badge-admin':'badge-locked'}">${role.toUpperCase()}</span></td>
-    <td class="${calcTotal(uid)>=0?'pts-pos':'pts-neg'}">${calcTotal(uid)>=0?'+':''}${calcTotal(uid)}</td>
-    <td style="display:flex;gap:4px;flex-wrap:wrap">
-      ${isHost&&role!=='host'?`<button class="btn btn-ghost btn-sm" onclick="toggleAdmin('${attrEsc(uid)}')">${role==='admin'?'↓ Remover':'↑ Admin'}</button>`:''} 
-      ${isAdmin&&role!=='host'?`<button class="btn btn-red btn-sm" onclick="kickUser('${attrEsc(uid)}','${attrEsc(u.name)}')" style="padding:6px 10px">🚫 Expulsar</button>`:''}
+    <td><span class="badge ${role==='host'?'badge-host':role==='admin'?'badge-admin':'badge-locked'}" style="font-size:.65rem">${role.toUpperCase()}</span></td>
+    <td class="${calcTotal(uid)>=0?'pts-pos':'pts-neg'}" style="font-size:.78rem">${calcTotal(uid)>=0?'+':''}${calcTotal(uid)}</td>
+    <td style="display:flex;gap:3px;flex-wrap:nowrap;align-items:center">
+      ${isHost?`<button class="btn btn-sm" style="padding:4px 7px;font-size:.7rem;background:${paid?'var(--green)':'rgba(45,198,83,.15)'};color:${paid?'#0D1B2A':'var(--green)'};border:1px solid var(--green)" onclick="togglePaid('${attrEsc(uid)}')">${paid?'✓ Pago':'Pago'}</button>`:''}
+      ${isHost?`<button class="btn btn-sm" style="padding:4px 7px;font-size:.7rem;background:${unpaid?'rgba(255,80,0,.25)':'rgba(255,255,255,.05)'};color:${unpaid?'#ff8040':'var(--muted)'};border:1px solid ${unpaid?'#ff8040':'var(--border)'}" onclick="toggleUnpaidAnnounce('${attrEsc(uid)}','${attrEsc(u.name)}')">${unpaid?'€ Anunciado':'€ Não Pago'}</button>`:''}
+      ${isHost&&role!=='host'?`<button class="btn btn-ghost btn-sm" style="padding:4px 7px;font-size:.7rem" onclick="toggleAdmin('${attrEsc(uid)}')">${role==='admin'?'↓ Admin':'↑ Admin'}</button>`:''}
+      ${isAdmin&&role!=='host'?`<button class="btn btn-red btn-sm" style="padding:4px 7px;font-size:.7rem" onclick="kickUser('${attrEsc(uid)}','${attrEsc(u.name)}')">🚫</button>`:''}
     </td>
   </tr>`;}).join('')}</tbody></table>`;
+  const uw=$('host-unlock');if(!uw) return;
+  uw.innerHTML=members.map(([uid,u])=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);gap:7px;flex-wrap:wrap">
+    <div><span style="font-size:.86rem;font-weight:600">${u.name}</span>
+    <span class="badge ${allPredictions[uid]?'badge-open':'badge-locked'}" style="margin-left:6px">${allPredictions[uid]?'✓':'?'}</span>
+    ${u.unlockedEdit?`<span class="badge" style="background:rgba(255,215,0,.15);color:var(--gold);margin-left:4px">editing</span>`:''}</div>
+    <button class="btn btn-ghost btn-sm" onclick="toggleUnlock('${attrEsc(uid)}')">${u.unlockedEdit?t('relock'):t('allow')}</button>
+  </div>`).join('');
+}
+async function togglePaid(uid){
+  if(!isHost)return;
+  const u=allUsers[uid];if(!u)return;
+  const nowPaid=!u.paid;
+  if(!confirm(nowPaid?`Marcar ${u.name} como PAGO?`:`Remover pagamento de ${u.name}?`))return;
+  const{db,doc,updateDoc}=window._fb;
+  const members={...allUsers};
+  members[uid]={...members[uid],paid:nowPaid};
+  // If marking as paid, clear unpaid announcement
+  if(nowPaid)members[uid].unpaidAnnounced=false;
+  await updateDoc(doc(db,'competitions',currentCompId),{members});toast(nowPaid?`✓ ${u.name} marcado como pago`:`${u.name} desmarcado`);
+}
+async function toggleUnpaidAnnounce(uid,name){
+  if(!isHost)return;
+  const u=allUsers[uid];if(!u)return;
+  const nowAnnounced=!u.unpaidAnnounced;
+  if(!confirm(nowAnnounced?`Anunciar ${name} como NÃO PAGO? Ficará visível na classificação.`:`Remover aviso de não pagamento de ${name}?`))return;
+  const{db,doc,updateDoc}=window._fb;
+  const members={...allUsers};
+  members[uid]={...members[uid],unpaidAnnounced:nowAnnounced,paid:nowAnnounced?false:members[uid].paid};
+  await updateDoc(doc(db,'competitions',currentCompId),{members});
+  toast(nowAnnounced?`€ ${name} anunciado como não pago`:`Aviso removido de ${name}`);
+}
   const uw=$('host-unlock');if(!uw) return;
   uw.innerHTML=members.map(([uid,u])=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);gap:7px;flex-wrap:wrap">
     <div><span style="font-size:.86rem;font-weight:600">${u.name}</span>
@@ -3969,7 +4004,7 @@ window.createComp=createComp;window.initMainApp=initMainApp;
 window.showTab=showTab;window.submitPredictions=submitPredictions;window.saveActualScores=saveActualScores;
 window.toggleUnlock=toggleUnlock;window.copyInvite=copyInvite;window.regenerateCode=regenerateCode;
 window.addAdjustment=addAdjustment;window.removeAdjustment=removeAdjustment;window.showAdjReasons=showAdjReasons;
-window.toggleAdmin=toggleAdmin;window.kickUser=kickUser;window.shareLeaderboard=shareLeaderboard;window.downloadLb=downloadLb;
+window.toggleAdmin=toggleAdmin;window.kickUser=kickUser;window.togglePaid=togglePaid;window.toggleUnpaidAnnounce=toggleUnpaidAnnounce;window.shareLeaderboard=shareLeaderboard;window.downloadLb=downloadLb;
 window.downloadCSV=downloadCSV;window.saveRules=saveRules;window.savePlayerChars=savePlayerChars;
 window.reviewTopScorer=reviewTopScorer;window.approveTopScorer=approveTopScorer;window.forceFetch=forceFetch;
 window.pickWinner=pickWinner;window.setPtsToggle=setPtsToggle;window.launchPtsToggle=launchPtsToggle;
