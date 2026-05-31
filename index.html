@@ -2503,7 +2503,11 @@ function renderLeaderboard(){
   const c=$('lb-content');if(!c) return;
   const members=Object.entries(allUsers);
   if(!members.length){c.innerHTML='<p style="color:var(--muted)">Sem participantes</p>';return;}
-  const rows=members.map(([uid,u])=>({uid,name:u.name,pts:calcTotal(uid),sub:!!(allPredictions[uid]&&Object.keys(allPredictions[uid]).length>0)})).sort((a,b)=>b.pts-a.pts);
+  const rows=members.map(([uid,u])=>({uid,name:u.name,pts:calcTotal(uid),sub:!!(allPredictions[uid]&&Object.keys(allPredictions[uid]).length>0)})).sort((a,b)=>{
+    // Unsubmitted users go to the bottom regardless of pts
+    if(a.sub!==b.sub) return a.sub?-1:1;
+    return b.pts-a.pts;
+  });
 
   // Take snapshot at start of day
   takeDailySnapshot(rows);
@@ -2522,13 +2526,18 @@ function renderLeaderboard(){
     const startPts=dailySnapshot[r.uid]!==undefined?dailySnapshot[r.uid]:r.pts;
     const todayDiff=r.pts-startPts;
     const todayCls=todayDiff>0?'pts-today-pos':todayDiff<0?'pts-today-neg':'pts-today-zero';
-    const todayStr=todayDiff>0?`+${todayDiff}`:todayDiff<0?`${todayDiff}`:'0';
+    // Visual differentiation: users who haven't submitted predictions show "—"
+    // instead of 0 in the points columns. Trend is hidden for them too.
+    const todayStr=!r.sub?'<span style="color:var(--muted)">—</span>':(todayDiff>0?`+${todayDiff}`:todayDiff<0?`${todayDiff}`:'0');
+    const ptsStr=!r.sub?'<span style="color:var(--muted)">—</span>':`${r.pts>=0?'+':''}${r.pts}`;
+    const ptsCls=!r.sub?'':(r.pts>=0?'pts-pos':'pts-neg');
+    const trendStr=!r.sub?'':trend;
     html+=`<tr>
       <td class="${rc}">${rank===1?'🥇':rank===2?'🥈':rank===3?'🥉':rank}</td>
       <td>${r.name}${r.uid===currentUser?.uid?' 👈':''}${adjBadge(r.uid)}</td>
       <td class="${todayCls}">${todayStr}</td>
-      <td class="${r.pts>=0?'pts-pos':'pts-neg'}">${r.pts>=0?'+':''}${r.pts}</td>
-      <td>${trend} <span class="badge ${r.sub?'badge-open':'badge-locked'}">${r.sub?'✓':'?'}</span></td>
+      <td class="${ptsCls}">${ptsStr}</td>
+      <td>${trendStr} <span class="badge ${r.sub?'badge-open':'badge-locked'}">${r.sub?'✓':'?'}</span></td>
     </tr>`;
   });
   html+='</tbody></table>';c.innerHTML=html;
