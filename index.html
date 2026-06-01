@@ -494,6 +494,12 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
         <div style="margin-top:10px"><button class="btn btn-green" onclick="saveActualScores()">💾 Guardar Resultados</button></div>
       </div>
       <div style="margin-bottom:18px">
+        <h3 style="font-family:var(--fh);color:var(--gold);letter-spacing:1px;margin-bottom:6px;font-size:.95rem">🏆 Fase a Eliminar — Vencedores</h3>
+        <p style="color:var(--muted);font-size:.73rem;margin-bottom:10px">API aplica automaticamente. Corrige manualmente se necessário. Só o vencedor conta.</p>
+        <div id="host-ko-inputs"></div>
+        <div style="margin-top:10px" id="host-ko-save-btn" style="display:none"><button class="btn btn-green" onclick="saveKOResults()">💾 Guardar Fase a Eliminar</button></div>
+      </div>
+      <div style="margin-bottom:18px">
         <h3 style="font-family:var(--fh);color:var(--gold);letter-spacing:1px;margin-bottom:6px;font-size:.95rem">📥 Backup CSV</h3>
         <button class="btn btn-ghost btn-sm" onclick="downloadCSV()">⬇️ Download todas as previsões</button>
       </div>
@@ -3383,7 +3389,6 @@ async function launchPtsToggle(key){
 // ═══ HOST PANEL ═══
 function renderHostScores(){
   if(!isAdmin) return;const c=$('host-score-inputs');if(!c) return;
-  // Sort by FIFA schedule date
   const sorted=[...ALL_MATCHES];
   c.innerHTML=sorted.map(m=>{const a=actualScores[m.id]||{};return`<div class="match-card" style="margin-bottom:5px">
     <div class="match-team home"><div>${fi(m.home,22)}</div><span style="font-size:.68rem;font-weight:600">${m.home}</span></div>
@@ -3398,7 +3403,74 @@ function renderHostScores(){
     <div class="match-team away"><div>${fi(m.away,22)}</div><span style="font-size:.68rem;font-weight:600">${m.away}</span></div>
   </div>`}).join('');
   const ts=$('host-topscorer');if(ts) ts.value=actualScores.topScorer||'';
+  renderHostKO();
 }
+function renderHostKO(){
+  if(!isAdmin) return;
+  const c=$('host-ko-inputs');if(!c) return;
+  const saveBtn=$('host-ko-save-btn');
+  const hasGroupResults=ALL_MATCHES.some(m=>{const s=actualScores[m.id];return s&&s.home!==undefined&&s.home!=='';});
+  if(!hasGroupResults){c.innerHTML=`<p style="color:var(--muted);font-size:.75rem">Disponível após início da fase de grupos.</p>`;if(saveBtn)saveBtn.style.display='none';return;}
+  if(saveBtn)saveBtn.style.display='block';
+  const r32=getR32Teams(currentUser?.uid);
+  const rounds=[
+    {id:'r32',label:'R32',matches:r32.map((m,i)=>({idx:i,home:m.home,away:m.away}))},
+    {id:'r16',label:'R16',matches:Array.from({length:8},(_,i)=>{const a=actualScores.ko_r32||[];return{idx:i,home:a[i*2]||'?',away:a[i*2+1]||'?'};})},
+    {id:'qf',label:'Quartos',matches:Array.from({length:4},(_,i)=>{const a=actualScores.ko_r16||[];return{idx:i,home:a[i*2]||'?',away:a[i*2+1]||'?'};})},
+    {id:'sf',label:'Meias',matches:Array.from({length:2},(_,i)=>{const a=actualScores.ko_qf||[];return{idx:i,home:a[i*2]||'?',away:a[i*2+1]||'?'};})},
+    {id:'f3',label:'3.º Lugar',matches:[{idx:0,home:'',away:'',sf:true}]},
+    {id:'fin',label:'Final',matches:[{idx:0,home:(actualScores.ko_sf||[])[0]||'?',away:(actualScores.ko_sf||[])[1]||'?'},{idx:1,home:'',away:'',runnerUp:true}]},
+  ];
+  let html='';
+  for(const round of rounds){
+    const koArr=actualScores[`ko_${round.id}`]||[];
+    html+=`<div style="margin-bottom:12px"><div style="font-size:.72rem;font-weight:700;color:var(--gold);margin-bottom:5px">${round.label}</div>`;
+    for(const m of round.matches){
+      if(m.sf){
+        const sf=actualScores.ko_sf||[];const fin=actualScores.ko_fin||[];
+        const losers=[sf[0],sf[1]].filter(t=>t&&t!==fin[0]&&t!==fin[1]);
+        m.home=losers[0]||'SF perd.1';m.away=losers[1]||'SF perd.2';
+      }
+      if(m.runnerUp) continue; // runner-up auto-derived from fin winner select
+      if(m.home==='?'&&m.away==='?') continue;
+      const winner=koArr[m.idx]||'';
+      const opts=[m.home,m.away].filter(t=>t&&t!=='?');
+      html+=`<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;background:#0D1B2A;border-radius:8px;padding:5px 8px">
+        <span style="font-size:.7rem;flex:1;text-align:right;${winner===m.home?'color:var(--green);font-weight:700':''}">${m.home}</span>
+        <span style="color:var(--muted);font-size:.6rem">vs</span>
+        <span style="font-size:.7rem;flex:1;${winner===m.away?'color:var(--green);font-weight:700':''}">${m.away}</span>
+        <select data-round="${round.id}" data-idx="${m.idx}" style="background:var(--card);border:1px solid var(--border);border-radius:6px;padding:3px 5px;color:var(--text);font-size:.68rem;max-width:110px">
+          <option value="">— vencedor —</option>
+          ${opts.map(t=>`<option value="${attrEsc(t)}" ${winner===t?'selected':''}>${t}</option>`).join('')}
+        </select>
+      </div>`;
+    }
+    html+='</div>';
+  }
+  c.innerHTML=html;
+}
+async function saveKOResults(){
+  if(!isAdmin)return;
+  const{db,doc,updateDoc}=window._fb;
+  const c=$('host-ko-inputs');if(!c)return;
+  const newScores={...actualScores};
+  c.querySelectorAll('select[data-round]').forEach(sel=>{
+    const round=sel.dataset.round,idx=parseInt(sel.dataset.idx);
+    const val=sel.value;if(!val)return;
+    if(!newScores[`ko_${round}`])newScores[`ko_${round}`]=[];
+    newScores[`ko_${round}`][idx]=val;
+    if(round==='fin'){
+      const opts=[...sel.options].filter(o=>o.value&&o.value!==val).map(o=>o.value);
+      if(opts[0])newScores.ko_fin[1]=opts[0];
+    }
+  });
+  try{
+    await updateDoc(doc(db,'competitions',currentCompId),{actualScores:newScores});
+    toast(lang==='pt'?'Fase a eliminar guardada':'KO results saved');
+  }catch(e){toast('Erro: '+e.message,true);}
+}
+window.saveKOResults=saveKOResults;
+
 function renderHostMembers(){
   if(!isAdmin) return;const c=$('host-members');if(!c) return;
   const members=Object.entries(allUsers);
