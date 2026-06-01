@@ -2042,10 +2042,6 @@ function pickWinner(round,matchIdx,team){
   // Compute loser for special cases (f3 derived from SF, runner-up = final loser)
   const loser=team===tA?tB:tA;
 
-  if(round==='sf'){
-    if(!bp.f3) bp.f3=[];
-    bp.f3[matchIdx]=loser;
-  }
   if(round==='fin'){
     if(!bp.fin) bp.fin=[];
     bp.fin[1]=loser;
@@ -2841,28 +2837,32 @@ function renderDailySummary(rows){
   const isChaos=lang==='pt'?SAVAGE_COMMENTARY.chaos_pt:SAVAGE_EN.chaos;
   const isBottom=lang==='pt'?SAVAGE_COMMENTARY.bottom_pt:SAVAGE_EN.bottom;
   const dayHash=today.split('-').reduce((a,b)=>a+parseInt(b),0);
-  // lowercase first char so characteristics read naturally mid-sentence
-  // ("Dizem que Alto" → "Dizem que alto"; internal caps like "Rui Costa" preserved)
-  const lc=s=>s?s.charAt(0).toLowerCase()+s.slice(1):'';
-  const ch=uid=>lc(chars[uid]||'');
-  
+  // Pick ONE characteristic (comma-split list) per uid per day
+  const pickChar=uid=>{
+    const raw=chars[uid]||'';
+    const list=raw.split(',').map(s=>s.trim()).filter(Boolean);
+    if(!list.length) return '';
+    const picked=list[dayHash%list.length];
+    return picked.charAt(0).toLowerCase()+picked.slice(1);
+  };
+  const ch=pickChar;
+
   if(badDay.diff<-5){
     const idx=dayHash%isSavage.length;
-    sum=isSavage[idx](badDay.name,lc(chars[badDay.uid]||''),Math.abs(badDay.diff));
+    sum=isSavage[idx](badDay.name,ch(badDay.uid),Math.abs(badDay.diff));
   }else if(bigDay.diff>5){
     const idx=dayHash%isHype.length;
-    sum=isHype[idx](bigDay.name,lc(chars[bigDay.uid]||''),bigDay.diff);
+    sum=isHype[idx](bigDay.name,ch(bigDay.uid),bigDay.diff);
   }else if(bigClimb.diff>=3||bigFall.diff<=-3){
     const idx=dayHash%isChaos.length;
     const target=bigClimb.diff>=3?bigClimb:bigFall;
-    sum=isChaos[idx](target.name,lc(chars[target.uid]||''),target.diff);
+    sum=isChaos[idx](target.name,ch(target.uid),target.diff);
   }else if(last.pts<-10){
     const idx=dayHash%isBottom.length;
-    sum=isBottom[idx](last.name,lc(chars[last.uid]||''),rows.length);
+    sum=isBottom[idx](last.name,ch(last.uid),rows.length);
   }else{
-    // Fallback to hype for leader
     const idx=dayHash%isHype.length;
-    sum=isHype[idx](leader.name,lc(chars[leader.uid]||''),leader.pts);
+    sum=isHype[idx](leader.name,ch(leader.uid),leader.pts);
   }
 
   // Who was the subject of the main `sum` line?
@@ -3905,7 +3905,9 @@ async function markA2HSSeen(){
   }catch(e){/* best effort */}
 }
 function maybeOfferA2HS(){
-  // Don't show: already installed, already seen, or not on a phone-ish device
+  // Only relevant on mobile — no point prompting desktop users
+  const isMobile=/iphone|ipad|ipod|android/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+  if(!isMobile) return;
   if(isStandalone()||a2hsAlreadyHandled()) return;
   const card=$('a2hs');if(!card) return;
   const actions=$('a2hs-actions');const sub=$('a2hs-sub');
