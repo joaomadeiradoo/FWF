@@ -3322,7 +3322,7 @@ function renderHostRules(){
   c.innerHTML=`<div class="rules-grid">${RULE_ITEMS.map(it=>`<div class="rule-item"><span class="rule-label">${it.label[lang]}</span><input class="rule-val-edit" type="number" data-rule="${it.k}" value="${rules[it.k]}"/></div>`).join('')}</div>`;
 }
 async function saveRules(){
-  if(!isHost) return;const{db,doc,updateDoc}=window._fb;
+  if(!isAdmin) return;const{db,doc,updateDoc}=window._fb;
   const nr={...rules};
   document.querySelectorAll('.rule-val-edit').forEach(i=>{
     const v=parseInt(i.value);
