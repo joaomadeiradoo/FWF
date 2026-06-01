@@ -1807,7 +1807,8 @@ async function initMainApp(uid){
   $('admin-badge').classList.toggle('hidden',isHost||!isAdmin);
   $('tab-btn-host').classList.toggle('hidden',!isAdmin);
   const bnh=$('bnav-host');if(bnh) bnh.classList.toggle('hidden',!isAdmin);
-  if(isHost){show('invite-section');show('rules-edit-section');}
+  if(isHost){show('invite-section');}
+  if(isAdmin){show('rules-edit-section');}
   const hic=$('host-invite-code');if(hic&&currentComp) hic.textContent=currentComp.inviteCode;
 
   onSnapshot(doc(db,'competitions',currentCompId),sn=>{
