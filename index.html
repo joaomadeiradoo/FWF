@@ -83,6 +83,7 @@ input:focus-visible,select:focus-visible{outline:2px solid var(--gold);outline-o
 .match-score-row{display:flex;align-items:center;gap:5px}
 .score-input{width:46px;height:46px;text-align:center;background:#162232;border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--fh);font-size:1.3rem;outline:none;-moz-appearance:textfield;appearance:textfield;touch-action:manipulation}
 .score-input::-webkit-outer-spin-button,.score-input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.score-input{-moz-appearance:textfield}
 .score-input:focus{border-color:var(--gold)}.score-input:disabled{opacity:.5;cursor:not-allowed}
 .score-sep{color:var(--muted);font-size:.85rem}
 .grp-lbl{font-size:.58rem;color:var(--gold);font-weight:700;letter-spacing:1px;text-transform:uppercase}
@@ -380,6 +381,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
     <div style="text-align:center;margin:18px 0">
       <button class="btn btn-gold" onclick="submitPredictions('group')" id="btn-submit" style="font-size:.95rem;padding:13px 36px">✅ Guardar Previsões de Grupo</button>
       <p style="color:var(--muted);font-size:.74rem;margin-top:7px" id="submit-note"></p>
+      <button class="btn btn-ghost" id="btn-go-bracket" style="display:none;margin-top:10px;font-size:.88rem" onclick="showTab('tab-bracket')">📊 Avançar para Fases →</button>
     </div>
   </div>
   <div id="tab-grupos" class="tab-content">
@@ -533,7 +535,7 @@ function setLang(l){
   lang=l;
   document.querySelectorAll('.lang-toggle button').forEach(b=>b.classList.toggle('active',b.textContent.includes(l.toUpperCase())));
   const hs=document.getElementById('hdr-sub');if(hs)hs.textContent=t('sub');
-  renderGroupMatches();renderGruposTab();renderBracket();renderBracketMobile();renderBracketSwipe();renderBracketSwipe();renderRules();renderLeaderboard();renderPodium();renderLive();
+  renderGroupMatches();renderGruposTab();renderBracket();renderBracketMobile();renderBracketSwipe();renderBracketSwipe();renderRules();renderLeaderboard();renderPodium();renderLive();updateAdvanceBtn();
 }
 
 // ═══ FLAG HELPER ═══
@@ -1866,6 +1868,14 @@ function updateBanner(){
 }
 
 // ═══ GROUP MATCHES (Previsões) ═══
+function updateAdvanceBtn(){
+  const btn=$('btn-go-bracket');if(!btn) return;
+  const allFilled=ALL_MATCHES.every(m=>{
+    const p=userPredictions[m.id]||{};
+    return p.home!==''&&p.home!==undefined&&p.away!==''&&p.away!==undefined;
+  });
+  btn.style.display=allFilled?'inline-block':'none';
+}
 function renderGroupMatches(){
   const c=$('group-matches');if(!c) return;
   const uid=currentUser?.uid;const editable=canEdit(uid);
@@ -1923,10 +1933,11 @@ function renderGroupMatches(){
       if(!userPredictions[mid]) userPredictions[mid]={home:'',away:''};
       userPredictions[mid][side]=raw;
       hasUnsavedEdits=true;
+      updateAdvanceBtn();
     }));
     // Block keys that produce non-digit values (decimals, signs, exponent, etc.)
     c.querySelectorAll('.mp').forEach(inp=>inp.addEventListener('keydown',e=>{
-      if(['-','+','.',',','e','E'].includes(e.key)) e.preventDefault();
+      if(['-','+','.',',','e','E','ArrowUp','ArrowDown'].includes(e.key)) e.preventDefault();
     }));
     // Also strip on paste (someone pasting "0.5" or "1,5")
     c.querySelectorAll('.mp').forEach(inp=>inp.addEventListener('paste',e=>{
@@ -3598,9 +3609,7 @@ async function submitPredictions(mode){
   allPredictions[uid]={...userPredictions};
   hasUnsavedEdits=false;
   toast(t('saved'));updateBanner();renderLeaderboard();renderOtherPreds();renderGruposTab();renderBracket();renderBracketMobile();renderBracketSwipe();
-  // After the user submits predictions for the first time, gently offer the
-  // "add to home screen" hint (once, dismissable). Delay so the "Guardado!"
-  // toast is seen first.
+  updateAdvanceBtn();
   maybeOfferA2HS();
 }
 
