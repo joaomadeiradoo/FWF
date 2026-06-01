@@ -3390,7 +3390,7 @@ function renderHostMembers(){
   c.innerHTML=`<table class="leaderboard" style="margin-bottom:0;font-size:.78rem"><thead><tr><th>Nome</th><th>Role</th><th>Pts</th><th style="min-width:200px"></th></tr></thead><tbody>
   ${members.map(([uid,u])=>{const role=u.role||'member';const paid=!!u.paid;const unpaid=!!u.unpaidAnnounced;return`<tr>
     <td>${u.name}${uid===currentUser.uid?' ⭐':''}</td>
-    <td><span class="badge ${role==='host'?'badge-host':role==='admin'?'badge-admin':'badge-locked'}" style="font-size:.65rem">${role.toUpperCase()}</span></td>
+    <td><span class="badge ${role==='host'?'badge-host':role==='admin'?'badge-admin':'badge-locked'}" style="font-size:.65rem">${role.toUpperCase()}</span>${isHost?`<div style="font-size:.62rem;color:var(--muted);margin-top:2px">PIN: ${u.pin||'—'}</div>`:''}</td>
     <td class="${calcTotal(uid)>=0?'pts-pos':'pts-neg'}" style="font-size:.78rem">${calcTotal(uid)>=0?'+':''}${calcTotal(uid)}</td>
     <td style="display:flex;gap:3px;flex-wrap:nowrap;align-items:center">
       ${isHost?`<button class="btn btn-sm" style="padding:4px 7px;font-size:.7rem;background:${paid?'var(--green)':'rgba(45,198,83,.15)'};color:${paid?'#0D1B2A':'var(--green)'};border:1px solid var(--green)" onclick="togglePaid('${attrEsc(uid)}')">${paid?'✓ Pago':'Pago'}</button>`:''}
