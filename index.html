@@ -3647,7 +3647,13 @@ async function fetchUpcoming(){
     await bumpApi('upcoming');const d=await r.json();
     if(d.response){
       upcomingData=d.response.filter(f=>f.fixture.status.short==='NS').slice(0,3).map(f=>({home:f.teams.home.name,away:f.teams.away.name,time:new Date(f.fixture.date).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}),venue:f.fixture.venue?.name||''}));
-      recentData=d.response.filter(f=>['FT','AET','PEN'].includes(f.fixture.status.short)).slice(-5).map(f=>({home:f.teams.home.name,away:f.teams.away.name,hs:f.goals.home,as:f.goals.away}));
+      recentData=d.response.filter(f=>['FT','AET','PEN'].includes(f.fixture.status.short)).slice(-5).map(f=>({
+        home:f.teams.home.name,away:f.teams.away.name,
+        hs:f.goals.home,as:f.goals.away,
+        penHome:f.score?.penalty?.home??null,
+        penAway:f.score?.penalty?.away??null,
+        round:f.league?.round||null,
+      }));
       
       // AUTO-APPLY SCORES: Apply finished matches to actualScores automatically
       if(isAdmin) await autoApplyScores(recentData);
@@ -3716,11 +3722,42 @@ async function autoApplyScores(finishedMatches){
   if(!isAdmin||!currentCompId) return;
   const{db,doc,updateDoc}=window._fb;
   let updated=false;
-  
+
+  // ── English→Portuguese team name mapping for API responses ──
+  const EN_TO_PT={
+    'Mexico':'México','South Africa':'África do Sul','South Korea':'Coreia do Sul',
+    'Korea Republic':'Coreia do Sul','Czech Republic':'Czechia','Czechia':'Czechia',
+    'Canada':'Canadá','Bosnia':'Bósnia e Herzegovina','Bosnia and Herzegovina':'Bósnia e Herzegovina',
+    'Qatar':'Qatar','Switzerland':'Suíça','Brazil':'Brasil','Morocco':'Marrocos',
+    'Haiti':'Haiti','Scotland':'Escócia','USA':'EUA','United States':'EUA',
+    'Paraguay':'Paraguai','Australia':'Austrália','Turkey':'Türkiye','Turkiye':'Türkiye',
+    'Germany':'Alemanha','Curacao':'Curaçao','Ivory Coast':'Costa do Marfim',
+    "Cote d'Ivoire":'Costa do Marfim',"Côte d'Ivoire":'Costa do Marfim',
+    'Ecuador':'Equador','Netherlands':'Países Baixos','Japan':'Japão',
+    'Sweden':'Suécia','Tunisia':'Tunísia','Belgium':'Bélgica','Egypt':'Egipto',
+    'Iran':'Irão','New Zealand':'Nova Zelândia','Spain':'Espanha',
+    'Cape Verde':'Cabo Verde','Saudi Arabia':'Arábia Saudita','Uruguay':'Uruguai',
+    'France':'França','Senegal':'Senegal','Norway':'Noruega','Iraq':'Iraque',
+    'Argentina':'Argentina','Algeria':'Argélia','Austria':'Áustria','Jordan':'Jordânia',
+    'Portugal':'Portugal','DR Congo':'Congo DR','Congo DR':'Congo DR',
+    'Uzbekistan':'Uzbequistão','Colombia':'Colômbia','England':'Inglaterra',
+    'Croatia':'Croácia','Ghana':'Gana','Panama':'Panamá',
+  };
+  const toPT=name=>EN_TO_PT[name]||name;
+
+  // ── API round name → KO round id ──
+  const ROUND_MAP={
+    'Round of 32':'r32','Round of 16':'r16',
+    'Quarter-finals':'qf','Quarter-Finals':'qf','Quarterfinals':'qf',
+    'Semi-finals':'sf','Semi-Finals':'sf','Semifinals':'sf',
+    '3rd Place Final':'f3','Third Place':'f3',
+    'Final':'fin',
+  };
+
+  // ── Group stage matches (exact score) ──
   for(const apiMatch of finishedMatches){
-    const found=ALL_MATCHES.find(m=>matchTeams(m,apiMatch.home,apiMatch.away));
+    const found=ALL_MATCHES.find(m=>matchTeams(m,toPT(apiMatch.home),toPT(apiMatch.away)));
     if(found){
-      // Only apply if not already set OR if source was 'api' (allow API updates)
       const existing=actualScores[found.id];
       if(!existing||(existing.source==='api')){
         actualScores[found.id]={home:apiMatch.hs,away:apiMatch.as,source:'api'};
@@ -3728,7 +3765,80 @@ async function autoApplyScores(finishedMatches){
       }
     }
   }
-  
+
+  // ── KO stage: determine winner and slot ──
+  // Build current R32 matchups to identify slot indices
+  const r32Teams=getR32Teams(currentUser?.uid);
+
+  for(const apiMatch of finishedMatches){
+    if(!apiMatch.round) continue;
+    const roundId=ROUND_MAP[apiMatch.round];
+    if(!roundId) continue;
+
+    const homeTeam=toPT(apiMatch.home);
+    const awayTeam=toPT(apiMatch.away);
+    // Determine winner: higher score wins; if draw (AET/PEN) use penScore if available
+    let winner=null;
+    if(apiMatch.hs>apiMatch.as) winner=homeTeam;
+    else if(apiMatch.as>apiMatch.hs) winner=awayTeam;
+    else if(apiMatch.penHome!=null&&apiMatch.penAway!=null){
+      winner=apiMatch.penHome>apiMatch.penAway?homeTeam:awayTeam;
+    }
+    if(!winner) continue;
+
+    const ko=actualScores[`ko_${roundId}`]||[];
+    let slotIdx=-1;
+
+    if(roundId==='r32'){
+      // Find slot by matching the teams against the R32 matchup array
+      slotIdx=r32Teams.findIndex(m=>
+        (m.home===homeTeam&&m.away===awayTeam)||
+        (m.home===awayTeam&&m.away===homeTeam)
+      );
+    }else if(roundId==='r16'){
+      // R16 slot i feeds from R32 slots 2i and 2i+1
+      const r32actual=actualScores.ko_r32||[];
+      slotIdx=[0,1,2,3,4,5,6,7].findIndex(i=>
+        [r32actual[i*2],r32actual[i*2+1]].includes(homeTeam)&&
+        [r32actual[i*2],r32actual[i*2+1]].includes(awayTeam)
+      );
+    }else if(roundId==='qf'){
+      const r16actual=actualScores.ko_r16||[];
+      slotIdx=[0,1,2,3].findIndex(i=>
+        [r16actual[i*2],r16actual[i*2+1]].includes(homeTeam)&&
+        [r16actual[i*2],r16actual[i*2+1]].includes(awayTeam)
+      );
+    }else if(roundId==='sf'){
+      const qfactual=actualScores.ko_qf||[];
+      slotIdx=[0,1].findIndex(i=>
+        [qfactual[i*2],qfactual[i*2+1]].includes(homeTeam)&&
+        [qfactual[i*2],qfactual[i*2+1]].includes(awayTeam)
+      );
+    }else if(roundId==='f3'){
+      // 3rd place match: both teams are SF losers
+      slotIdx=0;
+    }else if(roundId==='fin'){
+      // Final: slot 0 = champion, slot 1 = runner-up
+      slotIdx=0;
+    }
+
+    if(slotIdx===-1&&roundId!=='f3'&&roundId!=='fin') continue;
+
+    const newKo=[...ko];
+    newKo[roundId==='fin'?0:slotIdx]=winner;
+    // For final, also set runner-up (slot 1)
+    if(roundId==='fin'){
+      const loser=winner===homeTeam?awayTeam:homeTeam;
+      newKo[1]=loser;
+    }
+
+    const existing=actualScores[`ko_${roundId}`]||[];
+    if(existing[roundId==='fin'?0:slotIdx]!==winner){
+      actualScores[`ko_${roundId}`]=newKo;
+      updated=true;
+    }
+  }
+
   if(updated){
     await updateDoc(doc(db,'competitions',currentCompId),{actualScores});
     renderGroupMatches();renderGruposTab();renderBracket();renderBracketMobile();renderBracketSwipe();
