@@ -1441,7 +1441,7 @@ const KO_ROUNDS=[
 ];
 
 const DEFAULT_RULES={
-  correct_result:3,wrong_goal:-1,wrong_outcome:-2,
+  correct_result:3,wrong_goal:-1,wrong_outcome:-2,wrong_outcome_win:-4,
   group_winner:6,group_second:4,
   round32:5,round16:10,quarters:10,semis:15,
   finalist:25,third:25,runner_up:30,winner:30,top_scorer:30
@@ -1449,7 +1449,8 @@ const DEFAULT_RULES={
 const RULE_ITEMS=[
   {k:'correct_result',label:{pt:'Resultado correcto',en:'Correct result'}},
   {k:'wrong_goal',label:{pt:'Erro por golo',en:'Per wrong goal'}},
-  {k:'wrong_outcome',label:{pt:'Resultado errado (V/E/D)',en:'Wrong outcome (W/D/L)'}},
+  {k:'wrong_outcome',label:{pt:'Vencedor/Empate errado (ex: V→E)',en:'Win/Draw wrong (e.g. W→D)'}},
+  {k:'wrong_outcome_win',label:{pt:'Vencedor errado (ex: V→D do adversário)',en:'Wrong winner (e.g. H win→A win)'}},
   {k:'group_winner',label:{pt:'Vencedor do grupo',en:'Group winner'}},
   {k:'group_second',label:{pt:'2.º do grupo',en:'Group runner-up'}},
   {k:'round32',label:{pt:'Equipa no R32',en:'Round of 32 team'}},
@@ -2460,7 +2461,12 @@ function calcMatch(pred,act){
   if(isNaN(ph)||isNaN(pa)||isNaN(ah)||isNaN(aa)) return null;
   if(ph===ah&&pa===aa) return rules.correct_result;
   const po=ph>pa?'H':ph<pa?'A':'D',ao=ah>aa?'H':ah<aa?'A':'D';
-  let p=0;if(po!==ao) p+=rules.wrong_outcome;
+  let p=0;
+  if(po!==ao){
+    // -4 if predicted the opposite winner (H→A or A→H), -2 if one side is a draw
+    const oppositeWinner=(po==='H'&&ao==='A')||(po==='A'&&ao==='H');
+    p+=oppositeWinner?(rules.wrong_outcome_win??-4):(rules.wrong_outcome??-2);
+  }
   p+=(Math.abs(ph-ah)+Math.abs(pa-aa))*rules.wrong_goal;
   return p;
 }
