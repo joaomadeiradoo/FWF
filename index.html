@@ -1633,7 +1633,16 @@ async function doSimpleAuth(){
         }
       }
     }else{
-      // New user - add to competition under the Firebase UID
+      // New user — check for similar existing names to prevent accidental duplicates.
+      // fuzzyScore returns 0-1; >0.82 is very likely the same person with a typo/variant.
+      const similar=Object.values(members).find(m=>m.name&&fuzzyScore(m.name,name)>0.82);
+      if(similar){
+        const msg=lang==='pt'
+          ?`Já existe "${similar.name}" nesta competição.\n\nÉs tu? Usa o mesmo nome e PIN que usaste da primeira vez para entrar.\n\nSe és uma pessoa diferente, clica OK para continuar.`
+          :`"${similar.name}" already exists in this competition.\n\nIs that you? Use the exact name and PIN you used before to log in.\n\nIf you're a different person, click OK to continue.`;
+        if(!confirm(msg)) return;
+      }
+      // Add to competition under the Firebase UID
       const newMembers={...members};
       newMembers[fbUid]={name,pin,role:'member',joinedAt:new Date().toISOString()};
       await updateDoc(doc(db,'competitions',compDoc.id),{members:newMembers});
