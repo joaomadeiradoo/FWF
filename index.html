@@ -1410,8 +1410,8 @@ function getR32Teams(uid){
   const w=g=>grpWinners[g]||'TBD',ru=g=>grpRunners[g]||'TBD';
   return [
     // R16[0] = M89 = M74 + M77
-    {home:w('E'),  away:thirdFor('E'), match:74},  // r32[0]
-    {home:w('I'),  away:thirdFor('I'), match:77},  // r32[1]
+    {home:w('E'),  away:thirdFor('E'), match:74, date:R32_MATCH_DATES[74]},  // r32[0]
+    {home:w('I'),  away:thirdFor('I'), match:77, date:R32_MATCH_DATES[77]},  // r32[1]
     // R16[1] = M90 = M73 + M75   -> QF[0] = M97
     {home:ru('A'), away:ru('B'),       match:73},  // r32[2]
     {home:w('F'),  away:ru('C'),       match:75},  // r32[3]
@@ -1419,20 +1419,20 @@ function getR32Teams(uid){
     {home:ru('K'), away:ru('L'),       match:83},  // r32[4]
     {home:w('H'),  away:ru('J'),       match:84},  // r32[5]
     // R16[3] = M94 = M81 + M82   -> QF[1] = M98
-    {home:w('D'),  away:thirdFor('D'), match:81},  // r32[6]
-    {home:w('G'),  away:thirdFor('G'), match:82},  // r32[7]
+    {home:w('D'),  away:thirdFor('D'), match:81, date:R32_MATCH_DATES[81]},  // r32[6]
+    {home:w('G'),  away:thirdFor('G'), match:82, date:R32_MATCH_DATES[82]},  // r32[7]
     // R16[4] = M91 = M76 + M78
     {home:w('C'),  away:ru('F'),       match:76},  // r32[8]
     {home:ru('E'), away:ru('I'),       match:78},  // r32[9]
     // R16[5] = M92 = M79 + M80   -> QF[2] = M99
-    {home:w('A'),  away:thirdFor('A'), match:79},  // r32[10]
-    {home:w('L'),  away:thirdFor('L'), match:80},  // r32[11]
+    {home:w('A'),  away:thirdFor('A'), match:79, date:R32_MATCH_DATES[79]},  // r32[10]
+    {home:w('L'),  away:thirdFor('L'), match:80, date:R32_MATCH_DATES[80]},  // r32[11]
     // R16[6] = M95 = M86 + M88
     {home:w('J'),  away:ru('H'),       match:86},  // r32[12]
     {home:ru('D'), away:ru('G'),       match:88},  // r32[13]
     // R16[7] = M96 = M85 + M87   -> QF[3] = M100
-    {home:w('B'),  away:thirdFor('B'), match:85},  // r32[14]
-    {home:w('K'),  away:thirdFor('K'), match:87},  // r32[15]
+    {home:w('B'),  away:thirdFor('B'), match:85, date:R32_MATCH_DATES[85]},  // r32[14]
+    {home:w('K'),  away:thirdFor('K'), match:87, date:R32_MATCH_DATES[87]},  // r32[15]
   ];
 }
 
@@ -1446,6 +1446,9 @@ const KO_ROUNDS=[
   {id:'win',label:{pt:'Vencedor',en:'Winner'},pts:30},
 ];
 
+
+// FIFA 2026 R32 match dates (Matches 73-88, Jul 1-4)
+const R32_MATCH_DATES={73:'1 Jul',74:'1 Jul',75:'1 Jul',76:'1 Jul',77:'2 Jul',78:'2 Jul',79:'2 Jul',80:'2 Jul',81:'3 Jul',82:'3 Jul',83:'3 Jul',84:'3 Jul',85:'4 Jul',86:'4 Jul',87:'4 Jul',88:'4 Jul'};
 const DEFAULT_RULES={
   correct_result:3,wrong_goal:-1,wrong_outcome:-2,wrong_outcome_win:-4,
   group_winner:6,group_second:4,
@@ -3002,8 +3005,132 @@ function downloadCSV(){
     return[u.name,u.email||'',calcTotal(uid),pr.topScorer||'',...gw,...gs,...koCols,...mp];
   });
   const csv=[headers,...rows].map(r=>r.map(v=>`"${String(v==null?'':v).replace(/"/g,'""')}"`).join(',')).join('\n');
-  const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='previsoes_fwf.csv';a.click();
+function renderOtherPreds(){
+  const c=$('op-content');if(!c) return;
+  const firstGameTime=new Date('2026-06-11T01:00:00Z');
+  const showFrom=new Date(firstGameTime.getTime()-10*60*1000);
+  if(new Date()<showFrom){
+    c.innerHTML=`<p style="color:var(--muted);font-size:.82rem">Disponível 10 min antes do primeiro jogo para que o Niza não copie pelo Nuno Cordas como costume.</p>`;
+    return;
+  }
+  const myS=!!(allPredictions[currentUser?.uid]&&Object.keys(allPredictions[currentUser?.uid]).length>0);
+  if(!myS){
+    c.innerHTML=`<p style="color:var(--muted);font-size:.82rem">${lang==='pt'?'Submete primeiro as tuas previsões para ver as dos outros.':'Submit your predictions first.'}</p>`;
+    return;
+  }
+  // All members with predictions, sorted alphabetically
+  const members=Object.entries(allUsers)
+    .filter(([uid])=>allPredictions[uid]&&Object.keys(allPredictions[uid]).length>0)
+    .sort((a,b)=>a[1].name.localeCompare(b[1].name,'pt'));
+  if(!members.length){c.innerHTML=`<p style="color:var(--muted);font-size:.82rem">Sem previsões ainda.</p>`;return;}
+
+  // Helper: render one table where cols=matches, rows=players
+  function matchTable(matches, getColHeader, getCell, getActual){
+    let h=`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.68rem">`;
+    h+=`<thead><tr><th style="text-align:left;padding:3px 5px;color:var(--muted);white-space:nowrap;min-width:70px">${lang==='pt'?'Jogador':'Player'}</th>`;
+    matches.forEach(m=>{h+=`<th style="padding:3px 5px;text-align:center;color:var(--muted);white-space:nowrap;max-width:80px;font-size:.62rem">${getColHeader(m)}</th>`;});
+    h+=`<tr></thead><tbody>`;
+    members.forEach(([uid,u])=>{
+      h+=`<tr style="border-top:1px solid #1e3a5f">`;
+      h+=`<td style="padding:3px 5px;white-space:nowrap;font-size:.68rem;font-weight:700">${u.name}</td>`;
+      matches.forEach(m=>{
+        const {text,style}=getCell(uid,m);
+        h+=`<td style="padding:3px 5px;text-align:center;white-space:nowrap;${style}">${text}</td>`;
+      });
+      h+='</tr>';
+    });
+    // Real results row
+    h+=`<tr style="border-top:2px solid #FFD700">`;
+    h+=`<td style="padding:3px 5px;font-size:.62rem;color:#FFD700;font-weight:800">Real</td>`;
+    matches.forEach(m=>{const r=getActual(m);h+=`<td style="padding:3px 5px;text-align:center;color:#FFD700;font-weight:800">${r}</td>`;});
+    h+='</tr></tbody></table></div>';
+    return h;
+  }
+
+  let html='';
+
+  // ── GROUP STAGE: one table per day ──
+  const matchDates=[...new Set(ALL_MATCHES.map(m=>m.date).filter(Boolean))];
+  function dayDone(d){return ALL_MATCHES.filter(m=>m.date===d).every(m=>{const s=actualScores[m.id];return s&&s.home!==undefined&&s.home!=='';});}
+  const visibleDates=matchDates.filter((d,i)=>i===0||dayDone(matchDates[i-1]));
+  for(const date of visibleDates){
+    const dayMs=ALL_MATCHES.filter(m=>m.date===date);
+    html+=`<div style="margin-bottom:18px"><div style="font-size:.75rem;font-weight:800;color:var(--gold);margin-bottom:6px">📅 ${date}</div>`;
+    html+=matchTable(dayMs,
+      m=>`${m.home.split(' ')[0]}<br>${m.away.split(' ')[0]}`,
+      (uid,m)=>{
+        const p=(allPredictions[uid]||{})[m.id]||{};
+        const pick=p.home!==undefined&&p.home!==''?`${p.home}-${p.away}`:'';
+        const act=actualScores[m.id];
+        let style='color:#ccd6e0';
+        if(pick&&act&&act.home!==undefined){const pts=calcMatch(p,act);style=pts>0?'color:#2dc653':pts<0?'color:#e63946':'color:#8899aa';}
+        return{text:pick||'-',style};
+      },
+      m=>{const a=actualScores[m.id];return a&&a.home!==undefined?`${a.home}-${a.away}`:'-';}
+    );
+    html+='</div>';
+  }
+
+  // ── R32: one table per day (4 matches/day, Jul 1-4) ──
+  const hasKO=Object.keys(actualScores).some(k=>k.startsWith('ko_r'));
+  if(hasKO||matchDates.every(d=>dayDone(d))){
+    const r32teams=getR32Teams(currentUser?.uid);
+    const r32Dates=[...new Set(r32teams.map(m=>m.date).filter(Boolean))].sort();
+    const r32DayDone=d=>r32teams.filter(m=>m.date===d).every((_,i,arr)=>{
+      const idx=r32teams.indexOf(arr[i]);
+      return (actualScores.ko_r32||[])[idx];
+    });
+    const r32Visible=r32Dates.filter((d,i)=>i===0||r32DayDone(r32Dates[i-1]));
+    for(const date of r32Visible){
+      const dayMs=r32teams.map((m,i)=>({...m,idx:i})).filter(m=>m.date===date);
+      if(!dayMs.length) continue;
+      html+=`<div style="margin-bottom:18px"><div style="font-size:.75rem;font-weight:800;color:var(--gold);margin-bottom:6px">📋 R32 · ${date}</div>`;
+      html+=matchTable(dayMs,
+        m=>`${(m.home||'?').split(' ')[0]}<br>${(m.away||'?').split(' ')[0]}`,
+        (uid,m)=>{
+          const bp=(allPredictions[uid]||{}).bracket||{};
+          const pick=(bp.r32||[])[m.idx]||'';
+          const actual=(actualScores.ko_r32||[])[m.idx]||'';
+          let style='color:#ccd6e0';
+          if(pick&&actual){style=pick===actual?'color:#2dc653':'color:#e63946';}
+          return{text:pick?fi(pick,14)+pick.split(' ')[0]:'-',style};
+        },
+        m=>{const a=(actualScores.ko_r32||[])[m.idx];return a?fi(a,14)+a.split(' ')[0]:'-';}
+      );
+      html+='</div>';
+    }
+    // ── R16 onwards: full round ──
+    const laterRounds=[
+      {id:'r16',label:'R16 — Oitavos',slots:8},
+      {id:'qf', label:'Quartos de Final',slots:4},
+      {id:'sf', label:'Meias-Finais',slots:2},
+      {id:'f3', label:'3.º Lugar',slots:1},
+      {id:'fin',label:'Final',slots:2},
+    ];
+    for(const rd of laterRounds){
+      const ak=actualScores[`ko_${rd.id}`]||[];
+      const anyPred=members.some(([uid])=>{const bp=(allPredictions[uid]||{}).bracket||{};return(bp[rd.id]||[]).some(Boolean);});
+      if(!anyPred) continue;
+      const slots=Array.from({length:rd.slots},(_,i)=>({idx:i}));
+      html+=`<div style="margin-bottom:18px"><div style="font-size:.75rem;font-weight:800;color:var(--gold);margin-bottom:6px">📋 ${rd.label}</div>`;
+      html+=matchTable(slots,
+        s=>`#${s.idx+1}`,
+        (uid,s)=>{
+          const bp=(allPredictions[uid]||{}).bracket||{};
+          const pick=(bp[rd.id]||[])[s.idx]||'';
+          const actual=ak[s.idx]||'';
+          let style='color:#ccd6e0';
+          if(pick&&actual){style=pick===actual?'color:#2dc653':'color:#e63946';}
+          return{text:pick?fi(pick,14)+pick.split(' ')[0]:'-',style};
+        },
+        s=>{const a=ak[s.idx];return a?fi(a,14)+a.split(' ')[0]:'-';}
+      );
+      html+='</div>';
+    }
+  }
+  c.innerHTML=html||`<p style="color:var(--muted);font-size:.82rem">Sem dados ainda.</p>`;
+}
+
 }
 function renderOtherPreds(){
   const c=$('op-content');if(!c) return;
