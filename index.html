@@ -166,7 +166,7 @@ table.gct tr:nth-child(3) td{background:rgba(255,215,0,.03)}
 .pts-today-pos{color:var(--green);font-weight:700;font-size:.82rem}
 .pts-today-neg{color:var(--red);font-weight:700;font-size:.82rem}
 .pts-today-zero{color:var(--muted);font-size:.82rem}
-.tup{color:var(--green);font-weight:700}.tdn{color:var(--red);font-weight:700}.tnc{color:var(--muted)}
+.tup{color:var(--green);font-weight:800;font-size:.85rem}.tdn{color:var(--red);font-weight:800;font-size:.85rem}.tnc{color:var(--muted);font-size:.75rem}
 .badge{display:inline-block;padding:3px 8px;border-radius:20px;font-size:.68rem;font-weight:700}
 .badge-open{background:rgba(45,198,83,.2);color:var(--green)}
 .badge-locked{background:rgba(230,57,70,.2);color:var(--red)}
@@ -2592,22 +2592,19 @@ function renderLeaderboard(){
     let trend='';
     if(prev>=0&&prevLb.length===rows.length){const d=prev-i;if(d>0)trend=`<span class="tup">↑${d}</span>`;else if(d<0)trend=`<span class="tdn">↓${Math.abs(d)}</span>`;else trend=`<span class="tnc">-</span>`;}
     const rc=rank===1?'r1':rank===2?'r2':rank===3?'r3':'';
-    // Points today
     const startPts=dailySnapshot[r.uid]!==undefined?dailySnapshot[r.uid]:r.pts;
     const todayDiff=r.pts-startPts;
     const todayCls=todayDiff>0?'pts-today-pos':todayDiff<0?'pts-today-neg':'pts-today-zero';
-    // Visual differentiation: users who haven't submitted predictions show "—"
-    // instead of 0 in the points columns. Trend is hidden for them too.
     const todayStr=!r.sub?'<span style="color:var(--muted)">—</span>':(todayDiff>0?`+${todayDiff}`:todayDiff<0?`${todayDiff}`:'0');
     const ptsStr=!r.sub?'<span style="color:var(--muted)">—</span>':`${r.pts>=0?'+':''}${r.pts}`;
     const ptsCls=!r.sub?'':(r.pts>=0?'pts-pos':'pts-neg');
-    const trendStr=!r.sub?'':trend;
+    const rankCell=rank===1?'🥇':rank===2?'🥈':rank===3?'🥉':rank;
     html+=`<tr>
-      <td class="${rc}">${rank===1?'🥇':rank===2?'🥈':rank===3?'🥉':rank}</td>
+      <td class="${rc}" style="white-space:nowrap">${rankCell}${trend?` ${trend}`:''}</td>
       <td>${r.name}${r.uid===currentUser?.uid?' 👈':''}${adjBadge(r.uid)}${allUsers[r.uid]?.unpaidAnnounced?`<span class="unpaid-badge" title="Pagamento em falta — fala com o host">€</span>`:''}</td>
       <td class="${todayCls}">${todayStr}</td>
       <td class="${ptsCls}">${ptsStr}</td>
-      <td>${trendStr} <span class="badge ${r.sub?'badge-open':'badge-locked'}">${r.sub?'✓':'?'}</span></td>
+      <td><span class="badge ${r.sub?'badge-open':'badge-locked'}">${r.sub?'✓':'?'}</span></td>
     </tr>`;
   });
   html+='</tbody></table>';c.innerHTML=html;
@@ -2844,7 +2841,7 @@ function renderDailySummary(rows){
   const wrap=$('dsum-wrap');if(!wrap) return;
   const hasAnyReal=ALL_MATCHES.some(m=>{const s=actualScores[m.id];return s&&s.home!==undefined&&s.home!=='';});
   if(!hasAnyReal){
-    wrap.innerHTML=`<div class="dsum"><div class="dsum-hl">📢 Aviso importante</div><p class="dsum-p">Mandem as apostas e pagamentos a tempo. Que ganhe o melhor, desde que o melhor não seja o Niza!</p></div>`;
+    wrap.innerHTML=`<div class="dsum"><div class="dsum-hl">📢 Aviso importante</div><p class="dsum-p">Mandem as apostas e pagamentos a tempo. Que ganhe o melhor, desde que o melhor não seja o João Eira!</p></div>`;
     return;
   }
   if(rows.length<2) return;
@@ -3010,7 +3007,7 @@ function renderOtherPreds(){
   const firstGameTime=new Date('2026-06-11T01:00:00Z');
   const showFrom=new Date(firstGameTime.getTime()-10*60*1000);
   if(new Date()<showFrom){
-    c.innerHTML=`<p style="color:var(--muted);font-size:.82rem">Disponível 10 min antes do primeiro jogo para que o Niza não copie pelo Nuno Cordas como costume.</p>`;
+    c.innerHTML=`<p style="color:var(--muted);font-size:.82rem">Disponível 10 min antes do primeiro jogo para que o João Eira não copie pelo Nuno Cordas como costume.</p>`;
     return;
   }
   const myS=!!(allPredictions[currentUser?.uid]&&Object.keys(allPredictions[currentUser?.uid]).length>0);
@@ -3141,7 +3138,7 @@ function renderOtherPreds(){
 
   // Antes do torneio ou antes dos 10min do 1º jogo
   if(now<showFrom){
-    c.innerHTML=`<p style="color:var(--muted);font-size:.82rem">Disponível 10 min antes do primeiro jogo para que o Niza não copie pelo Nuno Cordas como costume.</p>`;
+    c.innerHTML=`<p style="color:var(--muted);font-size:.82rem">Disponível 10 min antes do primeiro jogo para que o João Eira não copie pelo Nuno Cordas como costume.</p>`;
     return;
   }
 
@@ -3170,7 +3167,7 @@ function renderOtherPreds(){
   }
 
   if(!showDate){
-    c.innerHTML=`<p style="color:var(--muted);font-size:.82rem">Disponível 10 min antes do primeiro jogo para que o Nize não copie pelo Nuno Cordas como costume.</p>`;
+    c.innerHTML=`<p style="color:var(--muted);font-size:.82rem">Disponível 10 min antes do primeiro jogo para que o João Eira não copie pelo Nuno Cordas como costume.</p>`;
     return;
   }
 
