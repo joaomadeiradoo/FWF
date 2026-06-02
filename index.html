@@ -349,7 +349,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
     <button class="tab hidden" onclick="showTab('tab-host')" id="tab-btn-host">⚙️ Host</button>
   </div>
   <div id="tab-leaderboard" class="tab-content active">
-    <div class="card"><h2>⚡ Ao Vivo &amp; Próximos</h2><div id="live-content"><p style="color:var(--muted);font-size:.84rem">A carregar...</p></div></div>
+    <div class="card"><h2>⚡ Ao Vivo &amp; Próximos <span id="live-updated" style="font-size:.65rem;color:var(--muted);font-family:var(--fb);font-weight:400;letter-spacing:0;text-transform:none"></span></h2><div id="live-content"><p style="color:var(--muted);font-size:.84rem">A carregar...</p></div></div>
     <div id="dsum-wrap"></div>
     <div id="podium-wrap"></div>
     <div class="card">
@@ -3834,7 +3834,10 @@ async function fetchLive(){
   try{
     const r=await fetch(`https://v3.football.api-sports.io/fixtures?league=${WC_LEAGUE_ID}&season=2026&live=all`,{headers:{'x-rapidapi-key':key,'x-rapidapi-host':'v3.football.api-sports.io'}});
     await bumpApi('live');const d=await r.json();
-    if(d.response) liveData=d.response.map(f=>({home:f.teams.home.name,away:f.teams.away.name,hs:f.goals.home,as:f.goals.away,min:f.fixture.status.elapsed,status:f.fixture.status.short}));
+    if(d.response){
+      liveData=d.response.map(f=>({home:f.teams.home.name,away:f.teams.away.name,hs:f.goals.home,as:f.goals.away,min:f.fixture.status.elapsed,status:f.fixture.status.short}));
+      updateLiveTimestamp();
+    }
     renderLive();
   }catch(e){console.warn('API:',e);}
 }
@@ -3853,12 +3856,17 @@ async function fetchUpcoming(){
         penAway:f.score?.penalty?.away??null,
         round:f.league?.round||null,
       }));
-      
-      // AUTO-APPLY SCORES: Apply finished matches to actualScores automatically
       if(isAdmin) await autoApplyScores(recentData);
+      updateLiveTimestamp();
     }
     renderLive();
   }catch(e){console.warn('API:',e);}
+}
+function updateLiveTimestamp(){
+  const el=$('live-updated');if(!el) return;
+  const now=new Date();
+  const time=now.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  el.textContent=`· ${lang==='pt'?'atualizado':'updated'} às ${time}`;
 }
 async function forceFetch(){
   const btn=document.querySelector('[onclick="forceFetch()"]');
