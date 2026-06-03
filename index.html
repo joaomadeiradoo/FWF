@@ -3828,7 +3828,7 @@ async function submitPredictions(mode){
 
 // ═══ LIVE SCORES ═══
 async function fetchLive(){
-  const key=window.API_FOOTBALL_KEY;if(!key||!await canApi(92)) return;
+  const key=window.API_FOOTBALL_KEY;if(!key||!await canApi()) return;
   try{
     const r=await fetch(`https://v3.football.api-sports.io/fixtures?league=${WC_LEAGUE_ID}&season=2026&live=all`,{headers:{'x-rapidapi-key':key,'x-rapidapi-host':'v3.football.api-sports.io'}});
     await bumpApi('live');const d=await r.json();
@@ -3840,7 +3840,7 @@ async function fetchLive(){
   }catch(e){console.warn('API:',e);}
 }
 async function fetchUpcoming(){
-  const key=window.API_FOOTBALL_KEY;if(!key||!await canApi(88)) return;
+  const key=window.API_FOOTBALL_KEY;if(!key||!await canApi()) return;
   try{
     const today=new Date().toISOString().split('T')[0];
     const r=await fetch(`https://v3.football.api-sports.io/fixtures?league=${WC_LEAGUE_ID}&season=2026&from=${today}&to=${today}`,{headers:{'x-rapidapi-key':key,'x-rapidapi-host':'v3.football.api-sports.io'}});
