@@ -1572,7 +1572,7 @@ async function bumpApi(reason=''){
   try{await setDoc(doc(db,'apiUsage','counter'),u);}catch(e){}
   updateApiCounter(u);return u.n;
 }
-async function canApi(max=92){const u=await getApiUsage();return u.n<max;}
+async function canApi(max=85){const u=await getApiUsage();return u.n<max;}
 function updateApiCounter(u){
   const lbl=$('api-count-lbl');const bar=$('api-bar-fill');const log=$('api-log');
   if(!u||!lbl) return;
@@ -3866,49 +3866,42 @@ function updateLiveTimestamp(){
   const time=now.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
   el.textContent=`· ${lang==='pt'?'atualizado':'updated'} às ${time}`;
 }
+function scheduleApi(){
+  clearInterval(apiPollTimer);
+  if(!window.API_FOOTBALL_KEY) return;
+  // CRITICAL: Only the admin/host triggers API calls.
+  // Regular users logging in must NEVER trigger fetches — with 41+ users
+  // each login would burn a call. One admin session handles all fetches
+  // and the results propagate to everyone via Firestore onSnapshot.
+  if(!isAdmin) return;
+
+  // Safer interval: 20min = 72 calls/day, leaving headroom for manual fetches.
+  // The canApi() hard cap at 85 ensures we never hit the 100 limit.
+  const ms=20*60*1000;
+
+  // Do NOT fetch immediately on login — wait for first interval tick.
+  // This prevents a burst of calls if the admin refreshes the page.
+  apiPollTimer=setInterval(async()=>{
+    // Hard circuit breaker — stop polling if close to daily limit
+    const usage=await getApiUsage();
+    if(usage.n>=85){
+      console.warn('API: daily limit close ('+usage.n+'/100), polling suspended');
+      clearInterval(apiPollTimer);
+      toast('⚠️ Limite diário da API quase atingido — fetch pausado',true);
+      return;
+    }
+    fetchLive();fetchUpcoming();
+  },ms);
+}
 async function forceFetch(){
+  if(!isAdmin){toast('Apenas o host/admin',true);return;}
+  const usage=await getApiUsage();
+  if(usage.n>=85){toast('⚠️ Limite diário quase atingido ('+usage.n+'/100)',true);return;}
   const btn=document.querySelector('[onclick="forceFetch()"]');
   if(btn){btn.disabled=true;btn.textContent='⏳ A carregar...';}
   await fetchUpcoming();await fetchLive();
   toast(lang==='pt'?'Fetch feito!':'Fetched!');
   if(btn){btn.disabled=false;btn.textContent='🔄 Forçar fetch';}
-}
-function scheduleApi(){
-  clearInterval(apiPollTimer);if(!window.API_FOOTBALL_KEY) return;
-  fetchUpcoming();fetchLive();
-  const msSince=new Date()-TOURNAMENT_START;
-  const daysIn=Math.floor(msSince/86400000);
-  
-  // Optimized for MAXIMUM frequency while staying under 92 calls/day
-  // Strategy: Use most of our 92-call budget for maximum freshness
-  let ms=16*60*1000; // Default: 16min = 90 calls/day (near limit)
-  
-  if(daysIn>=0&&daysIn<20){
-    // Group stage (Jun 11-30): Multiple 90-min matches per day
-    // 4 matches × 90min = 6 hours of football
-    ms=16*60*1000; // 16min = 90 calls/day (maximum freshness)
-  }else if(daysIn>=20&&daysIn<32){
-    // Round of 32 + R16 (Jul 1-12): 2 matches/day, potential 120min each
-    // 2 matches × 120min = 4 hours max
-    ms=16*60*1000; // 16min = 90 calls/day (can afford frequent updates)
-  }else if(daysIn>=32&&daysIn<36){
-    // Quarterfinals (Jul 13-16): 2 matches/day, 120min each likely
-    // 2 matches × 120min = 4 hours
-    ms=16*60*1000; // 16min = 90 calls/day (still safe)
-  }else if(daysIn>=36&&daysIn<40){
-    // Semifinals (Jul 17-18): 1 match/day, potential 150min (ET + penalties)
-    // Even at 150min, 16min intervals = 9-10 calls during match
-    ms=16*60*1000; // 16min = 90 calls/day (aggressive but safe for 1 match)
-  }else if(daysIn>=40){
-    // Finals (Jul 19): 3rd place + Final
-    // Worst case: both go to 150min = 5 hours total
-    // At 16min intervals during 5 hours = 18-19 calls during matches
-    // Plus baseline polling = ~90 calls/day total
-    // BUT: If both matches have ET+penalties, be slightly safer
-    ms=17*60*1000; // 17min = 84.7 calls/day (safe for worst case final day)
-  }
-  
-  apiPollTimer=setInterval(()=>{fetchLive();fetchUpcoming();},ms);
 }
 
 // ═══ AUTO-APPLY API SCORES ═══
