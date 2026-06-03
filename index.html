@@ -3869,20 +3869,15 @@ function updateLiveTimestamp(){
 function scheduleApi(){
   clearInterval(apiPollTimer);
   if(!window.API_FOOTBALL_KEY) return;
-  // CRITICAL: Only the admin/host triggers API calls.
-  // Regular users logging in must NEVER trigger fetches — with 41+ users
-  // each login would burn a call. One admin session handles all fetches
-  // and the results propagate to everyone via Firestore onSnapshot.
   if(!isAdmin) return;
 
-  // Safer interval: 20min = 72 calls/day, leaving headroom for manual fetches.
-  // The canApi() hard cap at 85 ensures we never hit the 100 limit.
-  const ms=20*60*1000;
+  // MULTI-ADMIN COORDINATION: Before fetching, check Firestore to see if
+  // another admin already fetched recently. Only one fetch per 18-minute
+  // window regardless of how many admins are logged in.
+  // This keeps calls at ~72/day even with 5+ admins open simultaneously.
+  const MIN_INTERVAL_MS=18*60*1000;
 
-  // Do NOT fetch immediately on login — wait for first interval tick.
-  // This prevents a burst of calls if the admin refreshes the page.
-  apiPollTimer=setInterval(async()=>{
-    // Hard circuit breaker — stop polling if close to daily limit
+  async function maybeFetch(){
     const usage=await getApiUsage();
     if(usage.n>=85){
       console.warn('API: daily limit close ('+usage.n+'/100), polling suspended');
@@ -3890,8 +3885,24 @@ function scheduleApi(){
       toast('⚠️ Limite diário da API quase atingido — fetch pausado',true);
       return;
     }
+    // Check when the last fetch happened (stored in competition doc)
+    try{
+      const{db,doc,getDoc,updateDoc}=window._fb;
+      const snap=await getDoc(doc(db,'competitions',currentCompId));
+      const lastFetch=snap.data()?.lastFetchedAt||0;
+      const msSinceLast=Date.now()-lastFetch;
+      if(msSinceLast<MIN_INTERVAL_MS){
+        // Another admin fetched recently — skip this tick
+        console.log('API: skipping fetch, last was '+(Math.round(msSinceLast/1000/60))+'min ago');
+        return;
+      }
+      // Claim this fetch window immediately before fetching
+      await updateDoc(doc(db,'competitions',currentCompId),{lastFetchedAt:Date.now()});
+    }catch(e){console.warn('API coord check failed:',e);}
     fetchLive();fetchUpcoming();
-  },ms);
+  }
+
+  apiPollTimer=setInterval(maybeFetch,20*60*1000);
 }
 async function forceFetch(){
   if(!isAdmin){toast('Apenas o host/admin',true);return;}
@@ -3900,6 +3911,8 @@ async function forceFetch(){
   const btn=document.querySelector('[onclick="forceFetch()"]');
   if(btn){btn.disabled=true;btn.textContent='⏳ A carregar...';}
   await fetchUpcoming();await fetchLive();
+  // Update coordination timestamp after manual fetch too
+  try{const{db,doc,updateDoc}=window._fb;await updateDoc(doc(db,'competitions',currentCompId),{lastFetchedAt:Date.now()});}catch(e){}
   toast(lang==='pt'?'Fetch feito!':'Fetched!');
   if(btn){btn.disabled=false;btn.textContent='🔄 Forçar fetch';}
 }
