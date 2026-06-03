@@ -1572,7 +1572,12 @@ async function bumpApi(reason=''){
   try{await setDoc(doc(db,'apiUsage','counter'),u);}catch(e){}
   updateApiCounter(u);return u.n;
 }
-async function canApi(max=85){const u=await getApiUsage();return u.n<max;}
+async function canApi(max=85){
+  // Hard block for today if we've already overrun
+  const today=new Date().toISOString().split('T')[0];
+  if(today==='2026-06-11') return false;
+  const u=await getApiUsage();return u.n<max;
+}
 function updateApiCounter(u){
   const lbl=$('api-count-lbl');const bar=$('api-bar-fill');const log=$('api-log');
   if(!u||!lbl) return;
