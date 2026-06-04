@@ -3746,14 +3746,17 @@ function renderHostPlayerChars(){
   const chars=currentComp?.playerChars||{};
   c.innerHTML=Object.entries(allUsers).map(([uid,u])=>`<div style="display:flex;align-items:center;gap:7px;margin-bottom:7px">
     <label style="font-size:.76rem;color:var(--muted);min-width:80px;flex-shrink:0">${u.name}</label>
-    <input type="text" class="pci" data-uid="${uid}" value="${chars[uid]||''}" placeholder="${lang==='pt'?'adepto do Benfica, ex-árbitro...':'Liverpool fan, ex-referee...'}"
+    <input type="text" class="pci" data-uid="${attrEsc(uid)}" value="${attrEsc(chars[uid]||'')}" placeholder="${lang==='pt'?'adepto do Benfica, ex-árbitro...':'Liverpool fan, ex-referee...'}"
       style="flex:1;background:#0D1B2A;border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-family:var(--fb);font-size:.8rem;outline:none"/>
   </div>`).join('');
 }
 async function savePlayerChars(){
   if(!isAdmin) return;const{db,doc,updateDoc}=window._fb;const chars={};
-  document.querySelectorAll('.pci').forEach(i=>{if(i.value) chars[i.dataset.uid]=i.value;});
-  await updateDoc(doc(db,'competitions',currentCompId),{playerChars:chars});toast(t('saved'));
+  document.querySelectorAll('.pci').forEach(i=>{if(i.value.trim()) chars[i.dataset.uid]=i.value.trim();});
+  try{
+    await updateDoc(doc(db,'competitions',currentCompId),{playerChars:chars});
+    toast(t('saved'));
+  }catch(e){console.error('savePlayerChars:',e);toast('Erro ao guardar: '+e.message,true);}
 }
 function reviewTopScorer(){
   const official=($('host-topscorer')||{}).value||actualScores.topScorer||'';
