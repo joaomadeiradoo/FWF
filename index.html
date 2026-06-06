@@ -3603,7 +3603,7 @@ window.saveKOResults=saveKOResults;
 
 function renderHostMembers(){
   if(!isAdmin) return;const c=$('host-members');if(!c) return;
-  const members=Object.entries(allUsers);
+  const members=Object.entries(allUsers).sort((a,b)=>a[1].name.localeCompare(b[1].name,'pt'));
   if(!members.length){c.innerHTML='<p style="color:var(--muted)">Nenhum participante</p>';return;}
   c.innerHTML=`<table class="leaderboard" style="margin-bottom:0;font-size:.78rem"><thead><tr><th>Nome</th><th>Role</th><th>Pts</th><th style="min-width:200px"></th></tr></thead><tbody>
   ${members.map(([uid,u])=>{const role=u.role||'member';const paid=!!u.paid;const unpaid=!!u.unpaidAnnounced;return`<tr>
@@ -3660,7 +3660,7 @@ function renderHostAdjust(){
   // Host-only feature
   if(!isHost){const sec=$('pts-adjust-section');if(sec)sec.style.display='none';return;}
   const sec=$('pts-adjust-section');if(sec)sec.style.display='';
-  const members=Object.entries(allUsers);
+  const members=Object.entries(allUsers).sort((a,b)=>a[1].name.localeCompare(b[1].name,'pt'));
   if(!members.length){c.innerHTML='<p style="color:var(--muted)">Nenhum participante</p>';return;}
   const adjustments=(currentComp&&currentComp.adjustments)||{};
   c.innerHTML=members.map(([uid,u])=>{
