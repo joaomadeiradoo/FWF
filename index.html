@@ -2579,7 +2579,21 @@ function renderLeaderboard(){
   const c=$('lb-content');if(!c) return;
   const members=Object.entries(allUsers);
   if(!members.length){c.innerHTML='<p style="color:var(--muted)">Sem participantes</p>';return;}
-  const rows=members.map(([uid,u])=>({uid,name:u.name,pts:calcTotal(uid),sub:!!(allPredictions[uid]&&Object.keys(allPredictions[uid]).length>0)})).sort((a,b)=>{
+  const rows=members.map(([uid,u])=>{
+    const pr=allPredictions[uid]||{};
+    const hasSome=Object.keys(pr).length>0;
+    // Complete = all 72 group matches filled + R32 bracket (16 picks) + topScorer
+    const groupsFull=hasSome&&ALL_MATCHES.every(m=>{const p=pr[m.id]||{};return p.home!==undefined&&p.home!==''&&p.away!==undefined&&p.away!=='';});
+    const bp=(pr.bracket)||{};
+    const r32picks=(bp.r32||[]).filter(t=>t&&t!=='TBD').length;
+    const bracketStarted=r32picks>0;
+    const bracketFull=r32picks>=16&&(bp.r16||[]).filter(Boolean).length>=8&&(bp.qf||[]).filter(Boolean).length>=4&&(bp.sf||[]).filter(Boolean).length>=2&&(bp.fin||[]).filter(Boolean).length>=2&&(bp.f3||[]).filter(Boolean).length>=1;
+    const topScorer=!!(pr.topScorer&&pr.topScorer.trim());
+    const sub=hasSome;
+    const complete=groupsFull&&bracketFull&&topScorer;
+    const partial=sub&&!complete;
+    return{uid,name:u.name,pts:calcTotal(uid),sub,partial,complete};
+  }).sort((a,b)=>{
     // Unsubmitted users go to the bottom regardless of pts
     if(a.sub!==b.sub) return a.sub?-1:1;
     return b.pts-a.pts;
@@ -2610,7 +2624,7 @@ function renderLeaderboard(){
       <td>${r.name}${r.uid===currentUser?.uid?' 👈':''}${adjBadge(r.uid)}${allUsers[r.uid]?.unpaidAnnounced?`<span class="unpaid-badge" title="Pagamento em falta — fala com o host">€</span>`:''}</td>
       <td class="${todayCls}">${todayStr}</td>
       <td class="${ptsCls}">${ptsStr}</td>
-      <td><span class="badge ${r.sub?'badge-open':'badge-locked'}">${r.sub?'✓':'?'}</span></td>
+      <td>${r.complete?'<span class="badge badge-open">✓</span>':r.partial?'<span class="badge" style="background:rgba(255,200,0,.15);color:#ffd000;border:1px solid rgba(255,200,0,.3)">⚠</span>':'<span class="badge badge-locked">?</span>'}</td>
     </tr>`;
   });
   html+='</tbody></table>';c.innerHTML=html;
