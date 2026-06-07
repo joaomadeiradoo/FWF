@@ -3128,20 +3128,52 @@ function renderOtherPreds(){
       const ak=actualScores[`ko_${rd.id}`]||[];
       const anyPred=members.some(([uid])=>{const bp=(allPredictions[uid]||{}).bracket||{};return(bp[rd.id]||[]).some(Boolean);});
       if(!anyPred) continue;
-      const slots=Array.from({length:rd.slots},(_,i)=>({idx:i}));
       html+=`<div style="margin-bottom:18px"><div style="font-size:.75rem;font-weight:800;color:var(--gold);margin-bottom:6px">📋 ${rd.label}</div>`;
-      html+=matchTable(slots,
-        s=>`#${s.idx+1}`,
-        (uid,s)=>{
+
+      if(rd.id==='fin'){
+        // Special: Final table with extra Melhor Marcador column
+        const actualScorer=actualScores.topScorer||'';
+        html+=`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.68rem">`;
+        html+=`<thead><tr>`;
+        html+=`<th style="text-align:left;padding:3px 6px;color:var(--muted)">Jogador</th>`;
+        html+=`<th style="padding:3px 6px;text-align:center;color:var(--muted)">Final</th>`;
+        html+=`<th style="padding:3px 6px;text-align:center;color:var(--muted)">Melhor Marcador</th>`;
+        html+=`</tr></thead><tbody>`;
+        members.forEach(([uid,u])=>{
           const bp=(allPredictions[uid]||{}).bracket||{};
-          const pick=(bp[rd.id]||[])[s.idx]||'';
-          const actual=ak[s.idx]||'';
-          let style='color:#ccd6e0';
-          if(pick&&actual){style=pick===actual?'color:#2dc653':'color:#e63946';}
-          return{text:pick?fi(pick,14)+pick.split(' ')[0]:'-',style};
-        },
-        s=>{const a=ak[s.idx];return a?fi(a,14)+a.split(' ')[0]:'-';}
-      );
+          const finPick=(bp.fin||[]).filter(Boolean);
+          const finText=finPick.length?finPick.map(t=>fi(t,14)+t.split(' ')[0]).join(' vs '):'-';
+          const finCorrect=ak.length&&finPick.length&&finPick[0]===ak[0]&&finPick[1]===ak[1];
+          const finWrong=ak.length&&finPick.length&&!finCorrect;
+          const scorer=(allPredictions[uid]||{}).topScorer||'-';
+          const scorerCorrect=actualScorer&&scorer&&scorer.toLowerCase()===actualScorer.toLowerCase();
+          html+=`<tr style="border-top:1px solid #1e3a5f">`;
+          html+=`<td style="padding:3px 6px;font-weight:700;white-space:nowrap">${u.name}</td>`;
+          html+=`<td style="padding:3px 6px;text-align:center;font-weight:700;${finCorrect?'color:#2dc653':finWrong?'color:#e63946':'color:#ccd6e0'}">${finText}</td>`;
+          html+=`<td style="padding:3px 6px;text-align:center;font-weight:700;${scorerCorrect?'color:#2dc653':'color:#ccd6e0'}">${scorer}</td>`;
+          html+=`</tr>`;
+        });
+        // Real row
+        html+=`<tr style="border-top:2px solid #FFD700">`;
+        html+=`<td style="padding:3px 6px;font-size:.62rem;color:#FFD700;font-weight:800">Real</td>`;
+        html+=`<td style="padding:3px 6px;text-align:center;color:#FFD700;font-weight:800">${ak.filter(Boolean).map(t=>fi(t,14)+t.split(' ')[0]).join(' vs ')||'-'}</td>`;
+        html+=`<td style="padding:3px 6px;text-align:center;color:#FFD700;font-weight:800">${actualScorer||'-'}</td>`;
+        html+=`</tr></tbody></table></div>`;
+      }else{
+        const slots=Array.from({length:rd.slots},(_,i)=>({idx:i}));
+        html+=matchTable(slots,
+          s=>`#${s.idx+1}`,
+          (uid,s)=>{
+            const bp=(allPredictions[uid]||{}).bracket||{};
+            const pick=(bp[rd.id]||[])[s.idx]||'';
+            const actual=ak[s.idx]||'';
+            let style='color:#ccd6e0';
+            if(pick&&actual){style=pick===actual?'color:#2dc653':'color:#e63946';}
+            return{text:pick?fi(pick,14)+pick.split(' ')[0]:'-',style};
+          },
+          s=>{const a=ak[s.idx];return a?fi(a,14)+a.split(' ')[0]:'-';}
+        );
+      }
       html+='</div>';
     }
   }
