@@ -4084,11 +4084,17 @@ async function autoApplyScores(finishedMatches){
     let slotIdx=-1;
 
     if(roundId==='r32'){
-      // Find slot by matching the teams against the R32 matchup array
       slotIdx=r32Teams.findIndex(m=>
         (m.home===homeTeam&&m.away===awayTeam)||
         (m.home===awayTeam&&m.away===homeTeam)
       );
+      // Fallback: if slot not found (group results incomplete), append winner
+      // to ko_r32 anyway. Scoring is Set-based so slot position doesn't matter.
+      if(slotIdx===-1&&winner){
+        const newKo=[...(actualScores.ko_r32||[])];
+        if(!newKo.includes(winner)){newKo.push(winner);actualScores.ko_r32=newKo;updated=true;}
+        continue;
+      }
     }else if(roundId==='r16'){
       // R16 slot i feeds from R32 slots 2i and 2i+1
       const r32actual=actualScores.ko_r32||[];
