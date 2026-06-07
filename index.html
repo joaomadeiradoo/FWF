@@ -2523,15 +2523,15 @@ function calcTotal(uid,toggleOverride=null){
     // third-place teams whose slot is determined by Annex C after group stage.
     const akSet=new Set(ak.filter(Boolean));
     const pkSet=new Set(pk.filter(Boolean)); // deduplicate user picks
-    pkSet.forEach(pick=>{if(akSet.has(pick)) tot+=rules[ruleMap[r.id]]||r.pts;});
+    pkSet.forEach(pick=>{if(akSet.has(pick)) tot+=rules[ruleMap[r.id]]??r.pts;});
   }
   // Final: count correct finalists + bonus for correct order
   const finPk=bp.fin||[];const finAk=actualScores.ko_fin||[];
   const actualFinalists=new Set((finAk||[]).filter(Boolean));
   const predFinalists=new Set((finPk||[]).filter(Boolean));
-  predFinalists.forEach(team=>{if(actualFinalists.has(team)) tot+=rules.finalist||25;});
-  if(finPk[0]&&finAk[0]&&finPk[0]===finAk[0]) tot+=rules.winner||30;
-  if(finPk[1]&&finAk[1]&&finPk[1]===finAk[1]) tot+=rules.runner_up||30;
+  predFinalists.forEach(team=>{if(actualFinalists.has(team)) tot+=rules.finalist??25;});
+  if(finPk[0]&&finAk[0]&&finPk[0]===finAk[0]) tot+=rules.winner??30;
+  if(finPk[1]&&finAk[1]&&finPk[1]===finAk[1]) tot+=rules.runner_up??30;
   if(actualScores.topScorer&&pr.topScorer){
     const score=fuzzyScore(pr.topScorer,actualScores.topScorer);
     if(score===1||(score>=0.5&&(approvedTopScorers[uid]===true))) tot+=rules.top_scorer;
@@ -3178,7 +3178,7 @@ function renderOtherPreds(){
         members.forEach(([uid,u])=>{
           const bp=(allPredictions[uid]||{}).bracket||{};
           const picks=[...new Set((bp[rd.id]||[]).filter(Boolean))];
-          const roundPts=picks.filter(t=>akSet.has(t)).length*(rules[ruleMap[rd.id]]||rd.pts);
+          const roundPts=picks.filter(t=>akSet.has(t)).length*(rules[ruleMap[rd.id]]??rd.pts);
           const ptsLabel=hasResults?`<div style="font-size:.58rem;color:${roundPts>0?'#2dc653':'#8899aa'};font-weight:600;margin-top:1px">${roundPts>0?'+'+roundPts+' pts':'0 pts'}</div>`:'';
           const chips=picks.map(t=>{
             const correct=hasResults&&akSet.has(t);
@@ -3193,7 +3193,15 @@ function renderOtherPreds(){
           html+=`<td style="padding:3px 6px">${chips||'<span style="color:#4a5a6a">—</span>'}</td>`;
           html+=`</tr>`;
         });
-        html+=`</tbody></table></div>`;
+        html+=`</tbody>`;
+        if(hasResults){
+          const realChips=[...akSet].map(t=>`<span style="display:inline-block;background:rgba(255,215,0,.12);color:#FFD700;border:1px solid rgba(255,215,0,.35);border-radius:5px;padding:1px 5px;margin:1px 2px;font-size:.62rem;font-weight:700;white-space:nowrap">${fi(t,14)}${t.split(' ')[0]}</span>`).join('');
+          html+=`<tfoot><tr style="border-top:2px solid rgba(255,215,0,.4)">`;
+          html+=`<td style="padding:3px 6px;font-size:.62rem;color:#FFD700;font-weight:800;white-space:nowrap">Real</td>`;
+          html+=`<td style="padding:3px 6px">${realChips}</td>`;
+          html+=`</tr></tfoot>`;
+        }
+        html+=`</table></div>`;
       }
       html+='</div>';
     }
