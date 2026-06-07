@@ -2518,7 +2518,12 @@ function calcTotal(uid,toggleOverride=null){
     if(r.id==='fin'||r.id==='win') continue; // handled below
     if(r.id==='r32'&&!tgl.round32) continue;
     const pk=bp[r.id]||[];const ak=actualScores[`ko_${r.id}`]||[];
-    pk.forEach((pick,i)=>{if(ak[i]&&pick===ak[i]) tot+=rules[ruleMap[r.id]]||r.pts;});
+    // Set-based: points if the predicted team actually reached this round,
+    // regardless of which slot they ended up in. This correctly handles
+    // third-place teams whose slot is determined by Annex C after group stage.
+    const akSet=new Set(ak.filter(Boolean));
+    const pkSet=new Set(pk.filter(Boolean)); // deduplicate user picks
+    pkSet.forEach(pick=>{if(akSet.has(pick)) tot+=rules[ruleMap[r.id]]||r.pts;});
   }
   // Final: count correct finalists + bonus for correct order
   const finPk=bp.fin||[];const finAk=actualScores.ko_fin||[];
@@ -3161,28 +3166,32 @@ function renderOtherPreds(){
         html+=`<td style="padding:3px 6px;text-align:center;color:#FFD700;font-weight:800">${actualScorer||'-'}</td>`;
         html+=`</tr></tbody></table></div>`;
       }else{
-        // Build matchup name for each slot from previous round's actual results
-        function slotMatchup(roundId, idx){
-          const abbr=t=>t?(t.split(' ')[0]):'?';
-          if(roundId==='r16'){const r=actualScores.ko_r32||[];return`${abbr(r[idx*2])} - ${abbr(r[idx*2+1])}`;}
-          if(roundId==='qf') {const r=actualScores.ko_r16||[];return`${abbr(r[idx*2])} - ${abbr(r[idx*2+1])}`;}
-          if(roundId==='sf') {const r=actualScores.ko_qf||[];return`${abbr(r[idx*2])} - ${abbr(r[idx*2+1])}`;}
-          if(roundId==='f3') {const r=actualScores.ko_sf||[];return`${abbr(r[0])} - ${abbr(r[1])}`;}
-          return`#${idx+1}`;
-        }
-        const slots=Array.from({length:rd.slots},(_,i)=>({idx:i}));
-        html+=matchTable(slots,
-          s=>slotMatchup(rd.id,s.idx),
-          (uid,s)=>{
-            const bp=(allPredictions[uid]||{}).bracket||{};
-            const pick=(bp[rd.id]||[])[s.idx]||'';
-            const actual=ak[s.idx]||'';
-            let style='color:#ccd6e0';
-            if(pick&&actual){style=pick===actual?'color:#2dc653':'color:#e63946';}
-            return{text:pick?fi(pick,14)+pick.split(' ')[0]:'-',style};
-          },
-          s=>{const a=ak[s.idx];return a?fi(a,14)+a.split(' ')[0]:'-';}
-        );
+        // Option B: rows = players, each row shows their picks as coloured
+        // team chips. Green = team actually advanced. No slot ordering.
+        const akSet=new Set(ak.filter(Boolean));
+        const hasResults=akSet.size>0;
+        html+=`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.68rem">`;
+        html+=`<thead><tr>`;
+        html+=`<th style="text-align:left;padding:3px 6px;color:var(--muted);white-space:nowrap">Jogador</th>`;
+        html+=`<th style="text-align:left;padding:3px 6px;color:var(--muted)">Previsões${hasResults?' (🟢 acertou · 🔴 errou)':''}</th>`;
+        html+=`</tr></thead><tbody>`;
+        members.forEach(([uid,u])=>{
+          const bp=(allPredictions[uid]||{}).bracket||{};
+          const picks=[...new Set((bp[rd.id]||[]).filter(Boolean))];
+          const chips=picks.map(t=>{
+            const correct=hasResults&&akSet.has(t);
+            const wrong=hasResults&&!akSet.has(t);
+            const bg=correct?'rgba(45,198,83,.15)':wrong?'rgba(230,57,70,.12)':'rgba(255,255,255,.05)';
+            const col=correct?'#2dc653':wrong?'#e63946':'#ccd6e0';
+            const border=correct?'rgba(45,198,83,.35)':wrong?'rgba(230,57,70,.3)':'#1e3a5f';
+            return `<span style="display:inline-block;background:${bg};color:${col};border:1px solid ${border};border-radius:5px;padding:1px 5px;margin:1px 2px;white-space:nowrap;font-size:.62rem;font-weight:700">${fi(t,14)}${t.split(' ')[0]}</span>`;
+          }).join('');
+          html+=`<tr style="border-top:1px solid #1e3a5f">`;
+          html+=`<td style="padding:3px 6px;font-weight:700;white-space:nowrap;vertical-align:top">${u.name}</td>`;
+          html+=`<td style="padding:3px 6px">${chips||'<span style="color:#4a5a6a">—</span>'}</td>`;
+          html+=`</tr>`;
+        });
+        html+=`</tbody></table></div>`;
       }
       html+='</div>';
     }
