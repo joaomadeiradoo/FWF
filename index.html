@@ -3161,9 +3161,18 @@ function renderOtherPreds(){
         html+=`<td style="padding:3px 6px;text-align:center;color:#FFD700;font-weight:800">${actualScorer||'-'}</td>`;
         html+=`</tr></tbody></table></div>`;
       }else{
+        // Build matchup name for each slot from previous round's actual results
+        function slotMatchup(roundId, idx){
+          const abbr=t=>t?(t.split(' ')[0]):'?';
+          if(roundId==='r16'){const r=actualScores.ko_r32||[];return`${abbr(r[idx*2])} - ${abbr(r[idx*2+1])}`;}
+          if(roundId==='qf') {const r=actualScores.ko_r16||[];return`${abbr(r[idx*2])} - ${abbr(r[idx*2+1])}`;}
+          if(roundId==='sf') {const r=actualScores.ko_qf||[];return`${abbr(r[idx*2])} - ${abbr(r[idx*2+1])}`;}
+          if(roundId==='f3') {const r=actualScores.ko_sf||[];return`${abbr(r[0])} - ${abbr(r[1])}`;}
+          return`#${idx+1}`;
+        }
         const slots=Array.from({length:rd.slots},(_,i)=>({idx:i}));
         html+=matchTable(slots,
-          s=>`#${s.idx+1}`,
+          s=>slotMatchup(rd.id,s.idx),
           (uid,s)=>{
             const bp=(allPredictions[uid]||{}).bracket||{};
             const pick=(bp[rd.id]||[])[s.idx]||'';
