@@ -2989,25 +2989,22 @@ async function shareLeaderboard(){
 }
 function downloadLb(){const a=document.createElement('a');a.href=$('lb-canvas').toDataURL();a.download='classificacao.png';a.click();}
 function downloadCSV(){
-  const mH=ALL_MATCHES.map(m=>`${m.home} vs ${m.away}`);
-  // Bracket round picks: r32(16), r16(8), qf(4), sf(2), f3(2), fin(2)
-  const koH=[
-    ...Array.from({length:16},(_,i)=>`R32 #${i+1}`),
-    ...Array.from({length:8},(_,i)=>`R16 #${i+1}`),
-    ...Array.from({length:4},(_,i)=>`QF #${i+1}`),
-    ...Array.from({length:2},(_,i)=>`SF #${i+1}`),
-    'Vencedor 3º lugar','Perdedor 3º lugar',
-    'Finalista 1','Finalista 2',
-    'Campeão','Vice-Campeão'
-  ];
-  // Group winners and runners-up predictions per group
   const groupKeys=Object.keys(GROUPS);
+  // Headers: identity, score, group picks, KO picks (meaningful names), all 72 match scores
   const groupH=[
     ...groupKeys.map(g=>`Vencedor Grupo ${g}`),
     ...groupKeys.map(g=>`2º Grupo ${g}`)
   ];
-  const headers=['Nome','Email','Pts Total','Top Scorer',...groupH,...koH,...mH];
-  const rows=Object.entries(allUsers).map(([uid,u])=>{
+  const koH=[
+    ...Array.from({length:16},(_,i)=>`R32 Pick ${i+1}`),
+    ...Array.from({length:8},(_,i)=>`R16 Pick ${i+1}`),
+    ...Array.from({length:4},(_,i)=>`QF Pick ${i+1}`),
+    ...Array.from({length:2},(_,i)=>`SF Pick ${i+1}`),
+    '3º Lugar (vencedor)','Finalista 1','Finalista 2',
+  ];
+  const mH=ALL_MATCHES.map(m=>`${m.home} vs ${m.away}`);
+  const headers=['Nome','Pts Total','Top Scorer',...groupH,...koH,...mH];
+  const rows=Object.entries(allUsers).sort((a,b)=>a[1].name.localeCompare(b[1].name,'pt')).map(([uid,u])=>{
     const pr=allPredictions[uid]||{};
     const bp=pr.bracket||{};
     const pad=(arr,n)=>{const a=Array.isArray(arr)?arr.slice(0,n):[];while(a.length<n)a.push('');return a;};
@@ -3018,15 +3015,16 @@ function downloadCSV(){
       ...pad(bp.r16,8),
       ...pad(bp.qf,4),
       ...pad(bp.sf,2),
-      ...pad(bp.f3,2),
+      (bp.f3||[])[0]||'',
       ...pad(bp.fin,2),
-      bp.fin&&bp.fin[0]||'', // Campeão (derived)
-      bp.fin&&bp.fin[1]||''  // Vice (derived)
     ];
     const mp=ALL_MATCHES.map(m=>{const p=pr[m.id]||{};return p.home!==undefined&&p.home!==''?`${p.home}-${p.away}`:''});
-    return[u.name,u.email||'',calcTotal(uid),pr.topScorer||'',...gw,...gs,...koCols,...mp];
+    return[u.name,calcTotal(uid),pr.topScorer||'',...gw,...gs,...koCols,...mp];
   });
   const csv=[headers,...rows].map(r=>r.map(v=>`"${String(v==null?'':v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='previsoes_karamba.csv';a.click();
+}
 function renderOtherPreds(){
   const c=$('op-content');if(!c) return;
   const firstGameTime=new Date('2026-06-11T01:00:00Z');
