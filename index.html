@@ -3178,6 +3178,8 @@ function renderOtherPreds(){
         members.forEach(([uid,u])=>{
           const bp=(allPredictions[uid]||{}).bracket||{};
           const picks=[...new Set((bp[rd.id]||[]).filter(Boolean))];
+          const roundPts=picks.filter(t=>akSet.has(t)).length*(rules[ruleMap[rd.id]]||rd.pts);
+          const ptsLabel=hasResults?`<div style="font-size:.58rem;color:${roundPts>0?'#2dc653':'#8899aa'};font-weight:600;margin-top:1px">${roundPts>0?'+'+roundPts+' pts':'0 pts'}</div>`:'';
           const chips=picks.map(t=>{
             const correct=hasResults&&akSet.has(t);
             const wrong=hasResults&&!akSet.has(t);
@@ -3187,7 +3189,7 @@ function renderOtherPreds(){
             return `<span style="display:inline-block;background:${bg};color:${col};border:1px solid ${border};border-radius:5px;padding:1px 5px;margin:1px 2px;white-space:nowrap;font-size:.62rem;font-weight:700">${fi(t,14)}${t.split(' ')[0]}</span>`;
           }).join('');
           html+=`<tr style="border-top:1px solid #1e3a5f">`;
-          html+=`<td style="padding:3px 6px;font-weight:700;white-space:nowrap;vertical-align:top">${u.name}</td>`;
+          html+=`<td style="padding:3px 6px;font-weight:700;white-space:nowrap;vertical-align:top">${u.name}${ptsLabel}</td>`;
           html+=`<td style="padding:3px 6px">${chips||'<span style="color:#4a5a6a">—</span>'}</td>`;
           html+=`</tr>`;
         });
