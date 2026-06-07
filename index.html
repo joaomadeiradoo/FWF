@@ -3463,9 +3463,9 @@ async function saveRules(){
 function renderPtsToggles(){
   if(!isAdmin) return;const c=$('pts-toggles-content');if(!c) return;
   const toggleDefs=[
-    {key:'groupWinner',label:{pt:'Vencedor do grupo (+6pts)',en:'Group winner (+6pts)'},desc:{pt:'Quando ON, os pontos por acertar o vencedor do grupo aplicam-se automaticamente. Quando OFF, esses pontos não contam até carregares em "Lançar".',en:'When ON, group winner points apply automatically. When OFF, they don\'t count until you press Launch.'}},
-    {key:'groupSecond',label:{pt:'2.º classificado do grupo (+4pts)',en:'Group runner-up (+4pts)'},desc:{pt:'Controla quando os pontos por acertar o 2.º classificado são atribuídos.',en:'Controls when group runner-up points are awarded.'}},
-    {key:'round32',label:{pt:'Equipa no R32 (+5pts)',en:'Round of 32 team (+5pts)'},desc:{pt:'Controla quando os pontos por acertar as equipas no R32 são atribuídos.',en:'Controls when Round of 32 qualification points are awarded.'}},
+    {key:'groupWinner',label:{pt:`Vencedor do grupo (+${rules.group_winner}pts)`,en:`Group winner (+${rules.group_winner}pts)`},desc:{pt:'Quando ON, os pontos por acertar o vencedor do grupo aplicam-se automaticamente. Quando OFF, esses pontos não contam até carregares em "Lançar".',en:'When ON, group winner points apply automatically. When OFF, they don\'t count until you press Launch.'}},
+    {key:'groupSecond',label:{pt:`2.º classificado do grupo (+${rules.group_second}pts)`,en:`Group runner-up (+${rules.group_second}pts)`},desc:{pt:'Controla quando os pontos por acertar o 2.º classificado são atribuídos.',en:'Controls when group runner-up points are awarded.'}},
+    {key:'round32',label:{pt:`Equipa no R32 (+${rules.round32}pts)`,en:`Round of 32 team (+${rules.round32}pts)`},desc:{pt:'Controla quando os pontos por acertar as equipas no R32 são atribuídos.',en:'Controls when Round of 32 qualification points are awarded.'}},
   ];
   c.innerHTML=toggleDefs.map(td=>{
     const isOn=ptsToggles[td.key]!==false;
