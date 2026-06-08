@@ -4157,13 +4157,25 @@ function renderLive(){
       <span style="font-weight:700;font-size:.8rem;flex:1">${m.away}</span></div></div>`;});
     html+='</div>';
   }
-  const manUp=ALL_MATCHES.filter(m=>!actualScores[m.id]||actualScores[m.id].home===undefined).slice(0,3).map(m=>({home:m.home,away:m.away,time:''}));
+  // Fallback upcoming (when no API): sort by actual match date, not array order.
+  // Group stage dates are "DD Jun" / "DD Jul" — parse to a sortable day number.
+  const parseDate=d=>{
+    if(!d) return 9999;
+    const mth=d.includes('Jul')?700:d.includes('Jun')?600:0;
+    const day=parseInt(d,10)||0;
+    return mth+day;
+  };
+  const manUp=ALL_MATCHES
+    .filter(m=>!actualScores[m.id]||actualScores[m.id].home===undefined)
+    .sort((a,b)=>parseDate(a.date)-parseDate(b.date))
+    .slice(0,3)
+    .map(m=>({home:m.home,away:m.away,time:'',date:m.date}));
   const allUp=[...upcomingData,...manUp].slice(0,3);
   if(allUp.length){
     html+=`<div><div class="sec-lbl">⏳ ${lang==='pt'?'Próximos':'Upcoming'}</div>`;
     allUp.forEach(m=>{html+=`<div class="lmc" style="border-color:rgba(255,215,0,.12)"><div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
       <span style="font-weight:700;font-size:.8rem;flex:1;text-align:right">${m.home}</span>
-      <span style="font-family:var(--fh);font-size:.9rem;color:var(--gold);min-width:44px;text-align:center">${m.time||'vs'}</span>
+      <span style="font-family:var(--fh);font-size:.9rem;color:var(--gold);min-width:44px;text-align:center">${m.time||m.date||'vs'}</span>
       <span style="font-weight:700;font-size:.8rem;flex:1">${m.away}</span></div>${m.venue?`<div style="text-align:center;font-size:.6rem;color:var(--muted);margin-top:2px">${m.venue}</div>`:''}</div>`;});
     html+='</div>';
   }
