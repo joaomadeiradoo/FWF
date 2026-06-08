@@ -432,6 +432,20 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
   </div>
   <div id="tab-rules" class="tab-content">
     <div class="card"><h2>📖 Regras de Pontuação</h2><div id="rules-content"></div></div>
+    <div class="card">
+      <h2>↕ Critérios de Desempate</h2>
+      <p style="color:var(--muted);font-size:.78rem;margin-bottom:12px">Aplicados por esta ordem quando dois ou mais jogadores terminam com a mesma pontuação. Visíveis na classificação a partir das meias-finais.</p>
+      <ol style="color:var(--text);font-size:.82rem;line-height:2;padding-left:18px">
+        <li>Acertar o campeão</li>
+        <li>Acertar o melhor marcador</li>
+        <li>Acertar mais equipas nas meias-finais</li>
+        <li>Acertar mais equipas nos quartos-de-final</li>
+        <li>Acertar mais equipas no R16</li>
+        <li>Acertar mais equipas no R32</li>
+        <li>Mais resultados exactos na fase de grupos</li>
+        <li>Moeda ao ar</li>
+      </ol>
+    </div>
   </div>
   <div id="tab-host" class="tab-content">
     <div class="card">
@@ -2584,25 +2598,59 @@ function renderLeaderboard(){
   const c=$('lb-content');if(!c) return;
   const members=Object.entries(allUsers);
   if(!members.length){c.innerHTML='<p style="color:var(--muted)">Sem participantes</p>';return;}
+  // Tiebreakers (computed once per user, stored in row)
+  // Only meaningful after SF results published — used in sort always, shown only then
+  function calcTiebreakers(uid){
+    const pr=allPredictions[uid]||{};
+    const bp=pr.bracket||{};
+    const ak=actualScores;
+    // 1. Acertou campeão
+    const t1=(bp.fin&&bp.fin[0]&&ak.ko_fin&&bp.fin[0]===ak.ko_fin[0])?1:0;
+    // 2. Acertou melhor marcador
+    const scorer=pr.topScorer||'';const actScorer=ak.topScorer||'';
+    const t2=(scorer&&actScorer&&(fuzzyScore(scorer,actScorer)>=0.5||approvedTopScorers[uid]===true))?1:0;
+    // 3-6. Equipas certas por ronda (Set-based)
+    const kSet=r=>new Set((ak[`ko_${r}`]||[]).filter(Boolean));
+    const sfSet=kSet('sf'),qfSet=kSet('qf'),r16Set=kSet('r16'),r32Set=kSet('r32');
+    const t3=[...new Set((bp.sf||[]).filter(Boolean))].filter(t=>sfSet.has(t)).length;
+    const t4=[...new Set((bp.qf||[]).filter(Boolean))].filter(t=>qfSet.has(t)).length;
+    const t5=[...new Set((bp.r16||[]).filter(Boolean))].filter(t=>r16Set.has(t)).length;
+    const t6=[...new Set((bp.r32||[]).filter(Boolean))].filter(t=>r32Set.has(t)).length;
+    // 7. Resultados exactos fase de grupos
+    let t7=0;
+    for(const m of ALL_MATCHES){
+      const p=pr[m.id]||{};const a=ak[m.id];
+      if(a&&a.home!==undefined&&p.home!==undefined&&p.home!==''&&
+         parseInt(p.home)===parseInt(a.home)&&parseInt(p.away)===parseInt(a.away))t7++;
+    }
+    return[t1,t2,t3,t4,t5,t6,t7];
+  }
+
+  const TB_LABELS=['Acertou o campeão','Acertou o melhor marcador','Equipas certas nas meias','Equipas certas nos quartos','Equipas certas no R16','Equipas certas no R32','Resultados exactos nos grupos','Moeda ao ar'];
+
   const rows=members.map(([uid,u])=>{
     const pr=allPredictions[uid]||{};
     const hasSome=Object.keys(pr).length>0;
-    // Complete = all 72 group matches filled + R32 bracket (16 picks) + topScorer
     const groupsFull=hasSome&&ALL_MATCHES.every(m=>{const p=pr[m.id]||{};return p.home!==undefined&&p.home!==''&&p.away!==undefined&&p.away!=='';});
     const bp=(pr.bracket)||{};
     const r32picks=(bp.r32||[]).filter(t=>t&&t!=='TBD').length;
-    const bracketStarted=r32picks>0;
     const bracketFull=r32picks>=16&&(bp.r16||[]).filter(Boolean).length>=8&&(bp.qf||[]).filter(Boolean).length>=4&&(bp.sf||[]).filter(Boolean).length>=2&&(bp.fin||[]).filter(Boolean).length>=2&&(bp.f3||[]).filter(Boolean).length>=1;
     const topScorer=!!(pr.topScorer&&pr.topScorer.trim());
     const sub=hasSome;
     const complete=groupsFull&&bracketFull&&topScorer;
     const partial=sub&&!complete;
-    return{uid,name:u.name,pts:calcTotal(uid),sub,partial,complete};
+    const tb=calcTiebreakers(uid);
+    return{uid,name:u.name,pts:calcTotal(uid),sub,partial,complete,tb};
   }).sort((a,b)=>{
-    // Unsubmitted users go to the bottom regardless of pts
     if(a.sub!==b.sub) return a.sub?-1:1;
-    return b.pts-a.pts;
+    if(b.pts!==a.pts) return b.pts-a.pts;
+    // Apply tiebreakers in order
+    for(let i=0;i<a.tb.length;i++){if(b.tb[i]!==a.tb[i])return b.tb[i]-a.tb[i];}
+    return a.name.localeCompare(b.name,'pt');
   });
+
+  // Show tiebreaker explanation only after SF results published
+  const sfPublished=(actualScores.ko_sf||[]).filter(Boolean).length>0;
 
   // Take snapshot at start of day
   takeDailySnapshot(rows);
@@ -2624,9 +2672,26 @@ function renderLeaderboard(){
     const ptsStr=!r.sub?'<span style="color:var(--muted)">—</span>':`${r.pts>=0?'+':''}${r.pts}`;
     const ptsCls=!r.sub?'':(r.pts>=0?'pts-pos':'pts-neg');
     const rankCell=rank===1?'🥇':rank===2?'🥈':rank===3?'🥉':rank;
+    // Tiebreaker note — only when SF published and this user is tied in pts with adjacent user
+    let tbNote='';
+    if(sfPublished&&r.sub){
+      const prevRow=rows[i-1],nextRow=rows[i+1];
+      const isTied=(prevRow&&prevRow.pts===r.pts&&prevRow.sub)||(nextRow&&nextRow.pts===r.pts&&nextRow.sub);
+      if(isTied){
+        // Find which criterion separates this user from at least one tied neighbour
+        let criterionIdx=TB_LABELS.length-1; // default: moeda ao ar
+        for(const neighbour of [prevRow,nextRow].filter(Boolean)){
+          if(neighbour.pts!==r.pts||!neighbour.sub) continue;
+          for(let ci=0;ci<r.tb.length;ci++){
+            if(r.tb[ci]!==neighbour.tb[ci]){criterionIdx=Math.min(criterionIdx,ci);break;}
+          }
+        }
+        tbNote=`<div style="font-size:.58rem;color:#8899aa;margin-top:1px">↕ ${TB_LABELS[criterionIdx]}</div>`;
+      }
+    }
     html+=`<tr>
       <td class="${rc}" style="white-space:nowrap">${rankCell}${trend?` ${trend}`:''}</td>
-      <td>${r.name}${r.uid===currentUser?.uid?' 👈':''}${adjBadge(r.uid)}${allUsers[r.uid]?.unpaidAnnounced?`<span class="unpaid-badge" title="Pagamento em falta — fala com o host">€</span>`:''}</td>
+      <td>${r.name}${r.uid===currentUser?.uid?' 👈':''}${adjBadge(r.uid)}${allUsers[r.uid]?.unpaidAnnounced?`<span class="unpaid-badge" title="Pagamento em falta — fala com o host">€</span>`:''}${tbNote}</td>
       <td class="${todayCls}">${todayStr}</td>
       <td class="${ptsCls}">${ptsStr}</td>
       <td>${r.complete?'<span class="badge badge-open">✓</span>':r.partial?'<span class="badge" style="background:rgba(255,200,0,.15);color:#ffd000;border:1px solid rgba(255,200,0,.3)">⚠</span>':'<span class="badge badge-locked">?</span>'}</td>
