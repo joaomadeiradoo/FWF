@@ -129,6 +129,8 @@ table.gct tr:nth-child(3) td{background:rgba(255,215,0,.03)}
 .b-team.clickable:hover{background:rgba(255,215,0,.1);cursor:pointer}
 .b-team.selected{background:rgba(45,198,83,.14);color:var(--green);font-weight:800}
 .b-team.loser{opacity:.38}
+.b-gold-tag{margin-left:auto;font-size:.56rem;font-weight:800;color:var(--gold);background:rgba(255,215,0,.12);border:1px solid rgba(255,215,0,.35);border-radius:4px;padding:0 5px;white-space:nowrap;display:inline-flex;align-items:center;gap:3px}
+.bm-gold-tag{margin-left:auto;font-size:.66rem;font-weight:800;color:var(--gold);background:rgba(255,215,0,.12);border:1px solid rgba(255,215,0,.35);border-radius:5px;padding:1px 7px;white-space:nowrap;display:inline-flex;align-items:center;gap:3px}
 .b-team.correct{background:rgba(45,198,83,.18);color:var(--green)}
 .b-team.wrong{background:rgba(230,57,70,.12);color:var(--red)}
 .b-team-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -157,6 +159,8 @@ table.gct tr:nth-child(3) td{background:rgba(255,215,0,.03)}
 .bm-team.loser{opacity:.38}
 .bm-team.correct{background:rgba(45,198,83,.18);color:var(--green)}
 .bm-team.wrong{background:rgba(230,57,70,.12);color:var(--red)}
+.bm-team.advanced{background:rgba(255,215,0,.16);color:var(--gold);box-shadow:inset 3px 0 0 var(--gold)}
+.b-team.advanced{background:rgba(255,215,0,.16);color:var(--gold);box-shadow:inset 3px 0 0 var(--gold)}
 /* Leaderboard */
 .leaderboard{width:100%;border-collapse:collapse}
 .leaderboard th{background:rgba(255,215,0,.1);color:var(--gold);font-family:var(--fh);letter-spacing:1px;padding:9px 8px;text-align:left;font-size:.8rem;border-bottom:1px solid var(--border)}
@@ -2109,41 +2113,31 @@ function getActualWinner(round,matchIdx){
 }
 
 // Build a single bracket match node
-function bNode(teamA,teamB,round,matchIdx,editable){
-  if(!teamA||teamA==='') teamA='TBD';
-  if(!teamB||teamB==='') teamB='TBD';
+function bNode(predA,predB,realA,realB,round,matchIdx,editable){
+  // predA/predB = teams in this slot per the USER'S bracket (always shown).
+  // realA/realB = teams really occupying this slot (shown in gold when known).
+  if(!predA||predA==='') predA='TBD';
+  if(!predB||predB==='') predB='TBD';
   const bp=getBP();
-  let pick=bp[round]&&bp[round][matchIdx];
-  // Ignore stale picks - if the saved pick isn't one of the two current teams,
-  // it's left over from a previous version of the bracket and should be hidden
-  if(pick&&pick!==teamA&&pick!==teamB) pick=null;
-  const actual=getActualWinner(round,matchIdx);
-  const isEmpty=(teamA==='TBD'&&teamB==='TBD');
+  const pick=bp[round]&&bp[round][matchIdx]; // user's winner pick — always shown, never filtered
+  const isEmpty=(predA==='TBD'&&predB==='TBD');
   const pts=KO_ROUNDS.find(r=>r.id===round)?.pts||0;
 
-  function teamCls(team){
-    if(!team||team==='TBD') return '';
-    if(actual){
-      if(actual===team) return pick===team?'correct':'';
-      return 'loser';
-    }
-    if(pick===team) return 'selected';
-    return '';
-  }
+  // Green = the user's predicted winner for this slot.
+  function teamCls(team){ if(!team||team==='TBD') return ''; return pick===team?'correct':''; }
+  // Gold tag = the real team in that position (only when known)
+  function goldTag(realTeam){ if(!realTeam||realTeam==='TBD') return ''; return `<span class="b-gold-tag">${fi(realTeam,12)}${realTeam.split(' ')[0]}</span>`; }
 
   const clickable=editable&&!isEmpty;
-  const ptsA=actual&&pick===teamA&&actual===teamA&&teamA!=='TBD'?`<span class="b-pts">+${pts}</span>`:'';
-  const ptsB=actual&&pick===teamB&&actual===teamB&&teamB!=='TBD'?`<span class="b-pts">+${pts}</span>`:'';
-
-  const clkA=clickable?`onclick="pickWinner('${round}',${matchIdx},'${attrEsc(teamA)}')"`:'';
-  const clkB=clickable?`onclick="pickWinner('${round}',${matchIdx},'${attrEsc(teamB)}')"`:'';
+  const clkA=clickable&&predA!=='TBD'?`onclick="pickWinner('${round}',${matchIdx},'${attrEsc(predA)}')"`:'';
+  const clkB=clickable&&predB!=='TBD'?`onclick="pickWinner('${round}',${matchIdx},'${attrEsc(predB)}')"`:'';
 
   return`<div class="b-match${clickable?' clickable':''}${isEmpty?' empty':''}">
-    <div class="b-team ${teamCls(teamA)}${clickable?' clickable':''}" ${clkA}>
-      ${teamA!=='TBD'?fi(teamA,15):''}<span class="b-team-name">${teamA==='TBD'?'–':teamA}</span>${ptsA}
+    <div class="b-team ${teamCls(predA)}${clickable?' clickable':''}" ${clkA}>
+      ${predA!=='TBD'?fi(predA,15):''}<span class="b-team-name">${predA==='TBD'?'–':predA}</span>${goldTag(realA)}
     </div>
-    <div class="b-team ${teamCls(teamB)}${clickable?' clickable':''}" ${clkB}>
-      ${teamB!=='TBD'?fi(teamB,15):''}<span class="b-team-name">${teamB==='TBD'?'–':teamB}</span>${ptsB}
+    <div class="b-team ${teamCls(predB)}${clickable?' clickable':''}" ${clkB}>
+      ${predB!=='TBD'?fi(predB,15):''}<span class="b-team-name">${predB==='TBD'?'–':predB}</span>${goldTag(realB)}
     </div>
   </div>`;
 }
@@ -2198,13 +2192,24 @@ function renderBracket(){
   const sub=!!(allPredictions[uid]&&Object.keys(allPredictions[uid]).length>0);
   const editable=canEdit(uid);
   if(!sub&&!isAdmin){c.innerHTML=`<div style="text-align:center;padding:28px;color:var(--muted)">${t('brLocked')}</div>`;return;}
-  const r32=getR32Teams(uid);
-  function r16Teams(i){const a=getWinner('r32',i*2)||null;const b=getWinner('r32',i*2+1)||null;return{home:a,away:b};}
-  function qfTeams(i){const a=getWinner('r16',i*2)||null;const b=getWinner('r16',i*2+1)||null;return{home:a,away:b};}
-  function sfTeams(i){const a=getWinner('qf',i*2)||null;const b=getWinner('qf',i*2+1)||null;return{home:a,away:b};}
-  const finA=getWinner('sf',0)||null;
-  const finB=getWinner('sf',1)||null;
+  const r32pred=getR32Teams(uid,true);          // user's predicted R32 matchups
+  const realGroups=ALL_MATCHES.some(m=>{const s=actualScores[m.id];return s&&s.home!==undefined&&s.home!=='';});
+  const r32real=realGroups?getR32Teams(uid,false):null; // real R32 matchups (null until groups done)
+  const bp=getBP();
+  const koR=r=>actualScores[`ko_${r}`]||[];
+  // predicted team in (prevRound winners) feeding a slot, and the real team there
+  const predFeed=(prev,idx)=>bp[prev]?.[idx]||null;
+  const realFeed=(prev,idx)=>koR(prev)[idx]||null;
+
+  function r16Teams(i){return{pa:predFeed('r32',i*2),pb:predFeed('r32',i*2+1),ra:realFeed('r32',i*2),rb:realFeed('r32',i*2+1)};}
+  function qfTeams(i){return{pa:predFeed('r16',i*2),pb:predFeed('r16',i*2+1),ra:realFeed('r16',i*2),rb:realFeed('r16',i*2+1)};}
+  function sfTeams(i){return{pa:predFeed('qf',i*2),pb:predFeed('qf',i*2+1),ra:realFeed('qf',i*2),rb:realFeed('qf',i*2+1)};}
+  const finPA=predFeed('sf',0),finPB=predFeed('sf',1),finRA=realFeed('sf',0),finRB=realFeed('sf',1);
   const [f3A,f3B]=getThirdPlaceTeams();
+  // real 3rd-place teams = real semifinal losers (real QF winners not in real SF winners)
+  const realSfWinners=new Set(koR('sf').filter(Boolean));
+  const realSfLosers=koR('qf').filter(t=>t&&!realSfWinners.has(t));
+  const f3RA=realSfLosers[0]||null,f3RB=realSfLosers[1]||null;
   const champion=getWinner('fin',0)||null;
   const runnerUp=getBP().fin?.[1]||null;
   const third=getWinner('f3',0)||null;
@@ -2212,7 +2217,10 @@ function renderBracket(){
   const MH=62;const GAP=2;
 
   function r32Col(startIdx,hdr){
-    const nodes=Array.from({length:8},(_,i)=>bNode(r32[startIdx+i]?.home||'TBD',r32[startIdx+i]?.away||'TBD','r32',startIdx+i,editable));
+    const nodes=Array.from({length:8},(_,i)=>{
+      const p=r32pred[startIdx+i]||{},r=r32real?(r32real[startIdx+i]||{}):{};
+      return bNode(p.home||'TBD',p.away||'TBD',r.home||null,r.away||null,'r32',startIdx+i,editable);
+    });
     return`<div class="b-col"><div class="b-col-hdr">${hdr}</div>${nodes.join('')}</div>`;
   }
   function r16Col(startIdx){
@@ -2220,8 +2228,8 @@ function renderBracket(){
     const spacerBetween=`<div style="height:${MH+GAP*2}px"></div>`;
     let html=`<div class="b-col"><div class="b-col-hdr">R16</div>${spacerTop}`;
     for(let i=0;i<4;i++){
-      const{home,away}=r16Teams(startIdx+i);
-      html+=bNode(home,away,'r16',startIdx+i,editable);
+      const{pa,pb,ra,rb}=r16Teams(startIdx+i);
+      html+=bNode(pa,pb,ra,rb,'r16',startIdx+i,editable);
       if(i<3) html+=spacerBetween;
     }
     return html+`</div>`;
@@ -2231,15 +2239,15 @@ function renderBracket(){
     const spacerBetween=`<div style="height:${MH*3+GAP*6}px"></div>`;
     let html=`<div class="b-col"><div class="b-col-hdr">QF</div>${spacerTop}`;
     for(let i=0;i<2;i++){
-      const{home,away}=qfTeams(startIdx+i);
-      html+=bNode(home,away,'qf',startIdx+i,editable);
+      const{pa,pb,ra,rb}=qfTeams(startIdx+i);
+      html+=bNode(pa,pb,ra,rb,'qf',startIdx+i,editable);
       if(i<1) html+=spacerBetween;
     }
     return html+`</div>`;
   }
-  function sfSingle(sfIdx,home,away){
+  function sfSingle(sfIdx,tm){
     const spacer=`<div style="height:${MH*3.5+GAP*7}px"></div>`;
-    return`<div class="b-col"><div class="b-col-hdr">SF</div>${spacer}${bNode(home,away,'sf',sfIdx,editable)}</div>`;
+    return`<div class="b-col"><div class="b-col-hdr">SF</div>${spacer}${bNode(tm.pa,tm.pb,tm.ra,tm.rb,'sf',sfIdx,editable)}</div>`;
   }
 
   function resultSlot(medal,name,label){
@@ -2257,10 +2265,10 @@ function renderBracket(){
   const centreHtml=`<div class="b-centre">
     <div class="b-col-hdr" style="width:100%;text-align:center">🏆 FINAL</div>
     <div class="b-trophy">🏆</div>
-    ${bNode(finA,finB,'fin',0,editable)}
+    ${bNode(finPA,finPB,finRA,finRB,'fin',0,editable)}
     <div style="margin-top:8px;width:100%">
       <div class="b-bronze-lbl" style="margin-bottom:4px">🥉 ${lang==='pt'?'3.º LUGAR':'3RD PLACE'}</div>
-      ${bNode(f3A,f3B,'f3',0,editable)}
+      ${bNode(f3A,f3B,f3RA,f3RB,'f3',0,editable)}
     </div>
     <div style="margin-top:10px;width:100%;border-top:1px solid var(--border);padding-top:8px;display:flex;flex-direction:column;gap:4px">
       <div style="font-family:var(--fh);font-size:.6rem;color:var(--gold);letter-spacing:1px;text-align:center;margin-bottom:3px">${lang==='pt'?'RESULTADOS FINAIS':'FINAL RESULTS'}</div>
@@ -2274,9 +2282,9 @@ function renderBracket(){
     ${r32Col(0,'R32 · '+t('pathway1'))}
     ${r16Col(0)}
     ${qfCol(0)}
-    ${sfSingle(0,sf0t.home,sf0t.away)}
+    ${sfSingle(0,sf0t)}
     ${centreHtml}
-    ${sfSingle(1,sf1t.home,sf1t.away)}
+    ${sfSingle(1,sf1t)}
     ${qfCol(2)}
     ${r16Col(4)}
     ${r32Col(8,'R32 · '+t('pathway2'))}
@@ -2366,40 +2374,44 @@ function renderBracketSwipe(){
   const uid=currentUser?.uid;
   const sub=!!(allPredictions[uid]&&Object.keys(allPredictions[uid]).length>0);
   if(!sub&&!isAdmin){c.innerHTML=`<div style="text-align:center;padding:24px;color:var(--muted);min-width:90vw">${t('brLocked')}</div>`;if(nav)nav.innerHTML='';return;}
-  const r32=getR32Teams(uid);
-  
-  function mTeam(team,round,matchIdx,pairOther){
-    if(!team||team==='TBD') return`<div class="bm-team" style="opacity:.35;cursor:default"><span style="flex:1;color:var(--muted)">–</span></div>`;
-    const bp=getBP();let pick=bp[round]&&bp[round][matchIdx];
-    // Ignore stale picks that don't belong to either current team
-    if(pick&&pick!==team&&pick!==pairOther) pick=null;
-    const actual=getActualWinner(round,matchIdx);
-    let cls='';
-    if(actual){cls=actual===team?(pick===team?'correct':''):'loser';}
-    else if(pick===team) cls='selected';
-    const pts=KO_ROUNDS.find(r=>r.id===round)?.pts||0;
-    const ptsStr=actual&&pick===team&&actual===team?`+${pts}pts`:'';
+  const r32pred=getR32Teams(uid,true);
+  const realGroups=ALL_MATCHES.some(m=>{const s=actualScores[m.id];return s&&s.home!==undefined&&s.home!=='';});
+  const r32real=realGroups?getR32Teams(uid,false):null;
+  const bp2=getBP();
+  const koR=r=>actualScores[`ko_${r}`]||[];
+
+  // team = predicted team in this slot; realTeam = real team there (gold)
+  function mTeam(team,realTeam,round,matchIdx){
+    if(!team||team==='TBD'){
+      const gold=realTeam&&realTeam!=='TBD'?`<span class="bm-gold-tag">${fi(realTeam,18)}${realTeam.split(' ')[0]}</span>`:'';
+      return`<div class="bm-team" style="opacity:${gold?'.9':'.35'};cursor:default"><span style="flex:1;color:var(--muted)">–</span>${gold}</div>`;
+    }
+    const pick=bp2[round]&&bp2[round][matchIdx];
+    const cls=pick===team?'correct':'';
+    const gold=realTeam&&realTeam!=='TBD'?`<span class="bm-gold-tag">${fi(realTeam,18)}${realTeam.split(' ')[0]}</span>`:'';
     return`<div class="bm-team ${cls}" onclick="pickWinner('${round}',${matchIdx},'${attrEsc(team)}')">
-      ${fi(team,22)}<span style="flex:1">${team}</span>
-      ${ptsStr?`<span style="color:var(--gold);font-size:.72rem">${ptsStr}</span>`:''}
+      ${fi(team,22)}<span style="flex:1">${team}</span>${gold}
     </div>`;
   }
-  function mMatch(tA,tB,round,idx,empty=false){
-    if(!tA) tA='';if(!tB) tB='';
+  function mMatch(pA,pB,rA,rB,round,idx,empty=false){
+    if(!pA) pA='';if(!pB) pB='';
     return`<div class="bm-match${empty?' empty':''}">
-      ${mTeam(tA,round,idx,tB)}${mTeam(tB,round,idx,tA)}
+      ${mTeam(pA,rA,round,idx)}${mTeam(pB,rB,round,idx)}
     </div>`;
   }
-  function getWinnerM(round,idx){return getWinner(round,idx)||null;}
-  
+  const predFeed=(prev,idx)=>bp2[prev]?.[idx]||null;
+  const realFeed=(prev,idx)=>koR(prev)[idx]||null;
+  const realSfWinners=new Set(koR('sf').filter(Boolean));
+  const realSfLosers=koR('qf').filter(t=>t&&!realSfWinners.has(t));
+
   const rounds=[
-    {id:'r32a',title:`R32 – ${t('pathway1')}`,pts:5,content:()=>Array.from({length:8},(_,i)=>mMatch(r32[i]?.home,r32[i]?.away,'r32',i)).join('')},
-    {id:'r32b',title:`R32 – ${t('pathway2')}`,pts:5,content:()=>Array.from({length:8},(_,i)=>mMatch(r32[8+i]?.home,r32[8+i]?.away,'r32',8+i)).join('')},
-    {id:'r16',title:lang==='pt'?'Oitavos':'R16',pts:10,content:()=>Array.from({length:8},(_,i)=>{const a=getWinnerM('r32',i*2),b=getWinnerM('r32',i*2+1);return mMatch(a,b,'r16',i,!a&&!b);}).join('')},
-    {id:'qf',title:lang==='pt'?'Quartos':'Quarterfinals',pts:10,content:()=>Array.from({length:4},(_,i)=>{const a=getWinnerM('r16',i*2),b=getWinnerM('r16',i*2+1);return mMatch(a,b,'qf',i,!a&&!b);}).join('')},
-    {id:'sf',title:lang==='pt'?'Meias-Finais':'Semifinals',pts:15,content:()=>[0,1].map(i=>{const a=getWinnerM('qf',i*2),b=getWinnerM('qf',i*2+1);return mMatch(a,b,'sf',i,!a&&!b);}).join('')},
-    {id:'fin',title:lang==='pt'?'Final':'Final',pts:25,content:()=>{const a=getWinnerM('sf',0),b=getWinnerM('sf',1);return mMatch(a,b,'fin',0,!a&&!b);}},
-    {id:'f3',title:'🥉 '+(lang==='pt'?'3.º Lugar':'3rd Place'),pts:25,content:()=>{const [a,b]=getThirdPlaceTeams();return mMatch(a,b,'f3',0,!a&&!b);}},
+    {id:'r32a',title:`R32 – ${t('pathway1')}`,pts:5,content:()=>Array.from({length:8},(_,i)=>{const p=r32pred[i]||{},r=r32real?(r32real[i]||{}):{};return mMatch(p.home,p.away,r.home,r.away,'r32',i);}).join('')},
+    {id:'r32b',title:`R32 – ${t('pathway2')}`,pts:5,content:()=>Array.from({length:8},(_,i)=>{const p=r32pred[8+i]||{},r=r32real?(r32real[8+i]||{}):{};return mMatch(p.home,p.away,r.home,r.away,'r32',8+i);}).join('')},
+    {id:'r16',title:lang==='pt'?'Oitavos':'R16',pts:10,content:()=>Array.from({length:8},(_,i)=>{const pa=predFeed('r32',i*2),pb=predFeed('r32',i*2+1),ra=realFeed('r32',i*2),rb=realFeed('r32',i*2+1);return mMatch(pa,pb,ra,rb,'r16',i,!pa&&!pb&&!ra&&!rb);}).join('')},
+    {id:'qf',title:lang==='pt'?'Quartos':'Quarterfinals',pts:10,content:()=>Array.from({length:4},(_,i)=>{const pa=predFeed('r16',i*2),pb=predFeed('r16',i*2+1),ra=realFeed('r16',i*2),rb=realFeed('r16',i*2+1);return mMatch(pa,pb,ra,rb,'qf',i,!pa&&!pb&&!ra&&!rb);}).join('')},
+    {id:'sf',title:lang==='pt'?'Meias-Finais':'Semifinals',pts:15,content:()=>[0,1].map(i=>{const pa=predFeed('qf',i*2),pb=predFeed('qf',i*2+1),ra=realFeed('qf',i*2),rb=realFeed('qf',i*2+1);return mMatch(pa,pb,ra,rb,'sf',i,!pa&&!pb&&!ra&&!rb);}).join('')},
+    {id:'fin',title:lang==='pt'?'Final':'Final',pts:25,content:()=>{const pa=predFeed('sf',0),pb=predFeed('sf',1),ra=realFeed('sf',0),rb=realFeed('sf',1);return mMatch(pa,pb,ra,rb,'fin',0,!pa&&!pb&&!ra&&!rb);}},
+    {id:'f3',title:'🥉 '+(lang==='pt'?'3.º Lugar':'3rd Place'),pts:25,content:()=>{const [pa,pb]=getThirdPlaceTeams();return mMatch(pa,pb,realSfLosers[0]||null,realSfLosers[1]||null,'f3',0,!pa&&!pb&&!realSfLosers.length);}},
     {id:'podium',title:'🏆 '+(lang==='pt'?'Pódio Final':'Final Podium'),pts:30,content:()=>{
       const champion=getWinner('fin',0)||null;
       const runnerUp=getBP().fin?.[1]||null;
