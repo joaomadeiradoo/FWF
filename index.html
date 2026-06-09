@@ -1533,7 +1533,6 @@ let userPredictions={},allPredictions={},allUsers={},actualScores={},approvedTop
 // Firestore, so concurrent updates from other users / the API can't wipe
 // what the current user is in the middle of entering.
 let hasUnsavedEdits=false;
-let charsBeingEdited=false; // true while admin is typing player characteristics
 function markUnsaved(){hasUnsavedEdits=true;}
 let rules={...DEFAULT_RULES},predictionsLocked=false,countdownInterval=null,prevLb=[];
 let liveData=[],upcomingData=[],recentData=[];
@@ -3820,24 +3819,42 @@ async function saveActualScores(){
 }
 function renderHostPlayerChars(){
   if(!isAdmin) return;const c=$('host-player-chars');if(!c) return;
-  // Don't rebuild the inputs while the admin is mid-edit — a Firestore
-  // snapshot firing (another admin saving, API result, etc.) would otherwise
-  // wipe whatever they've typed but not yet saved.
-  if(charsBeingEdited) return;
   const chars=currentComp?.playerChars||{};
+  const uids=Object.keys(allUsers);
+  // If the inputs already exist for the same set of users, DON'T rebuild —
+  // just refresh the values of fields the admin isn't currently editing.
+  // This lets live Firestore updates sync in without wiping in-progress typing.
+  const existing={};
+  c.querySelectorAll('.pci').forEach(i=>{existing[i.dataset.uid]=i;});
+  const sameSet=uids.length>0&&uids.length===Object.keys(existing).length&&uids.every(u=>existing[u]);
+  if(sameSet){
+    uids.forEach(uid=>{
+      const inp=existing[uid];
+      if(inp===document.activeElement) return;   // don't touch the focused field
+      if(inp.dataset.dirty==='1') return;         // don't touch unsaved edits
+      inp.value=chars[uid]||'';
+    });
+    return;
+  }
+  // First render, or the user set changed — rebuild from scratch.
   c.innerHTML=Object.entries(allUsers).map(([uid,u])=>`<div style="display:flex;align-items:center;gap:7px;margin-bottom:7px">
     <label style="font-size:.76rem;color:var(--muted);min-width:80px;flex-shrink:0">${u.name}</label>
-    <input type="text" class="pci" data-uid="${attrEsc(uid)}" value="${attrEsc(chars[uid]||'')}" placeholder="${lang==='pt'?'adepto do Benfica, ex-árbitro...':'Liverpool fan, ex-referee...'}"
-      oninput="charsBeingEdited=true"
+    <input type="text" class="pci" data-uid="${attrEsc(uid)}" data-dirty="0" value="${attrEsc(chars[uid]||'')}" placeholder="${lang==='pt'?'adepto do Benfica, ex-árbitro...':'Liverpool fan, ex-referee...'}"
+      oninput="this.dataset.dirty='1'"
       style="flex:1;background:#0D1B2A;border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-family:var(--fb);font-size:.8rem;outline:none"/>
   </div>`).join('');
 }
 async function savePlayerChars(){
-  if(!isAdmin) return;const{db,doc,updateDoc}=window._fb;const chars={};
-  document.querySelectorAll('.pci').forEach(i=>{if(i.value.trim()) chars[i.dataset.uid]=i.value.trim();});
+  if(!isAdmin) return;const{db,doc,updateDoc}=window._fb;
+  const inputs=[...document.querySelectorAll('.pci')];
+  // Per-field dot-notation update: never replaces the whole playerChars map,
+  // so a characteristic saved by another admin (or a newly-joined player) can't
+  // be wiped by this save.
+  const updates={};
+  inputs.forEach(i=>{updates[`playerChars.${i.dataset.uid}`]=i.value.trim();});
   try{
-    await updateDoc(doc(db,'competitions',currentCompId),{playerChars:chars});
-    charsBeingEdited=false; // safe to re-render from Firestore again
+    await updateDoc(doc(db,'competitions',currentCompId),updates);
+    inputs.forEach(i=>{i.dataset.dirty='0';});   // mark clean so future snapshots can refresh them
     toast(t('saved'));
   }catch(e){console.error('savePlayerChars:',e);toast('Erro ao guardar: '+e.message,true);}
 }
