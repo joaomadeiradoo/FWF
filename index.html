@@ -3160,33 +3160,10 @@ function renderOtherPreds(){
   // ── R32: one table per day (4 matches/day, Jul 1-4) ──
   const hasKO=Object.keys(actualScores).some(k=>k.startsWith('ko_r'));
   if(hasKO||matchDates.every(d=>dayDone(d))){
-    const r32teams=getR32Teams(currentUser?.uid);
-    const r32Dates=[...new Set(r32teams.map(m=>m.date).filter(Boolean))].sort();
-    const r32DayDone=d=>r32teams.filter(m=>m.date===d).every((_,i,arr)=>{
-      const idx=r32teams.indexOf(arr[i]);
-      return (actualScores.ko_r32||[])[idx];
-    });
-    const r32Visible=r32Dates.filter((d,i)=>i===0||r32DayDone(r32Dates[i-1]));
-    for(const date of r32Visible){
-      const dayMs=r32teams.map((m,i)=>({...m,idx:i})).filter(m=>m.date===date);
-      if(!dayMs.length) continue;
-      html+=`<div style="margin-bottom:18px"><div style="font-size:.75rem;font-weight:800;color:var(--gold);margin-bottom:6px">📋 R32 · ${date}</div>`;
-      html+=matchTable(dayMs,
-        m=>`${(m.home||'?').split(' ')[0]}<br>${(m.away||'?').split(' ')[0]}`,
-        (uid,m)=>{
-          const bp=(allPredictions[uid]||{}).bracket||{};
-          const pick=(bp.r32||[])[m.idx]||'';
-          const actual=(actualScores.ko_r32||[])[m.idx]||'';
-          let style='color:#ccd6e0';
-          if(pick&&actual){style=pick===actual?'color:#2dc653':'color:#e63946';}
-          return{text:pick?fi(pick,14)+pick.split(' ')[0]:'-',style};
-        },
-        m=>{const a=(actualScores.ko_r32||[])[m.idx];return a?fi(a,14)+a.split(' ')[0]:'-';}
-      );
-      html+='</div>';
-    }
-    // ── R16 onwards: full round ──
+    // ── R32 onwards: chip-based Set display (consistent with scoring) ──
+    const ruleMap={r32:'round32',r16:'round16',qf:'quarters',sf:'semis',f3:'third'};
     const laterRounds=[
+      {id:'r32',label:'R32 — Avos de Final',slots:16},
       {id:'r16',label:'R16 — Oitavos',slots:8},
       {id:'qf', label:'Quartos de Final',slots:4},
       {id:'sf', label:'Meias-Finais',slots:2},
