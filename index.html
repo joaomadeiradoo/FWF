@@ -3157,94 +3157,125 @@ function renderOtherPreds(){
     html+='</div>';
   }
 
-  // ── R32: one table per day (4 matches/day, Jul 1-4) ──
+  // ── KO rounds: match-centric, prediction-based colouring ──
   const hasKO=Object.keys(actualScores).some(k=>k.startsWith('ko_r'));
   if(hasKO||matchDates.every(d=>dayDone(d))){
-    // ── R32 onwards: chip-based Set display (consistent with scoring) ──
-    const ruleMap={r32:'round32',r16:'round16',qf:'quarters',sf:'semis',f3:'third'};
-    const laterRounds=[
-      {id:'r32',label:'R32 — Avos de Final',slots:16},
-      {id:'r16',label:'R16 — Oitavos',slots:8},
-      {id:'qf', label:'Quartos de Final',slots:4},
-      {id:'sf', label:'Meias-Finais',slots:2},
-      {id:'f3', label:'3.º Lugar',slots:1},
-      {id:'fin',label:'Final',slots:2},
-    ];
-    for(const rd of laterRounds){
-      const ak=actualScores[`ko_${rd.id}`]||[];
-      const anyPred=members.some(([uid])=>{const bp=(allPredictions[uid]||{}).bracket||{};return(bp[rd.id]||[]).some(Boolean);});
-      if(!anyPred) continue;
-      html+=`<div style="margin-bottom:18px"><div style="font-size:.75rem;font-weight:800;color:var(--gold);margin-bottom:6px">📋 ${rd.label}</div>`;
+    const abbr=t=>t?(fi(t,14)+t.split(' ')[0]):'?';
 
-      if(rd.id==='fin'){
-        // Special: Final table with extra Melhor Marcador column
-        const actualScorer=actualScores.topScorer||'';
-        html+=`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.68rem">`;
-        html+=`<thead><tr>`;
-        html+=`<th style="text-align:left;padding:3px 6px;color:var(--muted)">Jogador</th>`;
-        html+=`<th style="padding:3px 6px;text-align:center;color:var(--muted)">Final</th>`;
-        html+=`<th style="padding:3px 6px;text-align:center;color:var(--muted)">Melhor Marcador</th>`;
-        html+=`</tr></thead><tbody>`;
+    // Render one match-centric table. matches: [{home,away}], chunk: max cols per table.
+    // roundId: which bracket array to read player picks from. winnerSet: teams that
+    // actually advanced this round (for the gold row). Colour = player's PREDICTION:
+    //   green  = player predicted this team to advance (in bp[roundId])
+    //   red    = player predicted the OTHER team (so this matchup's other team)
+    //   —      = player predicted neither team to advance
+    function koTable(label, matches, roundId, winnerSet, chunkSize){
+      // Only show matches whose teams are both known
+      const known=matches.filter(m=>m.home&&m.home!=='?'&&m.away&&m.away!=='?');
+      if(!known.length) return '';
+      let out=`<div style="margin-bottom:18px"><div style="font-size:.75rem;font-weight:800;color:var(--gold);margin-bottom:6px">📋 ${label}</div>`;
+      for(let c0=0;c0<known.length;c0+=chunkSize){
+        const chunk=known.slice(c0,c0+chunkSize);
+        out+=`<div style="overflow-x:auto;margin-bottom:8px"><table style="width:100%;border-collapse:collapse;font-size:.64rem">`;
+        out+=`<thead><tr><th style="text-align:left;padding:3px 4px;color:var(--muted);font-size:.58rem">Jogador</th>`;
+        chunk.forEach(m=>{out+=`<th style="padding:3px 4px;color:var(--muted);font-size:.56rem;text-align:center;white-space:nowrap">${abbr(m.home)}<br>${abbr(m.away)}</th>`;});
+        out+=`</tr></thead><tbody>`;
         members.forEach(([uid,u])=>{
           const bp=(allPredictions[uid]||{}).bracket||{};
-          const finPick=(bp.fin||[]).filter(Boolean);
-          const finText=finPick.length?finPick.map(t=>fi(t,14)+t.split(' ')[0]).join(' vs '):'-';
-          const actualSet=new Set((ak||[]).filter(Boolean));
-          const bothCorrect=ak.length>=2&&finPick.length>=2&&finPick[0]===ak[0]&&finPick[1]===ak[1];
-          const oneCorrect=!bothCorrect&&finPick.some(t=>actualSet.has(t));
-          const scorer=(allPredictions[uid]||{}).topScorer||'-';
-          const scorerCorrect=actualScorer&&scorer&&scorer.toLowerCase()===actualScorer.toLowerCase();
-          html+=`<tr style="border-top:1px solid #1e3a5f">`;
-          html+=`<td style="padding:3px 6px;font-weight:700;white-space:nowrap">${u.name}</td>`;
-          html+=`<td style="padding:3px 6px;text-align:center;font-weight:700;${bothCorrect?'color:#2dc653':oneCorrect?'color:#ffd000':'color:#e63946'}">${finText}</td>`;
-          html+=`<td style="padding:3px 6px;text-align:center;font-weight:700;${scorerCorrect?'color:#2dc653':'color:#ccd6e0'}">${scorer}</td>`;
-          html+=`</tr>`;
+          const pset=new Set((bp[roundId]||[]).filter(Boolean));
+          out+=`<tr style="border-top:1px solid #1e3a5f"><td style="padding:3px 4px;font-weight:700;white-space:nowrap;font-size:.64rem">${u.name}</td>`;
+          chunk.forEach(m=>{
+            const hAdv=pset.has(m.home),aAdv=pset.has(m.away);
+            let cell;
+            if(!hAdv&&!aAdv){
+              cell=`<span style="color:#4a5a6a">—</span>`;
+            }else{
+              const parts=[];
+              // Green = predicted to advance; the other team in the match shown red
+              if(hAdv) parts.push(`<span style="color:#2dc653">${abbr(m.home)}</span>`);
+              else parts.push(`<span style="color:#e63946">${abbr(m.home)}</span>`);
+              if(aAdv) parts.push(`<span style="color:#2dc653">${abbr(m.away)}</span>`);
+              else parts.push(`<span style="color:#e63946">${abbr(m.away)}</span>`);
+              cell=parts.map(p=>`<span style="display:block;line-height:1.35">${p}</span>`).join('');
+            }
+            out+=`<td style="padding:3px 4px;text-align:center;font-weight:700">${cell}</td>`;
+          });
+          out+=`</tr>`;
         });
-        // Real row
-        html+=`<tr style="border-top:2px solid #FFD700">`;
-        html+=`<td style="padding:3px 6px;font-size:.62rem;color:#FFD700;font-weight:800">Real</td>`;
-        html+=`<td style="padding:3px 6px;text-align:center;color:#FFD700;font-weight:800">${ak.filter(Boolean).map(t=>fi(t,14)+t.split(' ')[0]).join(' vs ')||'-'}</td>`;
-        html+=`<td style="padding:3px 6px;text-align:center;color:#FFD700;font-weight:800">${actualScorer||'-'}</td>`;
-        html+=`</tr></tbody></table></div>`;
-      }else{
-        // Option B: rows = players, each row shows their picks as coloured
-        // team chips. Green = team actually advanced. No slot ordering.
-        const akSet=new Set(ak.filter(Boolean));
-        const hasResults=akSet.size>0;
-        html+=`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.68rem">`;
-        html+=`<thead><tr>`;
-        html+=`<th style="text-align:left;padding:3px 6px;color:var(--muted);white-space:nowrap">Jogador</th>`;
-        html+=`<th style="text-align:left;padding:3px 6px;color:var(--muted)">Previsões${hasResults?' (🟢 acertou · 🔴 errou)':''}</th>`;
-        html+=`</tr></thead><tbody>`;
-        members.forEach(([uid,u])=>{
-          const bp=(allPredictions[uid]||{}).bracket||{};
-          const picks=[...new Set((bp[rd.id]||[]).filter(Boolean))];
-          const roundPts=picks.filter(t=>akSet.has(t)).length*(rules[ruleMap[rd.id]]??rd.pts);
-          const ptsLabel=hasResults?`<div style="font-size:.58rem;color:${roundPts>0?'#2dc653':'#8899aa'};font-weight:600;margin-top:1px">${roundPts>0?'+'+roundPts+' pts':'0 pts'}</div>`:'';
-          const chips=picks.map(t=>{
-            const correct=hasResults&&akSet.has(t);
-            const wrong=hasResults&&!akSet.has(t);
-            const bg=correct?'rgba(45,198,83,.15)':wrong?'rgba(230,57,70,.12)':'rgba(255,255,255,.05)';
-            const col=correct?'#2dc653':wrong?'#e63946':'#ccd6e0';
-            const border=correct?'rgba(45,198,83,.35)':wrong?'rgba(230,57,70,.3)':'#1e3a5f';
-            return `<span style="display:inline-block;background:${bg};color:${col};border:1px solid ${border};border-radius:5px;padding:1px 5px;margin:1px 2px;white-space:nowrap;font-size:.62rem;font-weight:700">${fi(t,14)}${t.split(' ')[0]}</span>`;
-          }).join('');
-          html+=`<tr style="border-top:1px solid #1e3a5f">`;
-          html+=`<td style="padding:3px 6px;font-weight:700;white-space:nowrap;vertical-align:top">${u.name}${ptsLabel}</td>`;
-          html+=`<td style="padding:3px 6px">${chips||'<span style="color:#4a5a6a">—</span>'}</td>`;
-          html+=`</tr>`;
+        // Gold row: who actually advanced
+        out+=`<tr style="border-top:2px solid rgba(255,215,0,.4)"><td style="padding:3px 4px;font-size:.56rem;color:#FFD700;font-weight:800">PASSOU</td>`;
+        chunk.forEach(m=>{
+          const w=winnerSet.has(m.home)?m.home:winnerSet.has(m.away)?m.away:null;
+          out+=`<td style="padding:3px 4px;text-align:center;color:#FFD700;font-weight:800">${w?abbr(w):'-'}</td>`;
         });
-        html+=`</tbody>`;
-        if(hasResults){
-          const realChips=[...akSet].map(t=>`<span style="display:inline-block;background:rgba(255,215,0,.12);color:#FFD700;border:1px solid rgba(255,215,0,.35);border-radius:5px;padding:1px 5px;margin:1px 2px;font-size:.62rem;font-weight:700;white-space:nowrap">${fi(t,14)}${t.split(' ')[0]}</span>`).join('');
-          html+=`<tfoot><tr style="border-top:2px solid rgba(255,215,0,.4)">`;
-          html+=`<td style="padding:3px 6px;font-size:.62rem;color:#FFD700;font-weight:800;white-space:nowrap">Real</td>`;
-          html+=`<td style="padding:3px 6px">${realChips}</td>`;
-          html+=`</tr></tfoot>`;
-        }
-        html+=`</table></div>`;
+        out+=`</tr></tbody></table></div>`;
       }
-      html+='</div>';
+      out+='</div>';
+      return out;
+    }
+
+    // R32 — matchups from group standings (getR32Teams), grouped by date (4/day)
+    const r32teams=getR32Teams(currentUser?.uid);
+    const r32Set=new Set((actualScores.ko_r32||[]).filter(Boolean));
+    const r32Dates=[...new Set(r32teams.map(m=>m.date).filter(Boolean))].sort((a,b)=>{
+      const pd=d=>(d.includes('Jul')?700:600)+(parseInt(d,10)||0);return pd(a)-pd(b);
+    });
+    if(r32Dates.length){
+      for(const date of r32Dates){
+        const dayMs=r32teams.filter(m=>m.date===date);
+        html+=koTable(`R32 · ${date}`,dayMs,'r32',r32Set,4);
+      }
+    }else{
+      html+=koTable('R32 — Avos de Final',r32teams,'r32',r32Set,4);
+    }
+
+    // R16 — winners of R32 pairs
+    const r32a=actualScores.ko_r32||[];
+    const r16m=Array.from({length:8},(_,i)=>({home:r32a[i*2],away:r32a[i*2+1]}));
+    html+=koTable('R16 — Oitavos',r16m,'r16',new Set((actualScores.ko_r16||[]).filter(Boolean)),4);
+
+    // QF — winners of R16 pairs
+    const r16a=actualScores.ko_r16||[];
+    const qfm=Array.from({length:4},(_,i)=>({home:r16a[i*2],away:r16a[i*2+1]}));
+    html+=koTable('Quartos de Final',qfm,'qf',new Set((actualScores.ko_qf||[]).filter(Boolean)),4);
+
+    // SF — winners of QF pairs
+    const qfa=actualScores.ko_qf||[];
+    const sfm=Array.from({length:2},(_,i)=>({home:qfa[i*2],away:qfa[i*2+1]}));
+    html+=koTable('Meias-Finais',sfm,'sf',new Set((actualScores.ko_sf||[]).filter(Boolean)),4);
+
+    // 3.º Lugar — the two SF losers
+    const sfa=actualScores.ko_sf||[];
+    const finA=actualScores.ko_fin||[];
+    const sfLosers=[qfa[0],qfa[1],qfa[2],qfa[3]].filter(t=>t&&!sfa.includes(t));
+    if(sfLosers.length>=2){
+      const f3m=[{home:sfLosers[0],away:sfLosers[1]}];
+      html+=koTable('3.º Lugar',f3m,'f3',new Set((actualScores.ko_f3||[]).filter(Boolean)),4);
+    }
+
+    // Final — special table (finalists + Melhor Marcador), kept as-is
+    const finAk=actualScores.ko_fin||[];
+    const anyFin=members.some(([uid])=>{const bp=(allPredictions[uid]||{}).bracket||{};return(bp.fin||[]).some(Boolean);});
+    if(anyFin){
+      const actualScorer=actualScores.topScorer||'';
+      html+=`<div style="margin-bottom:18px"><div style="font-size:.75rem;font-weight:800;color:var(--gold);margin-bottom:6px">📋 Final</div>`;
+      html+=`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.68rem">`;
+      html+=`<thead><tr><th style="text-align:left;padding:3px 6px;color:var(--muted)">Jogador</th><th style="padding:3px 6px;text-align:center;color:var(--muted)">Final</th><th style="padding:3px 6px;text-align:center;color:var(--muted)">Melhor Marcador</th></tr></thead><tbody>`;
+      members.forEach(([uid,u])=>{
+        const bp=(allPredictions[uid]||{}).bracket||{};
+        const finPick=(bp.fin||[]).filter(Boolean);
+        const finText=finPick.length?finPick.map(t=>abbr(t)).join(' vs '):'-';
+        const actualSet=new Set((finAk||[]).filter(Boolean));
+        const bothCorrect=finAk.length>=2&&finPick.length>=2&&finPick[0]===finAk[0]&&finPick[1]===finAk[1];
+        const oneCorrect=!bothCorrect&&finPick.some(t=>actualSet.has(t));
+        const scorer=(allPredictions[uid]||{}).topScorer||'-';
+        const scorerCorrect=actualScorer&&scorer&&scorer.toLowerCase()===actualScorer.toLowerCase();
+        html+=`<tr style="border-top:1px solid #1e3a5f"><td style="padding:3px 6px;font-weight:700;white-space:nowrap">${u.name}</td>`;
+        html+=`<td style="padding:3px 6px;text-align:center;font-weight:700;${bothCorrect?'color:#2dc653':oneCorrect?'color:#ffd000':'color:#e63946'}">${finText}</td>`;
+        html+=`<td style="padding:3px 6px;text-align:center;font-weight:700;${scorerCorrect?'color:#2dc653':'color:#ccd6e0'}">${scorer}</td></tr>`;
+      });
+      html+=`<tr style="border-top:2px solid #FFD700"><td style="padding:3px 6px;font-size:.62rem;color:#FFD700;font-weight:800">Real</td>`;
+      html+=`<td style="padding:3px 6px;text-align:center;color:#FFD700;font-weight:800">${finAk.filter(Boolean).map(t=>abbr(t)).join(' vs ')||'-'}</td>`;
+      html+=`<td style="padding:3px 6px;text-align:center;color:#FFD700;font-weight:800">${actualScorer||'-'}</td></tr></tbody></table></div></div>`;
     }
   }
   c.innerHTML=html||`<p style="color:var(--muted);font-size:.82rem">Sem dados ainda.</p>`;
