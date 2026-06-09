@@ -1373,9 +1373,9 @@ function rankThirds(thirds){
   );
 }
 
-function getR32Teams(uid){
+function getR32Teams(uid,forcePred){
   const predScores=allPredictions[uid]||{};
-  const hasReal=ALL_MATCHES.some(m=>{const s=actualScores[m.id];return s&&s.home!==undefined&&s.home!=='';});
+  const hasReal=!forcePred&&ALL_MATCHES.some(m=>{const s=actualScores[m.id];return s&&s.home!==undefined&&s.home!=='';});
   const scores=hasReal?actualScores:predScores;
 
   // Build standings for all 12 groups
@@ -3162,14 +3162,12 @@ function renderOtherPreds(){
   if(hasKO||matchDates.every(d=>dayDone(d))){
     const abbr=t=>t?(fi(t,14)+t.split(' ')[0]):'?';
 
-    // Render one match-centric table. matches: [{home,away}], chunk: max cols per table.
-    // roundId: which bracket array to read player picks from. winnerSet: teams that
-    // actually advanced this round (for the gold row). Colour = player's PREDICTION:
-    //   green  = player predicted this team to advance (in bp[roundId])
-    //   red    = player predicted the OTHER team (so this matchup's other team)
-    //   —      = player predicted neither team to advance
-    function koTable(label, matches, roundId, winnerSet, chunkSize){
-      // Only show matches whose teams are both known
+    // koTable. reachedFn(uid)->Set of teams the player predicted to REACH this round.
+    //   green = predicted to advance (in bp[roundId])
+    //   red   = predicted to reach this round but be eliminated here
+    //   (team predicted out in an earlier round is NOT shown)
+    //   —     = player predicted neither team to reach this round
+    function koTable(label, matches, roundId, reachedFn, winnerSet, chunkSize){
       const known=matches.filter(m=>m.home&&m.home!=='?'&&m.away&&m.away!=='?');
       if(!known.length) return '';
       let out=`<div style="margin-bottom:18px"><div style="font-size:.75rem;font-weight:800;color:var(--gold);margin-bottom:6px">📋 ${label}</div>`;
@@ -3181,27 +3179,21 @@ function renderOtherPreds(){
         out+=`</tr></thead><tbody>`;
         members.forEach(([uid,u])=>{
           const bp=(allPredictions[uid]||{}).bracket||{};
-          const pset=new Set((bp[roundId]||[]).filter(Boolean));
+          const advSet=new Set((bp[roundId]||[]).filter(Boolean));
+          const reached=reachedFn(uid);
           out+=`<tr style="border-top:1px solid #1e3a5f"><td style="padding:3px 4px;font-weight:700;white-space:nowrap;font-size:.64rem">${u.name}</td>`;
           chunk.forEach(m=>{
-            const hAdv=pset.has(m.home),aAdv=pset.has(m.away);
-            let cell;
-            if(!hAdv&&!aAdv){
-              cell=`<span style="color:#4a5a6a">—</span>`;
-            }else{
-              const parts=[];
-              // Green = predicted to advance; the other team in the match shown red
-              if(hAdv) parts.push(`<span style="color:#2dc653">${abbr(m.home)}</span>`);
-              else parts.push(`<span style="color:#e63946">${abbr(m.home)}</span>`);
-              if(aAdv) parts.push(`<span style="color:#2dc653">${abbr(m.away)}</span>`);
-              else parts.push(`<span style="color:#e63946">${abbr(m.away)}</span>`);
-              cell=parts.map(p=>`<span style="display:block;line-height:1.35">${p}</span>`).join('');
-            }
+            const parts=[];
+            [m.home,m.away].forEach(t=>{
+              if(advSet.has(t)) parts.push(`<span style="display:block;line-height:1.35;color:#2dc653">${abbr(t)}</span>`);
+              else if(reached.has(t)) parts.push(`<span style="display:block;line-height:1.35;color:#e63946">${abbr(t)}</span>`);
+              // predicted eliminated earlier — not shown
+            });
+            const cell=parts.length?parts.join(''):`<span style="color:#4a5a6a">—</span>`;
             out+=`<td style="padding:3px 4px;text-align:center;font-weight:700">${cell}</td>`;
           });
           out+=`</tr>`;
         });
-        // Gold row: who actually advanced
         out+=`<tr style="border-top:2px solid rgba(255,215,0,.4)"><td style="padding:3px 4px;font-size:.56rem;color:#FFD700;font-weight:800">PASSOU</td>`;
         chunk.forEach(m=>{
           const w=winnerSet.has(m.home)?m.home:winnerSet.has(m.away)?m.away:null;
@@ -3212,6 +3204,13 @@ function renderOtherPreds(){
       out+='</div>';
       return out;
     }
+    // reached-this-round sets per player
+    const reachedR32=uid=>{const t=getR32Teams(uid,true);const s=new Set();t.forEach(m=>{if(m.home&&m.home!=='TBD')s.add(m.home);if(m.away&&m.away!=='TBD')s.add(m.away);});return s;};
+    const reachedArr=arr=>uid=>new Set((((allPredictions[uid]||{}).bracket||{})[arr]||[]).filter(Boolean));
+    const reachedR16=reachedArr('r32');
+    const reachedQF=reachedArr('r16');
+    const reachedSF=reachedArr('qf');
+    const reachedF3=uid=>{const bp=(allPredictions[uid]||{}).bracket||{};const sf=new Set((bp.sf||[]).filter(Boolean));const r=new Set();(bp.qf||[]).filter(Boolean).forEach(t=>{if(!sf.has(t))r.add(t);});return r;};
 
     // R32 — matchups from group standings (getR32Teams), grouped by date (4/day)
     const r32teams=getR32Teams(currentUser?.uid);
@@ -3222,26 +3221,26 @@ function renderOtherPreds(){
     if(r32Dates.length){
       for(const date of r32Dates){
         const dayMs=r32teams.filter(m=>m.date===date);
-        html+=koTable(`R32 · ${date}`,dayMs,'r32',r32Set,4);
+        html+=koTable(`R32 · ${date}`,dayMs,'r32',reachedR32,r32Set,4);
       }
     }else{
-      html+=koTable('R32 — Avos de Final',r32teams,'r32',r32Set,4);
+      html+=koTable('R32 — Avos de Final',r32teams,'r32',reachedR32,r32Set,4);
     }
 
     // R16 — winners of R32 pairs
     const r32a=actualScores.ko_r32||[];
     const r16m=Array.from({length:8},(_,i)=>({home:r32a[i*2],away:r32a[i*2+1]}));
-    html+=koTable('R16 — Oitavos',r16m,'r16',new Set((actualScores.ko_r16||[]).filter(Boolean)),4);
+    html+=koTable('R16 — Oitavos',r16m,'r16',reachedR16,new Set((actualScores.ko_r16||[]).filter(Boolean)),4);
 
     // QF — winners of R16 pairs
     const r16a=actualScores.ko_r16||[];
     const qfm=Array.from({length:4},(_,i)=>({home:r16a[i*2],away:r16a[i*2+1]}));
-    html+=koTable('Quartos de Final',qfm,'qf',new Set((actualScores.ko_qf||[]).filter(Boolean)),4);
+    html+=koTable('Quartos de Final',qfm,'qf',reachedQF,new Set((actualScores.ko_qf||[]).filter(Boolean)),4);
 
     // SF — winners of QF pairs
     const qfa=actualScores.ko_qf||[];
     const sfm=Array.from({length:2},(_,i)=>({home:qfa[i*2],away:qfa[i*2+1]}));
-    html+=koTable('Meias-Finais',sfm,'sf',new Set((actualScores.ko_sf||[]).filter(Boolean)),4);
+    html+=koTable('Meias-Finais',sfm,'sf',reachedSF,new Set((actualScores.ko_sf||[]).filter(Boolean)),4);
 
     // 3.º Lugar — the two SF losers
     const sfa=actualScores.ko_sf||[];
@@ -3249,7 +3248,7 @@ function renderOtherPreds(){
     const sfLosers=[qfa[0],qfa[1],qfa[2],qfa[3]].filter(t=>t&&!sfa.includes(t));
     if(sfLosers.length>=2){
       const f3m=[{home:sfLosers[0],away:sfLosers[1]}];
-      html+=koTable('3.º Lugar',f3m,'f3',new Set((actualScores.ko_f3||[]).filter(Boolean)),4);
+      html+=koTable('3.º Lugar',f3m,'f3',reachedF3,new Set((actualScores.ko_f3||[]).filter(Boolean)),4);
     }
 
     // Final — special table (finalists + Melhor Marcador), kept as-is
