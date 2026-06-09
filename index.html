@@ -1534,7 +1534,7 @@ let userPredictions={},allPredictions={},allUsers={},actualScores={},approvedTop
 // what the current user is in the middle of entering.
 let hasUnsavedEdits=false;
 function markUnsaved(){hasUnsavedEdits=true;}
-let rules={...DEFAULT_RULES},predictionsLocked=false,countdownInterval=null,prevLb=[];
+let rules={...DEFAULT_RULES},predictionsLocked=false,countdownInterval=null,prevLb=[],lbRows=[];
 let liveData=[],upcomingData=[],recentData=[];
 let apiPollTimer=null;
 let dailyComment='',dailyCommentDate='';
@@ -2663,6 +2663,7 @@ function renderLeaderboard(){
 
   // Show tiebreaker explanation only after SF results published
   const sfPublished=(actualScores.ko_sf||[]).filter(Boolean).length>0;
+  lbRows=rows; // expose the exact ordered rows so the WhatsApp share image matches the site
 
   // Take snapshot at start of day
   takeDailySnapshot(rows);
@@ -3029,19 +3030,60 @@ function renderDailySummary(rows){
 // ═══ SHARE / CSV ═══
 async function shareLeaderboard(){
   const canvas=$('lb-canvas');const wrap=$('lb-canvas-wrap');
-  const rows=Object.entries(allUsers).map(([uid,u])=>({name:u.name,pts:calcTotal(uid)})).sort((a,b)=>b.pts-a.pts);
-  const W=600,RH=44,H=78+rows.length*RH+38;canvas.width=W;canvas.height=H;
+  // Use the EXACT rows the leaderboard computed (same order, tiebreakers, submitted handling)
+  if(!lbRows.length) renderLeaderboard();
+  const rows=lbRows;
+  const W=600,RH=46,HEAD=84,COLH=24,FOOT=38,H=HEAD+COLH+rows.length*RH+FOOT;
+  canvas.width=W;canvas.height=H;
   const ctx=canvas.getContext('2d');
   ctx.fillStyle='#0D1B2A';ctx.fillRect(0,0,W,H);
   ctx.fillStyle='#FFD700';ctx.font='bold 22px Georgia,serif';ctx.textAlign='center';ctx.fillText('PREVISÕES DO PROFESSOR KARAMBA',W/2,34);
   ctx.fillStyle='#7a94b0';ctx.font='12px Georgia,serif';ctx.fillText(new Date().toLocaleDateString(),W/2,54);
+  ctx.fillStyle='#7a94b0';ctx.font='11px Georgia,serif';ctx.fillText('Classificação',W/2,72);
+  // Column layout
+  const X_RANK=16, X_NAME=92, X_TODAY=430, X_TOTAL=W-16;
+  // Column headers
+  const cy=HEAD+16;
+  ctx.fillStyle='#5a7290';ctx.font='bold 11px Georgia,serif';
+  ctx.textAlign='left';ctx.fillText('#',X_RANK,cy);ctx.fillText('JOGADOR',X_NAME,cy);
+  ctx.textAlign='right';ctx.fillText('HOJE',X_TODAY,cy);ctx.fillText('TOTAL',X_TOTAL,cy);
+  // Day-over-day rank movement: rank at start of day (from dailySnapshot points)
+  // vs current rank. More meaningful and stable than the ephemeral last-refresh trend.
+  const startRank={};
+  [...rows].map(r=>({uid:r.uid,sp:dailySnapshot[r.uid]!==undefined?dailySnapshot[r.uid]:r.pts,sub:r.sub}))
+    .sort((a,b)=>{if(a.sub!==b.sub)return a.sub?-1:1;return b.sp-a.sp;})
+    .forEach((r,idx)=>{startRank[r.uid]=idx;});
   rows.forEach((r,i)=>{
-    const y=78+i*RH;ctx.fillStyle=i%2?'#0D1B2A':'#162232';ctx.fillRect(0,y,W,RH);
-    const medals=['🥇','🥈','🥉'];const m=i<3?medals[i]:`${i+1}`;
-    ctx.fillStyle='#EEF2FF';ctx.font='bold 15px Georgia,serif';ctx.textAlign='left';ctx.fillText(`${m}  ${r.name}`,16,y+27);
-    ctx.fillStyle=r.pts>=0?'#2DC653':'#E63946';ctx.font='bold 16px Georgia,serif';ctx.textAlign='right';ctx.fillText(`${r.pts>=0?'+':''}${r.pts} pts`,W-16,y+27);
+    const y=HEAD+COLH+i*RH;
+    ctx.fillStyle=i%2?'#0D1B2A':'#162232';ctx.fillRect(0,y,W,RH);
+    const rank=i+1;
+    // trend = start-of-day rank minus current rank
+    let trend='',trendDir=0;
+    if(r.sub&&startRank[r.uid]!==undefined){const d=startRank[r.uid]-i;if(d>0){trend=`↑${d}`;trendDir=1;}else if(d<0){trend=`↓${Math.abs(d)}`;trendDir=-1;}}
+    const medals=['🥇','🥈','🥉'];const rankStr=i<3?medals[i]:`${rank}`;
+    // rank
+    ctx.textAlign='left';ctx.fillStyle='#EEF2FF';ctx.font='bold 14px Georgia,serif';ctx.fillText(rankStr,X_RANK,y+29);
+    // trend (green up / red down) right after rank
+    if(trend){
+      const rkW=ctx.measureText(rankStr).width;
+      ctx.fillStyle=trendDir>0?'#2DC653':'#E63946';ctx.font='bold 13px Georgia,serif';
+      ctx.fillText(' '+trend,X_RANK+rkW,y+29);
+    }
+    // name (+ "você" arrow)
+    let nm=r.name;
+    if(r.uid===currentUser?.uid) nm+=' 👈';
+    ctx.fillStyle='#EEF2FF';ctx.font='bold 15px Georgia,serif';ctx.fillText(nm,X_NAME,y+29);
+    // today
+    const startPts=dailySnapshot[r.uid]!==undefined?dailySnapshot[r.uid]:r.pts;
+    const todayDiff=r.pts-startPts;
+    ctx.textAlign='right';
+    if(!r.sub){ctx.fillStyle='#5a7290';ctx.font='14px Georgia,serif';ctx.fillText('—',X_TODAY,y+29);}
+    else{ctx.fillStyle=todayDiff>0?'#2DC653':todayDiff<0?'#E63946':'#7a94b0';ctx.font='bold 14px Georgia,serif';ctx.fillText(todayDiff>0?`+${todayDiff}`:`${todayDiff}`,X_TODAY,y+29);}
+    // total
+    if(!r.sub){ctx.fillStyle='#5a7290';ctx.font='16px Georgia,serif';ctx.fillText('—',X_TOTAL,y+29);}
+    else{ctx.fillStyle=r.pts>=0?'#2DC653':'#E63946';ctx.font='bold 16px Georgia,serif';ctx.fillText(`${r.pts>=0?'+':''}${r.pts}`,X_TOTAL,y+29);}
   });
-  ctx.fillStyle='#253a52';ctx.fillRect(0,H-38,W,38);ctx.fillStyle='#7a94b0';ctx.font='11px Georgia,serif';ctx.textAlign='center';ctx.fillText('joaomadeiradoo.github.io/FWF',W/2,H-12);
+  ctx.fillStyle='#253a52';ctx.fillRect(0,H-FOOT,W,FOOT);ctx.fillStyle='#7a94b0';ctx.font='11px Georgia,serif';ctx.textAlign='center';ctx.fillText('joaomadeiradoo.github.io/FWF',W/2,H-14);
   wrap.style.display='block';
   // Share immediately on the user gesture. iOS Safari rejects navigator.share
   // calls that happen after an async boundary (like canvas.toBlob's callback),
@@ -3049,13 +3091,11 @@ async function shareLeaderboard(){
   try{
     if(navigator.share){
       const dataUrl=canvas.toDataURL('image/png');
-      // Sync data URL -> Blob (no fetch, no async)
       const bin=atob(dataUrl.split(',')[1]);
       const arr=new Uint8Array(bin.length);
       for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
       const blob=new Blob([arr],{type:'image/png'});
       const f=new File([blob],'classificacao.png',{type:'image/png'});
-      // Probe canShare on iOS - if it can't share files, fall back to text-only share
       if(navigator.canShare&&navigator.canShare({files:[f]})){
         navigator.share({files:[f],title:'Classificação FWF'}).catch(()=>{});
       }else{
