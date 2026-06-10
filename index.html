@@ -595,7 +595,7 @@ function fi(name,w=20){
 }
 
 // ═══ 2026 OFFICIAL GROUPS & SCHEDULE ═══
-const TOURNAMENT_START=new Date('2026-06-11T00:00:00Z');
+const TOURNAMENT_START=new Date('2026-06-11T19:00:00Z'); // Mexico v South Africa, 19:00 UTC = 20h Portugal
 const DEADLINE=new Date(TOURNAMENT_START.getTime()-(1*60*60*1000)); // 1h before first match
 const WC_LEAGUE_ID=1;
 const GROUPS={
@@ -3147,7 +3147,7 @@ function downloadCSV(){
 }
 function renderOtherPreds(){
   const c=$('op-content');if(!c) return;
-  const firstGameTime=new Date('2026-06-11T01:00:00Z');
+  const firstGameTime=new Date('2026-06-11T19:00:00Z'); // first match kickoff (20h Portugal)
   const showFrom=new Date(firstGameTime.getTime()-10*60*1000);
   if(new Date()<showFrom){
     c.innerHTML=`<p style="color:var(--muted);font-size:.82rem">Disponível 10 min antes do primeiro jogo para que o Niza não copie pelo Nuno Cordas como costume.</p>`;
