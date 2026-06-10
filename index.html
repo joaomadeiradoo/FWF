@@ -4006,10 +4006,13 @@ async function fetchAll(){
         .sort((a,b)=>new Date(a.fixture.date)-new Date(b.fixture.date))
         .slice(0,3)
         .map(f=>({home:f.teams.home.name,away:f.teams.away.name,time:new Date(f.fixture.date).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}),venue:f.fixture.venue?.name||''}));
-      // Finished — most recent, for results + auto-apply
+      // Finished — for results + auto-apply. Process a generous window so a busy
+      // day (many games finishing between fetches) never drops a result. The
+      // ticker display re-slices to the latest few separately. autoApplyScores is
+      // idempotent, so re-processing already-applied games is harmless.
       recentData=all.filter(f=>DONE_STATUSES.includes(f.fixture.status.short))
         .sort((a,b)=>new Date(a.fixture.date)-new Date(b.fixture.date))
-        .slice(-5)
+        .slice(-30)
         .map(f=>({home:f.teams.home.name,away:f.teams.away.name,hs:f.goals.home,as:f.goals.away,penHome:f.score?.penalty?.home??null,penAway:f.score?.penalty?.away??null,round:f.league?.round||null}));
       if(isAdmin) await autoApplyScores(recentData);
       updateLiveTimestamp();
@@ -4031,11 +4034,16 @@ function scheduleApi(){
   if(!window.API_FOOTBALL_KEY) return;
   if(!isAdmin) return;
 
-  // MULTI-ADMIN COORDINATION: Before fetching, check Firestore to see if
-  // another admin already fetched recently. Only one fetch per 18-minute
-  // window regardless of how many admins are logged in.
-  // This keeps calls at ~72/day even with 5+ admins open simultaneously.
-  const MIN_INTERVAL_MS=18*60*1000;
+  // MULTI-ADMIN COORDINATION + ADAPTIVE CADENCE: the timer ticks every 5 min
+  // (cheap — only Firestore reads, no API call), but an actual API fetch only
+  // happens when enough time has passed since the last fetch (tracked globally
+  // in Firestore via lastFetchedAt, so all admins share one schedule).
+  //   • A game is LIVE  → fetch every ~10 min (fresh scores during play)
+  //   • Nothing live    → fetch every ~30 min (just catch kick-offs / results)
+  // This keeps live updates frequent during games while staying well under the
+  // 100/day budget on the idle stretches.
+  const LIVE_INTERVAL_MS=9.5*60*1000;
+  const IDLE_INTERVAL_MS=29*60*1000;
 
   async function maybeFetch(){
     // GATE 1: don't poll before the tournament has started — no games to fetch.
@@ -4049,20 +4057,22 @@ function scheduleApi(){
     if(!inGameHours){return;}
     const usage=await getApiUsage();
     if(usage.n>=85){
-      console.warn('API: daily limit close ('+usage.n+'/100), polling suspended');
+      console.warn('API: daily limit reached ('+usage.n+'/100), polling suspended');
       clearInterval(apiPollTimer);
-      toast('⚠️ Limite diário da API quase atingido — fetch pausado',true);
+      toast('⚠️ Limite diário da API atingido — fetch pausado',true);
       return;
     }
+    // Adaptive interval: faster when a game is live, slower when idle.
+    const minInterval=(liveData&&liveData.length>0)?LIVE_INTERVAL_MS:IDLE_INTERVAL_MS;
     // Check when the last fetch happened (stored in competition doc)
     try{
       const{db,doc,getDoc,updateDoc}=window._fb;
       const snap=await getDoc(doc(db,'competitions',currentCompId));
       const lastFetch=snap.data()?.lastFetchedAt||0;
       const msSinceLast=Date.now()-lastFetch;
-      if(msSinceLast<MIN_INTERVAL_MS){
-        // Another admin fetched recently — skip this tick
-        console.log('API: skipping fetch, last was '+(Math.round(msSinceLast/1000/60))+'min ago');
+      if(msSinceLast<minInterval){
+        // Last fetch (by any admin) was recent enough — skip this tick
+        console.log('API: skipping fetch, last was '+(Math.round(msSinceLast/1000/60))+'min ago (need '+(Math.round(minInterval/60000))+'min)');
         return;
       }
       // Claim this fetch window immediately before fetching
@@ -4071,7 +4081,7 @@ function scheduleApi(){
     fetchAll(); // ONE call gives upcoming + live + finished
   }
 
-  apiPollTimer=setInterval(maybeFetch,20*60*1000);
+  apiPollTimer=setInterval(maybeFetch,5*60*1000); // tick every 5min; actual fetch gated by adaptive interval above
 }
 async function forceFetch(){
   if(!isAdmin){toast('Apenas o host/admin',true);return;}
@@ -4135,12 +4145,25 @@ async function autoApplyScores(finishedMatches){
   };
 
   // ── Group stage matches (exact score) ──
+  // Match in EITHER orientation: the API's home/away may differ from our
+  // schedule's. When swapped, swap the score too so it lands on the right team.
+  const teamEq=(a,b)=>{
+    const x=normalizeTeamName(a).toLowerCase(),y=normalizeTeamName(b).toLowerCase();
+    return x===y||x.includes(y)||y.includes(x);
+  };
   for(const apiMatch of finishedMatches){
-    const found=ALL_MATCHES.find(m=>matchTeams(m,toPT(apiMatch.home),toPT(apiMatch.away)));
+    const ah=toPT(apiMatch.home),aa=toPT(apiMatch.away);
+    let found=null,swapped=false;
+    for(const m of ALL_MATCHES){
+      if(teamEq(m.home,ah)&&teamEq(m.away,aa)){found=m;swapped=false;break;}
+      if(teamEq(m.home,aa)&&teamEq(m.away,ah)){found=m;swapped=true;break;}
+    }
     if(found){
+      const hs=swapped?apiMatch.as:apiMatch.hs;
+      const as=swapped?apiMatch.hs:apiMatch.as;
       const existing=actualScores[found.id];
       if(!existing||(existing.source==='api')){
-        actualScores[found.id]={home:apiMatch.hs,away:apiMatch.as,source:'api'};
+        actualScores[found.id]={home:hs,away:as,source:'api'};
         updated=true;
       }
     }
