@@ -1594,9 +1594,6 @@ async function bumpApi(reason=''){
   updateApiCounter(u);return u.n;
 }
 async function canApi(max=85){
-  // Hard block for today if we've already overrun
-  const today=new Date().toISOString().split('T')[0];
-  if(today==='2026-06-11') return false;
   const u=await getApiUsage();return u.n<max;
 }
 function updateApiCounter(u){
@@ -3985,39 +3982,44 @@ async function submitPredictions(mode){
 }
 
 // ═══ LIVE SCORES ═══
-async function fetchLive(){
+// ── Unified fetch: ONE API call gives upcoming + live + finished. ──
+// A 3-day window (yesterday→tomorrow) catches games that run past midnight UTC
+// (e.g. late kick-offs). The same response that lists today's fixtures also
+// contains in-play games with current score/elapsed, so a separate live=all
+// call is redundant. This halves API usage versus the old two-call cycle.
+const LIVE_STATUSES=['1H','HT','2H','ET','BT','P','SUSP','INT','LIVE'];
+const DONE_STATUSES=['FT','AET','PEN'];
+async function fetchAll(){
   const key=window.API_FOOTBALL_KEY;if(!key||!await canApi()) return;
   try{
-    const r=await fetch(`https://v3.football.api-sports.io/fixtures?league=${WC_LEAGUE_ID}&season=2026&live=all`,{headers:{'x-rapidapi-key':key,'x-rapidapi-host':'v3.football.api-sports.io'}});
-    await bumpApi('live');const d=await r.json();
+    const d0=new Date();
+    const day=ms=>new Date(d0.getTime()+ms).toISOString().split('T')[0];
+    const from=day(-24*60*60*1000),to=day(24*60*60*1000);
+    const r=await fetch(`https://v3.football.api-sports.io/fixtures?league=${WC_LEAGUE_ID}&season=2026&from=${from}&to=${to}`,{headers:{'x-rapidapi-key':key,'x-rapidapi-host':'v3.football.api-sports.io'}});
+    await bumpApi('fixtures');const d=await r.json();
     if(d.response){
-      liveData=d.response.map(f=>({home:f.teams.home.name,away:f.teams.away.name,hs:f.goals.home,as:f.goals.away,min:f.fixture.status.elapsed,status:f.fixture.status.short}));
-      updateLiveTimestamp();
-    }
-    renderLive();
-  }catch(e){console.warn('API:',e);}
-}
-async function fetchUpcoming(){
-  const key=window.API_FOOTBALL_KEY;if(!key||!await canApi()) return;
-  try{
-    const today=new Date().toISOString().split('T')[0];
-    const r=await fetch(`https://v3.football.api-sports.io/fixtures?league=${WC_LEAGUE_ID}&season=2026&from=${today}&to=${today}`,{headers:{'x-rapidapi-key':key,'x-rapidapi-host':'v3.football.api-sports.io'}});
-    await bumpApi('upcoming');const d=await r.json();
-    if(d.response){
-      upcomingData=d.response.filter(f=>f.fixture.status.short==='NS').slice(0,3).map(f=>({home:f.teams.home.name,away:f.teams.away.name,time:new Date(f.fixture.date).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}),venue:f.fixture.venue?.name||''}));
-      recentData=d.response.filter(f=>['FT','AET','PEN'].includes(f.fixture.status.short)).slice(-5).map(f=>({
-        home:f.teams.home.name,away:f.teams.away.name,
-        hs:f.goals.home,as:f.goals.away,
-        penHome:f.score?.penalty?.home??null,
-        penAway:f.score?.penalty?.away??null,
-        round:f.league?.round||null,
-      }));
+      const all=d.response;
+      // Live games (in progress) — for the ticker
+      liveData=all.filter(f=>LIVE_STATUSES.includes(f.fixture.status.short)).map(f=>({home:f.teams.home.name,away:f.teams.away.name,hs:f.goals.home,as:f.goals.away,min:f.fixture.status.elapsed,status:f.fixture.status.short}));
+      // Upcoming (not started) — next 3 by kick-off time
+      upcomingData=all.filter(f=>f.fixture.status.short==='NS')
+        .sort((a,b)=>new Date(a.fixture.date)-new Date(b.fixture.date))
+        .slice(0,3)
+        .map(f=>({home:f.teams.home.name,away:f.teams.away.name,time:new Date(f.fixture.date).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}),venue:f.fixture.venue?.name||''}));
+      // Finished — most recent, for results + auto-apply
+      recentData=all.filter(f=>DONE_STATUSES.includes(f.fixture.status.short))
+        .sort((a,b)=>new Date(a.fixture.date)-new Date(b.fixture.date))
+        .slice(-5)
+        .map(f=>({home:f.teams.home.name,away:f.teams.away.name,hs:f.goals.home,as:f.goals.away,penHome:f.score?.penalty?.home??null,penAway:f.score?.penalty?.away??null,round:f.league?.round||null}));
       if(isAdmin) await autoApplyScores(recentData);
       updateLiveTimestamp();
     }
     renderLive();
   }catch(e){console.warn('API:',e);}
 }
+// Back-compat aliases — both now route through the single unified call.
+async function fetchLive(){return fetchAll();}
+async function fetchUpcoming(){return fetchAll();}
 function updateLiveTimestamp(){
   const el=$('live-updated');if(!el) return;
   const now=new Date();
@@ -4036,6 +4038,15 @@ function scheduleApi(){
   const MIN_INTERVAL_MS=18*60*1000;
 
   async function maybeFetch(){
+    // GATE 1: don't poll before the tournament has started — no games to fetch.
+    if(Date.now()<TOURNAMENT_START.getTime()){return;}
+    // GATE 2: only poll during the daily game window. WC 2026 kick-offs span
+    // ~16:00 UTC (12pm ET) to ~03:00 UTC next day; games can finish ~05:00 UTC.
+    // Window 14:00–06:00 UTC covers every slot with buffer. Outside it, skip —
+    // nothing is live and nothing finishes. (Manual "Forçar fetch" ignores this.)
+    const h=new Date().getUTCHours();
+    const inGameHours=(h>=14||h<6);
+    if(!inGameHours){return;}
     const usage=await getApiUsage();
     if(usage.n>=85){
       console.warn('API: daily limit close ('+usage.n+'/100), polling suspended');
@@ -4057,7 +4068,7 @@ function scheduleApi(){
       // Claim this fetch window immediately before fetching
       await updateDoc(doc(db,'competitions',currentCompId),{lastFetchedAt:Date.now()});
     }catch(e){console.warn('API coord check failed:',e);}
-    fetchLive();fetchUpcoming();
+    fetchAll(); // ONE call gives upcoming + live + finished
   }
 
   apiPollTimer=setInterval(maybeFetch,20*60*1000);
@@ -4068,7 +4079,7 @@ async function forceFetch(){
   if(usage.n>=85){toast('⚠️ Limite diário quase atingido ('+usage.n+'/100)',true);return;}
   const btn=document.querySelector('[onclick="forceFetch()"]');
   if(btn){btn.disabled=true;btn.textContent='⏳ A carregar...';}
-  await fetchUpcoming();await fetchLive();
+  await fetchAll(); // single unified call
   // Update coordination timestamp after manual fetch too
   try{const{db,doc,updateDoc}=window._fb;await updateDoc(doc(db,'competitions',currentCompId),{lastFetchedAt:Date.now()});}catch(e){}
   toast(lang==='pt'?'Fetch feito!':'Fetched!');
