@@ -4292,7 +4292,7 @@ function renderLive(){
   // Recentes: most recent finished games (regardless of day) so the section still
   // shows the last result on days with no games. Próximos (below) stays today+future.
   const manRecent=ALL_MATCHES.filter(m=>{const s=actualScores[m.id];return s&&s.home!==undefined&&s.home!=='';}).slice(-5).map(m=>({home:m.home,away:m.away,hs:actualScores[m.id].home,as:actualScores[m.id].away}));
-  const allRecent=[...recentData,...manRecent].slice(0,2);
+  const allRecent=[...recentData,...manRecent].slice(-2);
   if(allRecent.length){
     html+=`<div style="margin-bottom:10px"><div class="sec-lbl">🏁 ${lang==='pt'?'Recentes':'Recent'}</div>`;
     allRecent.forEach(m=>{html+=`<div class="lmc"><div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
