@@ -4273,7 +4273,13 @@ function renderLive(){
     return`<span class="pred-pill ${cls}">👤 ${ph}-${pa}</span>`;
   }
   let html='';
-  const manRecent=ALL_MATCHES.filter(m=>{const s=actualScores[m.id];return s&&s.home!==undefined&&s.home!=='';}).slice(-5).map(m=>({home:m.home,away:m.away,hs:actualScores[m.id].home,as:actualScores[m.id].away}));
+  // Match-day parser (schedule dates are "DD Jun"/"DD Jul" in Portugal time) plus
+  // today's number, so the homepage shows only TODAY's and upcoming games — past-day
+  // games drop once their day ends. Display-only; predictions/scoring untouched.
+  const parseDate=d=>{if(!d) return 9999;const mth=d.includes('Jul')?700:d.includes('Jun')?600:0;return mth+(parseInt(d,10)||0);};
+  const _pt=new Intl.DateTimeFormat('en-US',{timeZone:'Europe/Lisbon',month:'numeric',day:'numeric'}).formatToParts(new Date());
+  const todayNum=((+_pt.find(p=>p.type==='month').value)===7?700:600)+(+_pt.find(p=>p.type==='day').value);
+  const manRecent=ALL_MATCHES.filter(m=>{const s=actualScores[m.id];return s&&s.home!==undefined&&s.home!==''&&parseDate(m.date)>=todayNum;}).slice(-5).map(m=>({home:m.home,away:m.away,hs:actualScores[m.id].home,as:actualScores[m.id].away}));
   const allRecent=[...recentData,...manRecent].slice(0,2);
   if(allRecent.length){
     html+=`<div style="margin-bottom:10px"><div class="sec-lbl">🏁 ${lang==='pt'?'Recentes':'Recent'}</div>`;
@@ -4291,16 +4297,9 @@ function renderLive(){
       <span style="font-weight:700;font-size:.8rem;flex:1">${m.away}</span></div></div>`;});
     html+='</div>';
   }
-  // Fallback upcoming (when no API): sort by actual match date, not array order.
-  // Group stage dates are "DD Jun" / "DD Jul" — parse to a sortable day number.
-  const parseDate=d=>{
-    if(!d) return 9999;
-    const mth=d.includes('Jul')?700:d.includes('Jun')?600:0;
-    const day=parseInt(d,10)||0;
-    return mth+day;
-  };
+  // Fallback upcoming (when no API): only today's and future games, sorted by match day.
   const manUp=ALL_MATCHES
-    .filter(m=>!actualScores[m.id]||actualScores[m.id].home===undefined)
+    .filter(m=>(!actualScores[m.id]||actualScores[m.id].home===undefined)&&parseDate(m.date)>=todayNum)
     .sort((a,b)=>parseDate(a.date)-parseDate(b.date))
     .slice(0,3)
     .map(m=>({home:m.home,away:m.away,time:'',date:m.date}));
