@@ -4279,7 +4279,9 @@ function renderLive(){
   const parseDate=d=>{if(!d) return 9999;const mth=d.includes('Jul')?700:d.includes('Jun')?600:0;return mth+(parseInt(d,10)||0);};
   const _pt=new Intl.DateTimeFormat('en-US',{timeZone:'Europe/Lisbon',month:'numeric',day:'numeric'}).formatToParts(new Date());
   const todayNum=((+_pt.find(p=>p.type==='month').value)===7?700:600)+(+_pt.find(p=>p.type==='day').value);
-  const manRecent=ALL_MATCHES.filter(m=>{const s=actualScores[m.id];return s&&s.home!==undefined&&s.home!==''&&parseDate(m.date)>=todayNum;}).slice(-5).map(m=>({home:m.home,away:m.away,hs:actualScores[m.id].home,as:actualScores[m.id].away}));
+  // Recentes: most recent finished games (regardless of day) so the section still
+  // shows the last result on days with no games. Próximos (below) stays today+future.
+  const manRecent=ALL_MATCHES.filter(m=>{const s=actualScores[m.id];return s&&s.home!==undefined&&s.home!=='';}).slice(-5).map(m=>({home:m.home,away:m.away,hs:actualScores[m.id].home,as:actualScores[m.id].away}));
   const allRecent=[...recentData,...manRecent].slice(0,2);
   if(allRecent.length){
     html+=`<div style="margin-bottom:10px"><div class="sec-lbl">🏁 ${lang==='pt'?'Recentes':'Recent'}</div>`;
