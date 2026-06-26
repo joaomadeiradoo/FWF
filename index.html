@@ -3191,14 +3191,10 @@ function renderOtherPreds(){
   const todayNum=((+_pt.find(p=>p.type==='month').value)===7?700:600)+(+_pt.find(p=>p.type==='day').value);
   const matchDates=[...new Set(ALL_MATCHES.map(m=>m.date).filter(Boolean))].sort((a,b)=>parseDate(a)-parseDate(b));
   function dayDone(d){return ALL_MATCHES.filter(m=>m.date===d).every(m=>{const s=actualScores[m.id];return s&&s.home!==undefined&&s.home!=='';});}
-  // Past days disappear once their day ends. Today is always shown. Future days
-  // reveal progressively as each previous day completes (unchanged behaviour).
-  const visibleDates=matchDates.filter((d,i)=>{
-    const dn=parseDate(d);
-    if(dn<todayNum) return false;
-    if(dn===todayNum) return true;
-    return i===0||dayDone(matchDates[i-1]);
-  });
+  // Show today and the next match day only. matchDates is chronological, so the
+  // first two dates that are today-or-later are today + the following day. Past
+  // days are hidden; nothing beyond the next day is shown.
+  const visibleDates=matchDates.filter(d=>parseDate(d)>=todayNum).slice(0,2);
   for(const date of visibleDates){
     const dayMs=ALL_MATCHES.filter(m=>m.date===date);
     html+=`<div style="margin-bottom:18px"><div style="font-size:.75rem;font-weight:800;color:var(--gold);margin-bottom:6px">📅 ${date}</div>`;
