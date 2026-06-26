@@ -3189,7 +3189,7 @@ function renderOtherPreds(){
   const parseDate=d=>{if(!d) return 9999;const mth=d.includes('Jul')?700:d.includes('Jun')?600:0;return mth+(parseInt(d,10)||0);};
   const _pt=new Intl.DateTimeFormat('en-US',{timeZone:'Europe/Lisbon',month:'numeric',day:'numeric'}).formatToParts(new Date());
   const todayNum=((+_pt.find(p=>p.type==='month').value)===7?700:600)+(+_pt.find(p=>p.type==='day').value);
-  const matchDates=[...new Set(ALL_MATCHES.map(m=>m.date).filter(Boolean))];
+  const matchDates=[...new Set(ALL_MATCHES.map(m=>m.date).filter(Boolean))].sort((a,b)=>parseDate(a)-parseDate(b));
   function dayDone(d){return ALL_MATCHES.filter(m=>m.date===d).every(m=>{const s=actualScores[m.id];return s&&s.home!==undefined&&s.home!=='';});}
   // Past days disappear once their day ends. Today is always shown. Future days
   // reveal progressively as each previous day completes (unchanged behaviour).
