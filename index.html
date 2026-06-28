@@ -520,6 +520,12 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
         <div style="margin-top:10px" id="host-ko-save-btn" style="display:none"><button class="btn btn-green" onclick="saveKOResults()">💾 Guardar Fase a Eliminar</button></div>
       </div>
       <div style="margin-bottom:18px">
+        <h3 style="font-family:var(--fh);color:var(--gold);letter-spacing:1px;margin-bottom:6px;font-size:.95rem">📊 Acertos R32 por jogador</h3>
+        <p style="color:var(--muted);font-size:.73rem;margin-bottom:10px">Quantas das 32 equipas realmente apuradas ao R32 cada jogador acertou. Só leitura — não altera nada.</p>
+        <button class="btn btn-ghost btn-sm" onclick="renderR32Hits()">📊 Calcular acertos R32</button>
+        <div id="r32-hits-box" style="margin-top:10px"></div>
+      </div>
+      <div style="margin-bottom:18px">
         <h3 style="font-family:var(--fh);color:var(--gold);letter-spacing:1px;margin-bottom:6px;font-size:.95rem">📥 Backup CSV</h3>
         <button class="btn btn-ghost btn-sm" onclick="downloadCSV()">⬇️ Download todas as previsões</button>
       </div>
@@ -3727,6 +3733,27 @@ async function saveKOResults(){
   }catch(e){toast('Erro: '+e.message,true);}
 }
 window.saveKOResults=saveKOResults;
+
+function renderR32Hits(){
+  if(!isHost)return;
+  const box=document.getElementById('r32-hits-box');
+  if(!box)return;
+  const collect=(uid,fp)=>{const s=new Set();(getR32Teams(uid,fp)||[]).forEach(m=>{[m.home,m.away].forEach(t=>{if(t&&t!=='TBD'&&t!=='?')s.add(t);});});return s;};
+  const real=collect(currentUser?.uid,false);
+  if(real.size<32){
+    box.innerHTML=`<p style="color:#ff8040;font-size:.75rem">Apuramento real ainda incompleto (${real.size}/32 equipas conhecidas). Confirma que todos os resultados de grupo estão lançados.</p>`;
+    return;
+  }
+  const rows=Object.entries(allUsers).map(([uid,u])=>{
+    const pred=collect(uid,true);let hit=0;pred.forEach(t=>{if(real.has(t))hit++;});
+    return {name:u.name||'—',hit};
+  }).sort((a,b)=>b.hit-a.hit||a.name.localeCompare(b.name,'pt'));
+  let h=`<table style="width:100%;border-collapse:collapse;font-size:.78rem;margin-top:8px"><thead><tr><th style="text-align:left;padding:4px 6px;color:var(--muted)">Jogador</th><th style="text-align:right;padding:4px 6px;color:var(--muted)">Acertos</th></tr></thead><tbody>`;
+  rows.forEach((r,i)=>{h+=`<tr style="border-top:1px solid #1e3a5f"><td style="padding:4px 6px;font-weight:700">${i+1}. ${r.name}</td><td style="padding:4px 6px;text-align:right;font-weight:800;color:var(--gold)">${r.hit} / 32</td></tr>`;});
+  h+=`</tbody></table>`;
+  box.innerHTML=h;
+}
+window.renderR32Hits=renderR32Hits;
 
 function renderHostMembers(){
   if(!isAdmin) return;const c=$('host-members');if(!c) return;
