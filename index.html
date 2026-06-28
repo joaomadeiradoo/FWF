@@ -4060,7 +4060,10 @@ async function fetchAll(){
         .sort((a,b)=>new Date(a.fixture.date)-new Date(b.fixture.date))
         .slice(-30)
         .map(f=>({home:f.teams.home.name,away:f.teams.away.name,hs:f.goals.home,as:f.goals.away,penHome:f.score?.penalty?.home??null,penAway:f.score?.penalty?.away??null,round:f.league?.round||null}));
-      if(isAdmin) await autoApplyScores(recentData);
+      // AUTO-APPLY DESLIGADO (2026-06-29): resultados inseridos manualmente pelo host.
+      // A escrita automática reescrevia o actualScores inteiro e causava sobreposição
+      // entre dispositivos ("o último a fazer refresh ganhava"). Para reativar:
+      // if(isAdmin) await autoApplyScores(recentData);
       updateLiveTimestamp();
     }
     renderLive();
