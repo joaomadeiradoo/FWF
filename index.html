@@ -3315,7 +3315,8 @@ function renderOtherPreds(){
     // Final — special table (finalists + Melhor Marcador), kept as-is
     const finAk=actualScores.ko_fin||[];
     const anyFin=members.some(([uid])=>{const bp=(allPredictions[uid]||{}).bracket||{};return(bp.fin||[]).some(Boolean);});
-    if(anyFin){
+    const finalReady=(actualScores.ko_sf||[]).filter(Boolean).length>=2;
+    if(anyFin&&finalReady){
       const actualScorer=actualScores.topScorer||'';
       html+=`<div style="margin-bottom:18px"><div style="font-size:.75rem;font-weight:800;color:var(--gold);margin-bottom:6px">📋 Final</div>`;
       html+=`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.68rem">`;
