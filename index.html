@@ -3268,19 +3268,24 @@ function renderOtherPreds(){
     const reachedSF=reachedArr('qf');
     const reachedF3=uid=>{const bp=(allPredictions[uid]||{}).bracket||{};const sf=new Set((bp.sf||[]).filter(Boolean));const r=new Set();(bp.qf||[]).filter(Boolean).forEach(t=>{if(!sf.has(t))r.add(t);});return r;};
 
-    // R32 — matchups from group standings (getR32Teams), grouped by date (4/day)
+    // R32 — matchups from group standings (getR32Teams).
+    // Dates assigned per TEAM from the official Portugal-time R32 schedule,
+    // then revealed only for today + next match day (same rule as group stage).
     const r32teams=getR32Teams(currentUser?.uid);
     const r32Set=new Set((actualScores.ko_r32||[]).filter(Boolean));
-    const r32Dates=[...new Set(r32teams.map(m=>m.date).filter(Boolean))].sort((a,b)=>{
-      const pd=d=>(d.includes('Jul')?700:600)+(parseInt(d,10)||0);return pd(a)-pd(b);
-    });
-    if(r32Dates.length){
-      for(const date of r32Dates){
-        const dayMs=r32teams.filter(m=>m.date===date);
-        html+=koTable(`R32 · ${date}`,dayMs,'r32',reachedR32,r32Set,4);
-      }
-    }else{
-      html+=koTable('R32 — Avos de Final',r32teams,'r32',reachedR32,r32Set,4);
+    const R32_TEAM_DATE={
+      'África do Sul':'28 Jun','Canadá':'28 Jun',
+      'Brasil':'29 Jun','Japão':'29 Jun','Alemanha':'29 Jun','Paraguai':'29 Jun',
+      'Países Baixos':'30 Jun','Marrocos':'30 Jun','Costa do Marfim':'30 Jun','Noruega':'30 Jun','França':'30 Jun','Suécia':'30 Jun',
+      'México':'1 Jul','Equador':'1 Jul','Inglaterra':'1 Jul','Congo DR':'1 Jul','Bélgica':'1 Jul','Senegal':'1 Jul',
+      'EUA':'2 Jul','Bósnia e Herzegovina':'2 Jul','Espanha':'2 Jul','Áustria':'2 Jul','Portugal':'3 Jul','Croácia':'3 Jul'
+    };
+    const r32dated=r32teams.map(m=>({...m,date:R32_TEAM_DATE[m.home]||R32_TEAM_DATE[m.away]||null}));
+    const r32Dates=[...new Set(r32dated.map(m=>m.date).filter(Boolean))]
+      .filter(d=>parseDate(d)>=todayNum).sort((a,b)=>parseDate(a)-parseDate(b)).slice(0,2);
+    for(const date of r32Dates){
+      const dayMs=r32dated.filter(m=>m.date===date);
+      html+=koTable(`R32 · ${date}`,dayMs,'r32',reachedR32,r32Set,4);
     }
 
     // R16 — winners of R32 pairs
