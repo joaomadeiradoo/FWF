@@ -293,7 +293,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
 </style>
 </head>
 <body>
-<!-- FWF-BUILD:20260629b -->
+<!-- FWF-BUILD:20260629c -->
 <div id="update-banner" onclick="fwfUpdateNow()" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99999;background:#FFD700;color:#0D1B2A;text-align:center;padding:11px;font-weight:800;font-size:.85rem;cursor:pointer;font-family:system-ui,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.4)">🔄 Nova versão disponível — toca para atualizar</div>
 <div id="ptr"><div id="ptr-spinner"></div></div>
 <nav id="bottom-nav">
@@ -559,7 +559,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
 </div>
 <script>
 // ═══ ANTI-CACHE: deteta versão nova no servidor e mostra barra (NÃO recarrega sozinho) ═══
-const FWF_BUILD='20260629b';
+const FWF_BUILD='20260629c';
 function fwfUpdateNow(){
   try{if(typeof hasUnsavedEdits!=='undefined'&&hasUnsavedEdits&&!confirm('Tens alterações por guardar. Atualizar mesmo assim?'))return;}catch(e){}
   location.href=location.pathname+'?v='+Date.now();
@@ -3303,7 +3303,9 @@ function renderOtherPreds(){
       'Brasil':'29 Jun','Japão':'29 Jun','Alemanha':'29 Jun','Paraguai':'29 Jun',
       'Países Baixos':'30 Jun','Marrocos':'30 Jun','Costa do Marfim':'30 Jun','Noruega':'30 Jun','França':'30 Jun','Suécia':'30 Jun',
       'México':'1 Jul','Equador':'1 Jul','Inglaterra':'1 Jul','Congo DR':'1 Jul','Bélgica':'1 Jul','Senegal':'1 Jul',
-      'EUA':'2 Jul','Bósnia e Herzegovina':'2 Jul','Espanha':'2 Jul','Áustria':'2 Jul','Portugal':'3 Jul','Croácia':'3 Jul'
+      'EUA':'2 Jul','Bósnia e Herzegovina':'2 Jul','Espanha':'2 Jul','Áustria':'2 Jul','Portugal':'3 Jul','Croácia':'3 Jul',
+      'Suíça':'3 Jul','Argélia':'3 Jul','Austrália':'3 Jul','Egipto':'3 Jul','Argentina':'3 Jul','Cabo Verde':'3 Jul',
+      'Colômbia':'4 Jul','Gana':'4 Jul'
     };
     const r32dated=r32teams.map(m=>({...m,date:R32_TEAM_DATE[m.home]||R32_TEAM_DATE[m.away]||null}));
     const r32Dates=[...new Set(r32dated.map(m=>m.date).filter(Boolean))]
