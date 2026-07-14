@@ -293,7 +293,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
 </style>
 </head>
 <body>
-<!-- FWF-BUILD:20260629d -->
+<!-- FWF-BUILD:20260629e -->
 <div id="update-banner" onclick="fwfUpdateNow()" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99999;background:#FFD700;color:#0D1B2A;text-align:center;padding:11px;font-weight:800;font-size:.85rem;cursor:pointer;font-family:system-ui,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.4)">🔄 Nova versão disponível — toca para atualizar</div>
 <div id="ptr"><div id="ptr-spinner"></div></div>
 <nav id="bottom-nav">
@@ -559,7 +559,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
 </div>
 <script>
 // ═══ ANTI-CACHE: deteta versão nova no servidor e mostra barra (NÃO recarrega sozinho) ═══
-const FWF_BUILD='20260629d';
+const FWF_BUILD='20260629e';
 function fwfUpdateNow(){
   try{if(typeof hasUnsavedEdits!=='undefined'&&hasUnsavedEdits&&!confirm('Tens alterações por guardar. Atualizar mesmo assim?'))return;}catch(e){}
   location.href=location.pathname+'?v='+Date.now();
@@ -2538,6 +2538,8 @@ function calcMatch(pred,act){
 function calcTotal(uid,toggleOverride=null){
   const pr=allPredictions[uid]||{};let tot=0;
   const tgl=toggleOverride||ptsToggles;
+  // ═══ Option B point values (reach-based, cumulative) ═══
+  const P={gw:5,gs:5,r32:5,r16:5,qf:10,sf:15,fin:15,f3:15,champ:30,vice:20,top:20};
   // Group stage match scores
   for(const m of ALL_MATCHES){
     const p=pr[m.id]||{};const a=actualScores[m.id];
@@ -2545,46 +2547,48 @@ function calcTotal(uid,toggleOverride=null){
       const pts=calcMatch(p,a);if(pts!==null) tot+=pts;
     }
   }
-  // Group winner/runner-up (respects toggles)
-  if(tgl.groupWinner){
+  // ═══ Group winner / 2nd — derived from predicted vs actual group standings ═══
+  // (robust: works even for legacy predictions that never stored gw_/gs_ fields)
+  const groupsComplete=ALL_MATCHES.every(m=>{const a=actualScores[m.id];return a&&a.home!==undefined&&a.home!=='';});
+  if(groupsComplete){
     for(const g of Object.keys(GROUPS)){
-      if(actualScores[`gw_${g}`]&&pr[`gw_${g}`]===actualScores[`gw_${g}`]) tot+=rules.group_winner;
+      const as=groupStandings(g,actualScores),ps=groupStandings(g,pr);
+      if(tgl.groupWinner&&as[0]&&as[0].name&&ps[0]&&ps[0].name===as[0].name) tot+=P.gw;
+      if(tgl.groupSecond&&as[1]&&as[1].name&&ps[1]&&ps[1].name===as[1].name) tot+=P.gs;
     }
   }
-  if(tgl.groupSecond){
-    for(const g of Object.keys(GROUPS)){
-      if(actualScores[`gs_${g}`]&&pr[`gs_${g}`]===actualScores[`gs_${g}`]) tot+=rules.group_second;
-    }
-  }
-  // Knockout bracket picks
+  // ═══ KNOCKOUT — Option B (reach-based, cumulative; layers stack) ═══
+  //   reach R32 = the 32 group qualifiers          → +5 each
+  //   reach R16 = winners of R32 matches (bp.r32)  → +5 each
+  //   reach QF  = winners of R16 matches (bp.r16)  → +10 each
+  //   reach SF  = winners of QF matches (bp.qf)    → +15 each
+  //   finalist  = winners of SF matches (bp.sf)    → +15 each
+  //   3rd (bp.f3) +15 · champion (fin[0]) +30 · vice (fin[1]) +20
   const bp=pr.bracket||{};
-  // r32/r16/qf/sf/f3 award per-correct-slot. The 'fin' round is special:
-  // - each correct finalist (regardless of slot) earns rules.finalist
-  // - bonus rules.winner if slot 0 matches actual champion
-  // - bonus rules.runner_up if slot 1 matches actual runner-up
-  // The 'win' bucket is derived from fin[0] and not scored separately.
-  const ruleMap={r32:'round32',r16:'round16',qf:'quarters',sf:'semis',f3:'third'};
-  for(const r of KO_ROUNDS){
-    if(r.id==='fin'||r.id==='win') continue; // handled below
-    if(r.id==='r32'&&!tgl.round32) continue;
-    const pk=bp[r.id]||[];const ak=actualScores[`ko_${r.id}`]||[];
-    // Set-based: points if the predicted team actually reached this round,
-    // regardless of which slot they ended up in. This correctly handles
-    // third-place teams whose slot is determined by Annex C after group stage.
-    const akSet=new Set(ak.filter(Boolean));
-    const pkSet=new Set(pk.filter(Boolean)); // deduplicate user picks
-    pkSet.forEach(pick=>{if(akSet.has(pick)) tot+=rules[ruleMap[r.id]]??r.pts;});
+  const inter=(predArr,actArr,pts)=>{
+    const A=new Set([].concat(actArr||[]).filter(Boolean));let n=0;
+    new Set([].concat(predArr||[]).filter(Boolean)).forEach(t=>{if(A.has(t))n++;});
+    return n*pts;
+  };
+  // Layer: reach R32 (only once the actual 32 are known = group stage complete)
+  if(groupsComplete&&tgl.round32!==false){
+    try{
+      const realQ=new Set(getQualified32(actualScores).map(t=>t&&t.name).filter(Boolean));
+      let n=0;new Set(getQualified32(pr).map(t=>t&&t.name).filter(Boolean)).forEach(t=>{if(realQ.has(t))n++;});
+      tot+=n*P.r32;
+    }catch(e){/* malformed prediction: skip R32 layer for this user */}
   }
-  // Final: count correct finalists + bonus for correct order
-  const finPk=bp.fin||[];const finAk=actualScores.ko_fin||[];
-  const actualFinalists=new Set((finAk||[]).filter(Boolean));
-  const predFinalists=new Set((finPk||[]).filter(Boolean));
-  predFinalists.forEach(team=>{if(actualFinalists.has(team)) tot+=rules.finalist??25;});
-  if(finPk[0]&&finAk[0]&&finPk[0]===finAk[0]) tot+=rules.winner??30;
-  if(finPk[1]&&finAk[1]&&finPk[1]===finAk[1]) tot+=rules.runner_up??30;
+  tot+=inter(bp.r32,actualScores.ko_r32,P.r16);
+  tot+=inter(bp.r16,actualScores.ko_r16,P.qf);
+  tot+=inter(bp.qf, actualScores.ko_qf,P.sf);
+  tot+=inter(bp.sf, actualScores.ko_sf,P.fin);
+  tot+=inter(bp.f3, actualScores.ko_f3,P.f3);
+  const finPk=bp.fin||[],finAk=actualScores.ko_fin||[];
+  if(finPk[0]&&finAk[0]&&finPk[0]===finAk[0]) tot+=P.champ;
+  if(finPk[1]&&finAk[1]&&finPk[1]===finAk[1]) tot+=P.vice;
   if(actualScores.topScorer&&pr.topScorer){
     const score=fuzzyScore(pr.topScorer,actualScores.topScorer);
-    if(score===1||(score>=0.5&&(approvedTopScorers[uid]===true))) tot+=rules.top_scorer;
+    if(score===1||(score>=0.5&&(approvedTopScorers[uid]===true))) tot+=P.top;
   }
   // Manual host adjustments (offset layer). The automatic scoring above always
   // runs; these just ride on top. Each user's adjustments is an array of
@@ -2633,7 +2637,7 @@ function takeDailySnapshot(rows){
 // ═══ CLASSIFICAÇÃO ESTÁTICA (display-only) ═══
 // Os cálculos são feitos à parte pelo host; esta tabela mostra os valores fixos abaixo.
 // Para voltar ao cálculo automático: mudar STATIC_LEADERBOARD para false.
-const STATIC_LEADERBOARD=true;
+const STATIC_LEADERBOARD=false;
 const STATIC_LB_DATA=[
   ['Rodrigo Silva',61,135],['João Eira',59,135],['Rafael Gamilha',54,135],['Miguel Rodrigues Lopes',52,140],
   ['Mário Santos',50,135],['João Pinheiro',49,140],['Pedro Brandão',46,135],['João "Covilhã" Silva',45,140],
