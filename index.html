@@ -293,7 +293,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
 </style>
 </head>
 <body>
-<!-- FWF-BUILD:20260629g -->
+<!-- FWF-BUILD:20260629h -->
 <div id="update-banner" onclick="fwfUpdateNow()" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99999;background:#FFD700;color:#0D1B2A;text-align:center;padding:11px;font-weight:800;font-size:.85rem;cursor:pointer;font-family:system-ui,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.4)">🔄 Nova versão disponível — toca para atualizar</div>
 <div id="ptr"><div id="ptr-spinner"></div></div>
 <nav id="bottom-nav">
@@ -560,7 +560,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
 </div>
 <script>
 // ═══ ANTI-CACHE: deteta versão nova no servidor e mostra barra (NÃO recarrega sozinho) ═══
-const FWF_BUILD='20260629g';
+const FWF_BUILD='20260629h';
 function fwfUpdateNow(){
   try{if(typeof hasUnsavedEdits!=='undefined'&&hasUnsavedEdits&&!confirm('Tens alterações por guardar. Atualizar mesmo assim?'))return;}catch(e){}
   location.href=location.pathname+'?v='+Date.now();
@@ -3368,20 +3368,27 @@ function renderOtherPreds(){
       html+=koTable(`R32 · ${date}`,dayMs,'r32',reachedR32,r32Set,4);
     }
 
+    // Hide a KO round from the homepage once it's fully finished — only the round
+    // currently in play stays visible (plus the endgame block below). Same
+    // "current, not past" logic as the group-stage day tables.
+    const r16Done=(actualScores.ko_r16||[]).filter(Boolean).length>=8;
+    const qfDone=(actualScores.ko_qf||[]).filter(Boolean).length>=4;
+    const sfDone=(actualScores.ko_sf||[]).filter(Boolean).length>=2;
+
     // R16 — winners of R32 pairs
     const r32a=actualScores.ko_r32||[];
     const r16m=Array.from({length:8},(_,i)=>({home:r32a[i*2],away:r32a[i*2+1]}));
-    html+=koTable('R16 — Oitavos',r16m,'r16',reachedR16,new Set((actualScores.ko_r16||[]).filter(Boolean)),4);
+    if(!r16Done) html+=koTable('R16 — Oitavos',r16m,'r16',reachedR16,new Set((actualScores.ko_r16||[]).filter(Boolean)),4);
 
     // QF — winners of R16 pairs
     const r16a=actualScores.ko_r16||[];
     const qfm=Array.from({length:4},(_,i)=>({home:r16a[i*2],away:r16a[i*2+1]}));
-    html+=koTable('Quartos de Final',qfm,'qf',reachedQF,new Set((actualScores.ko_qf||[]).filter(Boolean)),4);
+    if(!qfDone) html+=koTable('Quartos de Final',qfm,'qf',reachedQF,new Set((actualScores.ko_qf||[]).filter(Boolean)),4);
 
     // SF — winners of QF pairs
     const qfa=actualScores.ko_qf||[];
     const sfm=Array.from({length:2},(_,i)=>({home:qfa[i*2],away:qfa[i*2+1]}));
-    html+=koTable('Meias-Finais',sfm,'sf',reachedSF,new Set((actualScores.ko_sf||[]).filter(Boolean)),4);
+    if(!sfDone) html+=koTable('Meias-Finais',sfm,'sf',reachedSF,new Set((actualScores.ko_sf||[]).filter(Boolean)),4);
 
     // ═══ SEMIS-STAGE ENDGAME REVEAL ═══
     // Once we reach the semis (all QF winners known, or any SF result in), lock in
