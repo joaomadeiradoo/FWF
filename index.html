@@ -293,7 +293,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
 </style>
 </head>
 <body>
-<!-- FWF-BUILD:20260629f -->
+<!-- FWF-BUILD:20260629g -->
 <div id="update-banner" onclick="fwfUpdateNow()" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99999;background:#FFD700;color:#0D1B2A;text-align:center;padding:11px;font-weight:800;font-size:.85rem;cursor:pointer;font-family:system-ui,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.4)">🔄 Nova versão disponível — toca para atualizar</div>
 <div id="ptr"><div id="ptr-spinner"></div></div>
 <nav id="bottom-nav">
@@ -560,7 +560,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
 </div>
 <script>
 // ═══ ANTI-CACHE: deteta versão nova no servidor e mostra barra (NÃO recarrega sozinho) ═══
-const FWF_BUILD='20260629f';
+const FWF_BUILD='20260629g';
 function fwfUpdateNow(){
   try{if(typeof hasUnsavedEdits!=='undefined'&&hasUnsavedEdits&&!confirm('Tens alterações por guardar. Atualizar mesmo assim?'))return;}catch(e){}
   location.href=location.pathname+'?v='+Date.now();
@@ -1892,7 +1892,7 @@ async function initMainApp(uid){
   renderGroupMatches();renderGruposTab();renderBracket();renderBracketMobile();renderBracketSwipe();
   renderRules();renderLeaderboard();renderPodium();renderOtherPreds();renderLive();
   renderCountdown();updateBanner();
-  if(isAdmin){renderHostScores();renderHostMembers();renderHostAdjust();renderHostRules();renderHostPlayerChars();renderPtsToggles();renderPodiumHostSection();getApiUsage().then(updateApiCounter);}
+  if(isAdmin){renderHostScores();renderHostMembers();renderHostAdjust();renderHostRules();renderHostPlayerChars();renderPtsToggles();renderPodiumHostSection();getApiUsage().then(updateApiCounter);makeHostPanelCollapsible();}
   hide('screen-loading');hide('screen-auth');show('screen-main');
   scheduleApi();
 }
@@ -3383,20 +3383,36 @@ function renderOtherPreds(){
     const sfm=Array.from({length:2},(_,i)=>({home:qfa[i*2],away:qfa[i*2+1]}));
     html+=koTable('Meias-Finais',sfm,'sf',reachedSF,new Set((actualScores.ko_sf||[]).filter(Boolean)),4);
 
-    // 3.º Lugar — the two SF losers
+    // ═══ SEMIS-STAGE ENDGAME REVEAL ═══
+    // Once we reach the semis (all QF winners known, or any SF result in), lock in
+    // the homepage reveal of 3rd-place, Final and Top-scorer PREDICTIONS — even
+    // before those games are played. Earlier rounds keep their existing reveal above.
     const sfa=actualScores.ko_sf||[];
-    const finA=actualScores.ko_fin||[];
-    const sfLosers=[qfa[0],qfa[1],qfa[2],qfa[3]].filter(t=>t&&!sfa.includes(t));
-    if(sfLosers.length>=2){
-      const f3m=[{home:sfLosers[0],away:sfLosers[1]}];
-      html+=koTable('3.º Lugar',f3m,'f3',reachedF3,new Set((actualScores.ko_f3||[]).filter(Boolean)),4);
+    const atSemis=(actualScores.ko_qf||[]).filter(Boolean).length>=4||sfa.filter(Boolean).length>0;
+
+    // 3rd place — each player's predicted 3rd-place finisher. The real contestants
+    // (the SF losers) aren't known until the semis are played, so we show the
+    // predictions now and fill the real 3rd place once ko_f3 is entered.
+    if(atSemis){
+      const realF3=(actualScores.ko_f3||[]).filter(Boolean)[0]||'';
+      html+=`<div style="margin-bottom:18px"><div style="font-size:.75rem;font-weight:800;color:var(--gold);margin-bottom:6px">📋 3.º Lugar (previsões)</div>`;
+      html+=`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.68rem">`;
+      html+=`<thead><tr><th style="text-align:left;padding:3px 6px;color:var(--muted)">Jogador</th><th style="padding:3px 6px;text-align:center;color:var(--muted)">3.º Lugar</th></tr></thead><tbody>`;
+      members.forEach(([uid,u])=>{
+        const bp=(allPredictions[uid]||{}).bracket||{};
+        const pick=(bp.f3||[]).filter(Boolean)[0]||'';
+        const correct=realF3&&pick&&pick===realF3;
+        html+=`<tr style="border-top:1px solid #1e3a5f"><td style="padding:3px 6px;font-weight:700;white-space:nowrap">${u.name}</td>`;
+        html+=`<td style="padding:3px 6px;text-align:center;font-weight:700;${correct?'color:#2dc653':'color:#ccd6e0'}">${pick?abbr(pick):'-'}</td></tr>`;
+      });
+      html+=`<tr style="border-top:2px solid #FFD700"><td style="padding:3px 6px;font-size:.62rem;color:#FFD700;font-weight:800">Real</td>`;
+      html+=`<td style="padding:3px 6px;text-align:center;color:#FFD700;font-weight:800">${realF3?abbr(realF3):'-'}</td></tr></tbody></table></div></div>`;
     }
 
-    // Final — special table (finalists + Melhor Marcador), kept as-is
+    // Final — finalists + champion colouring + Melhor Marcador. Revealed at semis.
     const finAk=actualScores.ko_fin||[];
     const anyFin=members.some(([uid])=>{const bp=(allPredictions[uid]||{}).bracket||{};return(bp.fin||[]).some(Boolean);});
-    const finalReady=(actualScores.ko_sf||[]).filter(Boolean).length>=2;
-    if(anyFin&&finalReady){
+    if(anyFin&&atSemis){
       const actualScorer=actualScores.topScorer||'';
       html+=`<div style="margin-bottom:18px"><div style="font-size:.75rem;font-weight:800;color:var(--gold);margin-bottom:6px">📋 Final</div>`;
       html+=`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.68rem">`;
@@ -4452,6 +4468,35 @@ function renderLive(){
 }
 
 // ═══ UI ═══
+// Make the host-panel section headers (h3) collapsible so the panel isn't one
+// endless scroll. Runs when the host tab opens; idempotent (each section wrapped
+// once). Inner content ids (#host-adjust, #host-score-inputs, …) stay in the DOM,
+// just nested one level deeper, so every render function keeps working.
+function makeHostPanelCollapsible(){
+  const host=document.getElementById('tab-host');if(!host) return;
+  host.querySelectorAll('div[style*="margin-bottom:18px"]').forEach(sec=>{
+    if(sec.classList.contains('hp-collapsible')) return;
+    const h=sec.querySelector(':scope > h3');
+    if(!h) return;
+    sec.classList.add('hp-collapsible');
+    const body=document.createElement('div');
+    body.className='hp-body';
+    let n=h.nextSibling;
+    while(n){const next=n.nextSibling;body.appendChild(n);n=next;}
+    sec.appendChild(body);
+    body.style.display='none'; // default collapsed
+    h.style.cursor='pointer';h.style.userSelect='none';
+    const caret=document.createElement('span');
+    caret.textContent='▸ ';
+    h.insertBefore(caret,h.firstChild);
+    h.addEventListener('click',()=>{
+      const open=body.style.display!=='none';
+      body.style.display=open?'none':'';
+      caret.textContent=open?'▸ ':'▾ ';
+    });
+  });
+}
+window.makeHostPanelCollapsible=makeHostPanelCollapsible;
 function showTab(id){
   document.querySelectorAll('.tab-content').forEach(el=>el.classList.remove('active'));
   document.querySelectorAll('#main-tabs .tab').forEach(el=>el.classList.remove('active'));
@@ -4464,7 +4509,7 @@ function showTab(id){
   if(id==='tab-bracket'){renderBracket();renderBracketMobile();renderBracketSwipe();}
   if(id==='tab-historia'){renderPodium();renderHistoria();}
   if(id==='tab-rules') renderRules();
-  if(id==='tab-host'){renderHostScores();renderHostMembers();renderHostAdjust();renderHostRules();renderHostPlayerChars();renderPtsToggles();renderPodiumHostSection();getApiUsage().then(updateApiCounter);}
+  if(id==='tab-host'){renderHostScores();renderHostMembers();renderHostAdjust();renderHostRules();renderHostPlayerChars();renderPtsToggles();renderPodiumHostSection();getApiUsage().then(updateApiCounter);makeHostPanelCollapsible();}
 }
 function copyInvite(){navigator.clipboard.writeText(currentComp?.inviteCode||'');toast(t('copied'));}
 
