@@ -293,7 +293,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
 </style>
 </head>
 <body>
-<!-- FWF-BUILD:20260629k -->
+<!-- FWF-BUILD:20260716a -->
 <div id="update-banner" onclick="fwfUpdateNow()" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99999;background:#FFD700;color:#0D1B2A;text-align:center;padding:11px;font-weight:800;font-size:.85rem;cursor:pointer;font-family:system-ui,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.4)">🔄 Nova versão disponível — toca para atualizar</div>
 <div id="ptr"><div id="ptr-spinner"></div></div>
 <nav id="bottom-nav">
@@ -560,7 +560,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
 </div>
 <script>
 // ═══ ANTI-CACHE: deteta versão nova no servidor e mostra barra (NÃO recarrega sozinho) ═══
-const FWF_BUILD='20260629k';
+const FWF_BUILD='20260716a';
 function fwfUpdateNow(){
   try{if(typeof hasUnsavedEdits!=='undefined'&&hasUnsavedEdits&&!confirm('Tens alterações por guardar. Atualizar mesmo assim?'))return;}catch(e){}
   location.href=location.pathname+'?v='+Date.now();
@@ -3486,24 +3486,49 @@ function renderOtherPreds(){
     const anyFin=members.some(([uid])=>{const bp=(allPredictions[uid]||{}).bracket||{};return(bp.fin||[]).some(Boolean);});
     if(anyFin&&atSemis){
       const actualScorer=actualScores.topScorer||'';
-      html+=`<div style="margin-bottom:18px"><div style="font-size:.75rem;font-weight:800;color:var(--gold);margin-bottom:6px">📋 Final</div>`;
+      const finalists=new Set(sfa.filter(Boolean));
+      const finKnown=finalists.size>=2;
+      const finDone=finAk.filter(Boolean).length>=2;
+      // Role is carried by structure (🏆 / 2º), correctness by colour. Keeping them on
+      // separate channels means a greyed-out pick can't be confused with a role colour,
+      // and both signals survive without hue.
+      const finLine=(team,slot)=>{
+        if(!team) return '';
+        const tag=slot===0?'🏆':'<span style="opacity:.75;font-size:.85em">2º</span>';
+        let st='color:#ccd6e0';
+        if(finDone){
+          if(team===finAk[slot]) st='color:#2dc653';
+          else if(team===finAk[0]||team===finAk[1]) st='color:#ffd000';
+          else st='color:#7a8a99;opacity:.6;text-decoration:line-through';
+        } else if(finKnown){
+          st=finalists.has(team)?'color:#2dc653':'color:#7a8a99;opacity:.6;text-decoration:line-through';
+        }
+        return `<span style="display:block;line-height:1.4;white-space:nowrap;${st}">${tag} ${abbr(team)}</span>`;
+      };
+      const legend=!finKnown
+        ? 'Os finalistas ainda não são conhecidos.'
+        : (finDone
+          ? '<span style="color:#2dc653">verde</span> = acertou · <span style="color:#ffd000">amarelo</span> = na final, posição trocada · <span style="color:#7a8a99;text-decoration:line-through">cinza</span> = fora'
+          : '<span style="color:#2dc653">verde</span> = está na final · <span style="color:#7a8a99;text-decoration:line-through">cinza</span> = eliminado');
+      html+=`<div style="margin-bottom:18px"><div style="font-size:.75rem;font-weight:800;color:var(--gold);margin-bottom:4px">📋 Final</div>`;
+      html+=`<div style="font-size:.58rem;color:var(--muted);margin-bottom:7px;line-height:1.6">🏆 campeão · 2º vice — ${legend}</div>`;
       html+=`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.68rem">`;
       html+=`<thead><tr><th style="text-align:left;padding:3px 6px;color:var(--muted)">Jogador</th><th style="padding:3px 6px;text-align:center;color:var(--muted)">Final</th><th style="padding:3px 6px;text-align:center;color:var(--muted)">Melhor Marcador</th></tr></thead><tbody>`;
       members.forEach(([uid,u])=>{
         const bp=(allPredictions[uid]||{}).bracket||{};
         const finPick=(bp.fin||[]).filter(Boolean);
-        const finText=finPick.length?finPick.map(t=>abbr(t)).join(' vs '):'-';
-        const actualSet=new Set((finAk||[]).filter(Boolean));
-        const bothCorrect=finAk.length>=2&&finPick.length>=2&&finPick[0]===finAk[0]&&finPick[1]===finAk[1];
-        const oneCorrect=!bothCorrect&&finPick.some(t=>actualSet.has(t));
+        const finText=finPick.length?finPick.map((t,i)=>finLine(t,i)).join(''):'-';
         const scorer=(allPredictions[uid]||{}).topScorer||'-';
         const scorerCorrect=actualScorer&&scorer&&scorer.toLowerCase()===actualScorer.toLowerCase();
         html+=`<tr style="border-top:1px solid #1e3a5f"><td style="padding:3px 6px;font-weight:700;white-space:nowrap">${u.name}</td>`;
-        html+=`<td style="padding:3px 6px;text-align:center;font-weight:700;${bothCorrect?'color:#2dc653':oneCorrect?'color:#ffd000':'color:#e63946'}">${finText}</td>`;
+        html+=`<td style="padding:3px 6px;text-align:center;font-weight:700">${finText}</td>`;
         html+=`<td style="padding:3px 6px;text-align:center;font-weight:700;${scorerCorrect?'color:#2dc653':'color:#ccd6e0'}">${scorer}</td></tr>`;
       });
       html+=`<tr style="border-top:2px solid #FFD700"><td style="padding:3px 6px;font-size:.62rem;color:#FFD700;font-weight:800">Real</td>`;
-      html+=`<td style="padding:3px 6px;text-align:center;color:#FFD700;font-weight:800">${finAk.filter(Boolean).map(t=>abbr(t)).join(' vs ')||'-'}</td>`;
+      const realFin=finDone
+        ? finAk.filter(Boolean).map((t,i)=>`<span style="display:block;line-height:1.4;white-space:nowrap;color:#FFD700">${i===0?'🏆':'<span style="opacity:.75;font-size:.85em">2º</span>'} ${abbr(t)}</span>`).join('')
+        : (finKnown?[...finalists].map(t=>`<span style="display:block;line-height:1.4;white-space:nowrap;color:#FFD700">${abbr(t)}</span>`).join(''):'-');
+      html+=`<td style="padding:3px 6px;text-align:center;color:#FFD700;font-weight:800">${realFin}</td>`;
       html+=`<td style="padding:3px 6px;text-align:center;color:#FFD700;font-weight:800">${actualScorer||'-'}</td></tr></tbody></table></div></div>`;
     }
   }
