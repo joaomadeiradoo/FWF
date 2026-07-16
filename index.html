@@ -293,7 +293,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
 </style>
 </head>
 <body>
-<!-- FWF-BUILD:20260716c -->
+<!-- FWF-BUILD:20260716d -->
 <div id="update-banner" onclick="fwfUpdateNow()" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99999;background:#FFD700;color:#0D1B2A;text-align:center;padding:11px;font-weight:800;font-size:.85rem;cursor:pointer;font-family:system-ui,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.4)">🔄 Nova versão disponível — toca para atualizar</div>
 <div id="ptr"><div id="ptr-spinner"></div></div>
 <nav id="bottom-nav">
@@ -560,7 +560,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
 </div>
 <script>
 // ═══ ANTI-CACHE: deteta versão nova no servidor e mostra barra (NÃO recarrega sozinho) ═══
-const FWF_BUILD='20260716c';
+const FWF_BUILD='20260716d';
 function fwfUpdateNow(){
   try{if(typeof hasUnsavedEdits!=='undefined'&&hasUnsavedEdits&&!confirm('Tens alterações por guardar. Atualizar mesmo assim?'))return;}catch(e){}
   location.href=location.pathname+'?v='+Date.now();
@@ -1306,25 +1306,82 @@ const ALL_MATCHES=genMatchesScheduled();
 function groupStandings(grp,scores){
   const teams=GROUPS[grp].teams.map(name=>({name,P:0,W:0,D:0,L:0,GF:0,GA:0,GD:0,Pts:0}));
   const tm={};teams.forEach(t=>tm[t.name]=t);
+  const played=[];
   ALL_MATCHES.filter(m=>m.group===grp).forEach(m=>{
     const s=scores[m.id];
     if(!s||s.home===undefined||s.home===''||s.away===undefined||s.away==='') return;
     const h=parseInt(s.home),a=parseInt(s.away),ht=tm[m.home],at=tm[m.away];
-    if(!ht||!at) return;
+    if(!ht||!at||isNaN(h)||isNaN(a)) return;
+    played.push({home:m.home,away:m.away,h,a});
     ht.P++;at.P++;ht.GF+=h;ht.GA+=a;at.GF+=a;at.GA+=h;ht.GD=ht.GF-ht.GA;at.GD=at.GF-at.GA;
     if(h>a){ht.W++;ht.Pts+=3;at.L++;}
     else if(h===a){ht.D++;ht.Pts++;at.D++;at.Pts++;}
     else{at.W++;at.Pts+=3;ht.L++;}
   });
-  // FIFA tiebreakers (Article 18.6) - simplified version. The full FIFA tiebreaker
-  // chain is: 1) Points 2) GD 3) GF 4) head-to-head Pts 5) head-to-head GD
-  // 6) head-to-head GF 7) team conduct score 8) FIFA ranking 9) drawing of lots.
-  // We implement 1-3 plus #4-#6 collapsed to "fewer GA" (a reasonable proxy when
-  // head-to-head data isn't separated), then alphabetical as a deterministic
-  // drawing-of-lots fallback. This will rank correctly in the vast majority of
-  // scenarios; the only edge case is teams perfectly tied on Pts/GD/GF/GA, which
-  // is extremely rare.
-  return teams.sort((a,b)=>b.Pts-a.Pts||b.GD-a.GD||b.GF-a.GF||a.GA-b.GA||a.name.localeCompare(b.name));
+  // ═══ FIFA World Cup 26 Regulations, Article 13 ═══
+  // Teams level on points are separated by, IN THIS ORDER:
+  //   Step 1 — among the teams concerned only (head-to-head):
+  //     a) points  b) goal difference  c) goals scored
+  //   Step 2 — if some are still level, Step 1 is re-applied to the remaining
+  //     teams only; if that decides nothing:
+  //     d) overall goal difference  e) overall goals scored  f) conduct score
+  //   Step 3 — g/h) FIFA World Ranking.
+  //
+  // The previous implementation went Pts -> overall GD -> overall GF -> GA ->
+  // alphabetical. That is not a simplification of Article 13, it is the wrong
+  // order: head-to-head is Step 1, overall GD is only Step 2d. It also never
+  // compared head-to-head at all, and its "fewer GA" step was mathematically
+  // dead code — GA = GF - GD, so any teams level on Pts, GD and GF are level on
+  // GA by definition and it could never break a tie. The real chain was
+  // Pts -> GD -> GF -> team name.
+  //
+  // Conduct (f) and FIFA ranking (g/h) aren't tracked, so alphabetical order
+  // remains the deterministic last resort — but it is now reached only after
+  // head-to-head and overall GD/GF, instead of instead of them.
+  const mini=names=>{
+    const S=new Set(names),r={};
+    names.forEach(n=>r[n]={Pts:0,GF:0,GA:0,GD:0});
+    played.forEach(m=>{
+      if(!S.has(m.home)||!S.has(m.away)) return;
+      const H=r[m.home],A=r[m.away];
+      H.GF+=m.h;H.GA+=m.a;A.GF+=m.a;A.GA+=m.h;
+      if(m.h>m.a) H.Pts+=3; else if(m.h===m.a){H.Pts++;A.Pts++;} else A.Pts+=3;
+    });
+    names.forEach(n=>{r[n].GD=r[n].GF-r[n].GA;});
+    return r;
+  };
+  // Step 2d-f / Step 3, with name as the deterministic drawing-of-lots stand-in.
+  const overall=(a,b)=>b.GD-a.GD||b.GF-a.GF||a.name.localeCompare(b.name);
+  const resolve=cluster=>{
+    if(cluster.length<2) return cluster;
+    const r=mini(cluster.map(t=>t.name));
+    const sorted=cluster.slice().sort((a,b)=>{
+      const A=r[a.name],B=r[b.name];
+      return B.Pts-A.Pts||B.GD-A.GD||B.GF-A.GF;
+    });
+    const out=[];let i=0;
+    while(i<sorted.length){
+      const A=r[sorted[i].name];let j=i+1;
+      while(j<sorted.length){
+        const B=r[sorted[j].name];
+        if(B.Pts===A.Pts&&B.GD===A.GD&&B.GF===A.GF) j++; else break;
+      }
+      const sub=sorted.slice(i,j);
+      if(sub.length===1) out.push(sub[0]);
+      else if(sub.length===cluster.length) out.push(...sub.slice().sort(overall)); // head-to-head separated nobody -> Step 2d
+      else out.push(...resolve(sub));                                              // Step 2: re-apply among the remaining teams only
+      i=j;
+    }
+    return out;
+  };
+  const byPts=teams.slice().sort((a,b)=>b.Pts-a.Pts);
+  const res=[];let i=0;
+  while(i<byPts.length){
+    let j=i+1;while(j<byPts.length&&byPts[j].Pts===byPts[i].Pts) j++;
+    res.push(...resolve(byPts.slice(i,j)));
+    i=j;
+  }
+  return res;
 }
 function getBestThirds(scores){
   const thirds=[];
