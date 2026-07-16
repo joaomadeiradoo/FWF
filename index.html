@@ -293,7 +293,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
 </style>
 </head>
 <body>
-<!-- FWF-BUILD:20260716b -->
+<!-- FWF-BUILD:20260716c -->
 <div id="update-banner" onclick="fwfUpdateNow()" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99999;background:#FFD700;color:#0D1B2A;text-align:center;padding:11px;font-weight:800;font-size:.85rem;cursor:pointer;font-family:system-ui,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.4)">🔄 Nova versão disponível — toca para atualizar</div>
 <div id="ptr"><div id="ptr-spinner"></div></div>
 <nav id="bottom-nav">
@@ -560,7 +560,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
 </div>
 <script>
 // ═══ ANTI-CACHE: deteta versão nova no servidor e mostra barra (NÃO recarrega sozinho) ═══
-const FWF_BUILD='20260716b';
+const FWF_BUILD='20260716c';
 function fwfUpdateNow(){
   try{if(typeof hasUnsavedEdits!=='undefined'&&hasUnsavedEdits&&!confirm('Tens alterações por guardar. Atualizar mesmo assim?'))return;}catch(e){}
   location.href=location.pathname+'?v='+Date.now();
@@ -2541,12 +2541,17 @@ function calcBreakdown(uid,toggleOverride=null){
   const tgl=toggleOverride||ptsToggles;
   // ═══ Option B point values (reach-based, cumulative) ═══
   const P={gw:5,gs:5,r32:5,r16:5,qf:10,sf:15,fin:15,f3:15,champ:30,vice:20,top:20};
-  const bd={grupos:0,r32:0,r16:0,qf:0,sf:0,fin:0,adj:0};
+  // dbg records WHICH sub-layer produced the points inside each bucket. It is
+  // diagnostic only and is never summed by bdTotal() — this is not a second
+  // scoring path, it is the same one, instrumented, so a total can be audited
+  // against an external sheet layer by layer instead of guessing.
+  const bd={grupos:0,r32:0,r16:0,qf:0,sf:0,fin:0,adj:0,
+    dbg:{exatos:0,gw:0,gs:0,r32reach:0,f3:0,champ:0,vice:0,top:0}};
   // Group stage match scores
   for(const m of ALL_MATCHES){
     const p=pr[m.id]||{};const a=actualScores[m.id];
     if(a&&a.home!==undefined&&a.home!==''&&p.home!==undefined&&p.home!==''){
-      const pts=calcMatch(p,a);if(pts!==null) bd.grupos+=pts;
+      const pts=calcMatch(p,a);if(pts!==null){bd.grupos+=pts;bd.dbg.exatos+=pts;}
     }
   }
   // ═══ Group winner / 2nd — derived from predicted vs actual group standings ═══
@@ -2555,8 +2560,8 @@ function calcBreakdown(uid,toggleOverride=null){
   if(groupsComplete){
     for(const g of Object.keys(GROUPS)){
       const as=groupStandings(g,actualScores),ps=groupStandings(g,pr);
-      if(tgl.groupWinner&&as[0]&&as[0].name&&ps[0]&&ps[0].name===as[0].name) bd.grupos+=P.gw;
-      if(tgl.groupSecond&&as[1]&&as[1].name&&ps[1]&&ps[1].name===as[1].name) bd.grupos+=P.gs;
+      if(tgl.groupWinner&&as[0]&&as[0].name&&ps[0]&&ps[0].name===as[0].name){bd.grupos+=P.gw;bd.dbg.gw+=P.gw;}
+      if(tgl.groupSecond&&as[1]&&as[1].name&&ps[1]&&ps[1].name===as[1].name){bd.grupos+=P.gs;bd.dbg.gs+=P.gs;}
     }
   }
   // ═══ KNOCKOUT — Option B (reach-based, cumulative; layers stack) ═══
@@ -2571,20 +2576,20 @@ function calcBreakdown(uid,toggleOverride=null){
     try{
       const realQ=new Set(getQualified32(actualScores).map(t=>t&&t.name).filter(Boolean));
       let n=0;new Set(getQualified32(pr).map(t=>t&&t.name).filter(Boolean)).forEach(t=>{if(realQ.has(t))n++;});
-      bd.grupos+=n*P.r32;
+      bd.grupos+=n*P.r32;bd.dbg.r32reach+=n*P.r32;
     }catch(e){/* malformed prediction: skip R32 layer for this user */}
   }
   bd.r32+=inter(bp.r32,actualScores.ko_r32,P.r16);
   bd.r16+=inter(bp.r16,actualScores.ko_r16,P.qf);
   bd.qf +=inter(bp.qf, actualScores.ko_qf,P.sf);
   bd.sf +=inter(bp.sf, actualScores.ko_sf,P.fin);
-  bd.fin+=inter(bp.f3, actualScores.ko_f3,P.f3);
+  const f3pts=inter(bp.f3, actualScores.ko_f3,P.f3);bd.fin+=f3pts;bd.dbg.f3=f3pts;
   const finPk=bp.fin||[],finAk=actualScores.ko_fin||[];
-  if(finPk[0]&&finAk[0]&&finPk[0]===finAk[0]) bd.fin+=P.champ;
-  if(finPk[1]&&finAk[1]&&finPk[1]===finAk[1]) bd.fin+=P.vice;
+  if(finPk[0]&&finAk[0]&&finPk[0]===finAk[0]){bd.fin+=P.champ;bd.dbg.champ=P.champ;}
+  if(finPk[1]&&finAk[1]&&finPk[1]===finAk[1]){bd.fin+=P.vice;bd.dbg.vice=P.vice;}
   if(actualScores.topScorer&&pr.topScorer){
     const score=fuzzyScore(pr.topScorer,actualScores.topScorer);
-    if(score===1||(score>=0.5&&(approvedTopScorers[uid]===true))) bd.fin+=P.top;
+    if(score===1||(score>=0.5&&(approvedTopScorers[uid]===true))){bd.fin+=P.top;bd.dbg.top=P.top;}
   }
   // Manual host adjustments (offset layer). The automatic scoring above always
   // runs; these just ride on top. Each user's adjustments is an array of
@@ -3262,7 +3267,8 @@ function downloadCSV(){
     '3º Lugar (vencedor)','Campeão (previsto)','Vice-Campeão (previsto)',
   ];
   const mH=ALL_MATCHES.map(m=>`${m.home} vs ${m.away}`);
-  const headers=['Nome','Pts Total','Top Scorer',...groupH,...koH,...mH];
+  const auditH=['Exatos','1os Grupo','2os Grupo','Apurados R32','R32 (chegou R16)','R16 (chegou QF)','QF (chegou Meias)','Apurados Final','3o Lugar','Campeao','Vice','Top Scorer pts','Ajustes'];
+  const headers=['Nome','Pts Total',...auditH,'Top Scorer',...groupH,...koH,...mH];
   const rows=Object.entries(allUsers).sort((a,b)=>a[1].name.localeCompare(b[1].name,'pt')).map(([uid,u])=>{
     const pr=allPredictions[uid]||{};
     const bp=pr.bracket||{};
@@ -3278,7 +3284,9 @@ function downloadCSV(){
       ...pad(bp.fin,2),
     ];
     const mp=ALL_MATCHES.map(m=>{const p=pr[m.id]||{};return p.home!==undefined&&p.home!==''?`${p.home}-${p.away}`:''});
-    return[u.name,calcTotal(uid),pr.topScorer||'',...gw,...gs,...koCols,...mp];
+    const bd=calcBreakdown(uid),g=bd.dbg;
+    const audit=[g.exatos,g.gw,g.gs,g.r32reach,bd.r32,bd.r16,bd.qf,bd.sf,g.f3,g.champ,g.vice,g.top,bd.adj];
+    return[u.name,bdTotal(bd),...audit,pr.topScorer||'',...gw,...gs,...koCols,...mp];
   });
   const csv=[headers,...rows].map(r=>r.map(v=>`"${String(v==null?'':v).replace(/"/g,'""')}"`).join(',')).join('\n');
   const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});
