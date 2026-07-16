@@ -293,7 +293,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
 </style>
 </head>
 <body>
-<!-- FWF-BUILD:20260629h -->
+<!-- FWF-BUILD:20260629i -->
 <div id="update-banner" onclick="fwfUpdateNow()" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99999;background:#FFD700;color:#0D1B2A;text-align:center;padding:11px;font-weight:800;font-size:.85rem;cursor:pointer;font-family:system-ui,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.4)">🔄 Nova versão disponível — toca para atualizar</div>
 <div id="ptr"><div id="ptr-spinner"></div></div>
 <nav id="bottom-nav">
@@ -560,7 +560,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
 </div>
 <script>
 // ═══ ANTI-CACHE: deteta versão nova no servidor e mostra barra (NÃO recarrega sozinho) ═══
-const FWF_BUILD='20260629h';
+const FWF_BUILD='20260629i';
 function fwfUpdateNow(){
   try{if(typeof hasUnsavedEdits!=='undefined'&&hasUnsavedEdits&&!confirm('Tens alterações por guardar. Atualizar mesmo assim?'))return;}catch(e){}
   location.href=location.pathname+'?v='+Date.now();
@@ -3787,9 +3787,15 @@ function renderHostKO(){
     html+=`<div style="margin-bottom:12px"><div style="font-size:.72rem;font-weight:700;color:var(--gold);margin-bottom:5px">${round.label}</div>`;
     for(const m of round.matches){
       if(m.sf){
-        const sf=actualScores.ko_sf||[];const fin=actualScores.ko_fin||[];
-        const losers=[sf[0],sf[1]].filter(t=>t&&t!==fin[0]&&t!==fin[1]);
-        m.home=losers[0]||'SF perd.1';m.away=losers[1]||'SF perd.2';
+        // 3rd place is contested by the two SF LOSERS = QF winners minus SF winners.
+        // (ko_sf holds the SF WINNERS — i.e. the finalists — never the 3rd-place pair.
+        // The old code diffed against ko_fin, which is empty until the final is played,
+        // so it wrongly showed the two finalists here.)
+        const qfW=(actualScores.ko_qf||[]).filter(Boolean);
+        const sfW=new Set((actualScores.ko_sf||[]).filter(Boolean));
+        const losers=qfW.filter(t=>!sfW.has(t));
+        if(qfW.length<4||sfW.size<2||losers.length<2) continue; // semis unresolved
+        m.home=losers[0];m.away=losers[1];
       }
       if(m.runnerUp) continue; // runner-up auto-derived from fin winner select
       if(m.home==='?'&&m.away==='?') continue;
