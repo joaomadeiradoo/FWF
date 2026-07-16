@@ -293,7 +293,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
 </style>
 </head>
 <body>
-<!-- FWF-BUILD:20260716a -->
+<!-- FWF-BUILD:20260716b -->
 <div id="update-banner" onclick="fwfUpdateNow()" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99999;background:#FFD700;color:#0D1B2A;text-align:center;padding:11px;font-weight:800;font-size:.85rem;cursor:pointer;font-family:system-ui,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.4)">🔄 Nova versão disponível — toca para atualizar</div>
 <div id="ptr"><div id="ptr-spinner"></div></div>
 <nav id="bottom-nav">
@@ -560,7 +560,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
 </div>
 <script>
 // ═══ ANTI-CACHE: deteta versão nova no servidor e mostra barra (NÃO recarrega sozinho) ═══
-const FWF_BUILD='20260716a';
+const FWF_BUILD='20260716b';
 function fwfUpdateNow(){
   try{if(typeof hasUnsavedEdits!=='undefined'&&hasUnsavedEdits&&!confirm('Tens alterações por guardar. Atualizar mesmo assim?'))return;}catch(e){}
   location.href=location.pathname+'?v='+Date.now();
@@ -3501,7 +3501,9 @@ function renderOtherPreds(){
           else if(team===finAk[0]||team===finAk[1]) st='color:#ffd000';
           else st='color:#7a8a99;opacity:.6;text-decoration:line-through';
         } else if(finKnown){
-          st=finalists.has(team)?'color:#2dc653':'color:#7a8a99;opacity:.6;text-decoration:line-through';
+          // Final not played: nothing is correct yet, so no green. White = still
+          // standing, grey = eliminated. Green only ever means a played result.
+          if(!finalists.has(team)) st='color:#7a8a99;opacity:.6;text-decoration:line-through';
         }
         return `<span style="display:block;line-height:1.4;white-space:nowrap;${st}">${tag} ${abbr(team)}</span>`;
       };
@@ -3509,7 +3511,7 @@ function renderOtherPreds(){
         ? 'Os finalistas ainda não são conhecidos.'
         : (finDone
           ? '<span style="color:#2dc653">verde</span> = acertou · <span style="color:#ffd000">amarelo</span> = na final, posição trocada · <span style="color:#7a8a99;text-decoration:line-through">cinza</span> = fora'
-          : '<span style="color:#2dc653">verde</span> = está na final · <span style="color:#7a8a99;text-decoration:line-through">cinza</span> = eliminado');
+          : '<span style="color:#ccd6e0">branco</span> = ainda na final · <span style="color:#7a8a99;text-decoration:line-through">cinza</span> = eliminado');
       html+=`<div style="margin-bottom:18px"><div style="font-size:.75rem;font-weight:800;color:var(--gold);margin-bottom:4px">📋 Final</div>`;
       html+=`<div style="font-size:.58rem;color:var(--muted);margin-bottom:7px;line-height:1.6">🏆 campeão · 2º vice — ${legend}</div>`;
       html+=`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.68rem">`;
