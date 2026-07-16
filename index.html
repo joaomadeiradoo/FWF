@@ -293,7 +293,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
 </style>
 </head>
 <body>
-<!-- FWF-BUILD:20260629i -->
+<!-- FWF-BUILD:20260629j -->
 <div id="update-banner" onclick="fwfUpdateNow()" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99999;background:#FFD700;color:#0D1B2A;text-align:center;padding:11px;font-weight:800;font-size:.85rem;cursor:pointer;font-family:system-ui,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.4)">🔄 Nova versão disponível — toca para atualizar</div>
 <div id="ptr"><div id="ptr-spinner"></div></div>
 <nav id="bottom-nav">
@@ -560,7 +560,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
 </div>
 <script>
 // ═══ ANTI-CACHE: deteta versão nova no servidor e mostra barra (NÃO recarrega sozinho) ═══
-const FWF_BUILD='20260629i';
+const FWF_BUILD='20260629j';
 function fwfUpdateNow(){
   try{if(typeof hasUnsavedEdits!=='undefined'&&hasUnsavedEdits&&!confirm('Tens alterações por guardar. Atualizar mesmo assim?'))return;}catch(e){}
   location.href=location.pathname+'?v='+Date.now();
@@ -2536,16 +2536,28 @@ function calcMatch(pred,act){
   p+=(Math.abs(ph-ah)+Math.abs(pa-aa))*rules.wrong_goal;
   return p;
 }
-function calcTotal(uid,toggleOverride=null){
-  const pr=allPredictions[uid]||{};let tot=0;
+// ═══ Per-phase points breakdown — the single source of truth for scoring. ═══
+// calcTotal() is just the sum of this, so the two can never drift apart.
+// A phase holds the points produced by THAT round's matches:
+//   grupos : exact-score pts + group winner/2nd + the "reached R32" (32 qualifiers)
+//            layer — all of which resolve during / at the end of the group stage
+//   r32    : teams that won their R32 match (i.e. reached R16)   → +5 each
+//   r16    : teams that won their R16 match (reached QF)         → +10 each
+//   qf     : teams that won their QF match (reached SF)          → +15 each
+//   sf     : teams that won their SF match (the finalists)       → +15 each
+//   fin    : 3rd place +15 · champion +30 · vice +20 · top scorer +20
+//   adj    : manual host adjustments (belong to no phase)
+function calcBreakdown(uid,toggleOverride=null){
+  const pr=allPredictions[uid]||{};
   const tgl=toggleOverride||ptsToggles;
   // ═══ Option B point values (reach-based, cumulative) ═══
   const P={gw:5,gs:5,r32:5,r16:5,qf:10,sf:15,fin:15,f3:15,champ:30,vice:20,top:20};
+  const bd={grupos:0,r32:0,r16:0,qf:0,sf:0,fin:0,adj:0};
   // Group stage match scores
   for(const m of ALL_MATCHES){
     const p=pr[m.id]||{};const a=actualScores[m.id];
     if(a&&a.home!==undefined&&a.home!==''&&p.home!==undefined&&p.home!==''){
-      const pts=calcMatch(p,a);if(pts!==null) tot+=pts;
+      const pts=calcMatch(p,a);if(pts!==null) bd.grupos+=pts;
     }
   }
   // ═══ Group winner / 2nd — derived from predicted vs actual group standings ═══
@@ -2554,17 +2566,11 @@ function calcTotal(uid,toggleOverride=null){
   if(groupsComplete){
     for(const g of Object.keys(GROUPS)){
       const as=groupStandings(g,actualScores),ps=groupStandings(g,pr);
-      if(tgl.groupWinner&&as[0]&&as[0].name&&ps[0]&&ps[0].name===as[0].name) tot+=P.gw;
-      if(tgl.groupSecond&&as[1]&&as[1].name&&ps[1]&&ps[1].name===as[1].name) tot+=P.gs;
+      if(tgl.groupWinner&&as[0]&&as[0].name&&ps[0]&&ps[0].name===as[0].name) bd.grupos+=P.gw;
+      if(tgl.groupSecond&&as[1]&&as[1].name&&ps[1]&&ps[1].name===as[1].name) bd.grupos+=P.gs;
     }
   }
   // ═══ KNOCKOUT — Option B (reach-based, cumulative; layers stack) ═══
-  //   reach R32 = the 32 group qualifiers          → +5 each
-  //   reach R16 = winners of R32 matches (bp.r32)  → +5 each
-  //   reach QF  = winners of R16 matches (bp.r16)  → +10 each
-  //   reach SF  = winners of QF matches (bp.qf)    → +15 each
-  //   finalist  = winners of SF matches (bp.sf)    → +15 each
-  //   3rd (bp.f3) +15 · champion (fin[0]) +30 · vice (fin[1]) +20
   const bp=pr.bracket||{};
   const inter=(predArr,actArr,pts)=>{
     const A=new Set([].concat(actArr||[]).filter(Boolean));let n=0;
@@ -2576,27 +2582,80 @@ function calcTotal(uid,toggleOverride=null){
     try{
       const realQ=new Set(getQualified32(actualScores).map(t=>t&&t.name).filter(Boolean));
       let n=0;new Set(getQualified32(pr).map(t=>t&&t.name).filter(Boolean)).forEach(t=>{if(realQ.has(t))n++;});
-      tot+=n*P.r32;
+      bd.grupos+=n*P.r32;
     }catch(e){/* malformed prediction: skip R32 layer for this user */}
   }
-  tot+=inter(bp.r32,actualScores.ko_r32,P.r16);
-  tot+=inter(bp.r16,actualScores.ko_r16,P.qf);
-  tot+=inter(bp.qf, actualScores.ko_qf,P.sf);
-  tot+=inter(bp.sf, actualScores.ko_sf,P.fin);
-  tot+=inter(bp.f3, actualScores.ko_f3,P.f3);
+  bd.r32+=inter(bp.r32,actualScores.ko_r32,P.r16);
+  bd.r16+=inter(bp.r16,actualScores.ko_r16,P.qf);
+  bd.qf +=inter(bp.qf, actualScores.ko_qf,P.sf);
+  bd.sf +=inter(bp.sf, actualScores.ko_sf,P.fin);
+  bd.fin+=inter(bp.f3, actualScores.ko_f3,P.f3);
   const finPk=bp.fin||[],finAk=actualScores.ko_fin||[];
-  if(finPk[0]&&finAk[0]&&finPk[0]===finAk[0]) tot+=P.champ;
-  if(finPk[1]&&finAk[1]&&finPk[1]===finAk[1]) tot+=P.vice;
+  if(finPk[0]&&finAk[0]&&finPk[0]===finAk[0]) bd.fin+=P.champ;
+  if(finPk[1]&&finAk[1]&&finPk[1]===finAk[1]) bd.fin+=P.vice;
   if(actualScores.topScorer&&pr.topScorer){
     const score=fuzzyScore(pr.topScorer,actualScores.topScorer);
-    if(score===1||(score>=0.5&&(approvedTopScorers[uid]===true))) tot+=P.top;
+    if(score===1||(score>=0.5&&(approvedTopScorers[uid]===true))) bd.fin+=P.top;
   }
   // Manual host adjustments (offset layer). The automatic scoring above always
   // runs; these just ride on top. Each user's adjustments is an array of
   // {delta, reason, by, ts}. Sum the deltas.
-  tot+=adjustmentTotal(uid);
-  return tot;
+  bd.adj=adjustmentTotal(uid);
+  return bd;
 }
+function bdTotal(bd){return bd.grupos+bd.r32+bd.r16+bd.qf+bd.sf+bd.fin+bd.adj;}
+function calcTotal(uid,toggleOverride=null){return bdTotal(calcBreakdown(uid,toggleOverride));}
+// Which round's matches are being played right now — drives the phase column.
+function currentPhaseId(){
+  const n=r=>(actualScores[`ko_${r}`]||[]).filter(Boolean).length;
+  const groupsComplete=ALL_MATCHES.every(m=>{const a=actualScores[m.id];return a&&a.home!==undefined&&a.home!=='';});
+  if(!groupsComplete) return 'grupos';
+  if(n('r32')<16) return 'r32';
+  if(n('r16')<8)  return 'r16';
+  if(n('qf')<4)   return 'qf';
+  if(n('sf')<2)   return 'sf';
+  return 'fin';
+}
+const PHASE_LABELS={pt:{grupos:'GRUPOS',r32:'R32',r16:'R16',qf:'QF',sf:'MEIAS',fin:'FINAL'},
+                    en:{grupos:'GROUPS',r32:'R32',r16:'R16',qf:'QF',sf:'SEMIS',fin:'FINAL'}};
+// What a player still hasn't filled in — powers the clickable ⚠ badge.
+function predictionGaps(uid){
+  const pr=allPredictions[uid]||{};const bp=pr.bracket||{};const gaps=[];
+  if(!Object.keys(pr).length){gaps.push(lang==='pt'?'Nenhuma previsão submetida.':'No predictions submitted.');return gaps;}
+  const missGroups=ALL_MATCHES.filter(m=>{const p=pr[m.id]||{};return p.home===undefined||p.home===''||p.away===undefined||p.away==='';}).length;
+  if(missGroups) gaps.push(lang==='pt'?`Fase de grupos: ${missGroups} jogo(s) por preencher`:`Group stage: ${missGroups} match(es) missing`);
+  const need=[['r32',16,'R32'],['r16',8,'R16'],['qf',4,lang==='pt'?'Quartos':'Quarters'],
+              ['sf',2,lang==='pt'?'Meias':'Semis'],['fin',2,'Final'],['f3',1,lang==='pt'?'3.º Lugar':'3rd Place']];
+  for(const [k,n,label] of need){
+    const have=(bp[k]||[]).filter(t=>t&&t!=='TBD').length;
+    if(have<n) gaps.push(`${label}: ${have}/${n}`);
+  }
+  if(!(pr.topScorer&&pr.topScorer.trim())) gaps.push(lang==='pt'?'Melhor marcador em falta':'Top scorer missing');
+  return gaps;
+}
+function showInfoModal(title,bodyHtml){
+  let el=$('info-modal');
+  if(!el){
+    el=document.createElement('div');el.id='info-modal';
+    el.style.cssText='position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,.65);display:none;align-items:center;justify-content:center;padding:20px';
+    el.addEventListener('click',e=>{if(e.target===el)el.style.display='none';});
+    document.body.appendChild(el);
+  }
+  el.innerHTML=`<div style="background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px;max-width:380px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.6)">
+    <div style="font-family:var(--fh);color:var(--gold);font-size:.85rem;letter-spacing:1px;margin-bottom:10px">${title}</div>
+    <div style="font-size:.78rem;color:var(--text);line-height:1.65">${bodyHtml}</div>
+    <button class="btn btn-ghost btn-sm" style="margin-top:14px;width:100%" onclick="document.getElementById('info-modal').style.display='none'">${lang==='pt'?'Fechar':'Close'}</button>
+  </div>`;
+  el.style.display='flex';
+}
+function showPredGaps(uid){
+  const u=allUsers[uid]||{};const gaps=predictionGaps(uid);
+  const body=gaps.length
+    ?`<ul style="margin:0;padding-left:18px">${gaps.map(g=>`<li style="margin-bottom:4px">${g}</li>`).join('')}</ul>`
+    :`<span style="color:var(--green)">${lang==='pt'?'Tudo preenchido.':'Everything filled in.'}</span>`;
+  showInfoModal(`⚠ ${u.name||''} — ${lang==='pt'?'dados em falta':'missing data'}`,body);
+}
+window.showPredGaps=showPredGaps;
 // Sum of all manual point adjustments for a user (0 if none)
 function adjustmentTotal(uid){
   const adj=(currentComp&&currentComp.adjustments&&currentComp.adjustments[uid])||[];
@@ -2714,6 +2773,7 @@ function renderLeaderboard(){
 
   const TB_LABELS=['Acertou o campeão','Acertou o melhor marcador','Equipas certas nas meias','Equipas certas nos quartos','Equipas certas no R16','Equipas certas no R32','Resultados exactos nos grupos','Moeda ao ar'];
 
+  const phaseId=currentPhaseId();
   const rows=members.map(([uid,u])=>{
     const pr=allPredictions[uid]||{};
     const hasSome=Object.keys(pr).length>0;
@@ -2726,7 +2786,8 @@ function renderLeaderboard(){
     const complete=groupsFull&&bracketFull&&topScorer;
     const partial=sub&&!complete;
     const tb=calcTiebreakers(uid);
-    return{uid,name:u.name,pts:calcTotal(uid),sub,partial,complete,tb};
+    const bd=calcBreakdown(uid);
+    return{uid,name:u.name,pts:bdTotal(bd),phasePts:bd[phaseId]||0,sub,partial,complete,tb};
   }).sort((a,b)=>{
     if(a.sub!==b.sub) return a.sub?-1:1;
     if(b.pts!==a.pts) return b.pts-a.pts;
@@ -2735,8 +2796,16 @@ function renderLeaderboard(){
     return a.name.localeCompare(b.name,'pt');
   });
 
-  // Show tiebreaker explanation only after SF results published
-  const sfPublished=(actualScores.ko_sf||[]).filter(Boolean).length>0;
+  // Tiebreaker explanation is only worth the space in the FINAL standings, where
+  // it decides prizes. Mid-tournament it's noise under every tied name.
+  const compFinished=(actualScores.ko_fin||[]).filter(Boolean).length>=2;
+  // The ✓ tick matters only while predictions are still being submitted. Once the
+  // competition is underway it tells you nothing, so drop it and reclaim the space.
+  // Keep the column only if someone still has gaps worth flagging.
+  const compStarted=ALL_MATCHES.some(m=>{const a=actualScores[m.id];return a&&a.home!==undefined&&a.home!=='';});
+  const anyIncomplete=rows.some(r=>!r.complete);
+  const showBadgeCol=!compStarted||anyIncomplete;
+  const phaseLabel=(PHASE_LABELS[lang]||PHASE_LABELS.pt)[phaseId];
   lbRows=rows; // expose the exact ordered rows so the WhatsApp share image matches the site
 
   // Take snapshot at start of day
@@ -2745,7 +2814,8 @@ function renderLeaderboard(){
   let html=`<table class="leaderboard"><thead><tr>
     <th>#</th><th>${t('player')}</th>
     <th style="font-size:.72rem">${t('today')}</th>
-    <th>${t('totalPts')}</th><th></th>
+    <th style="font-size:.72rem">${phaseLabel}</th>
+    <th>${t('totalPts')}</th>${showBadgeCol?'<th></th>':''}
   </tr></thead><tbody>`;
   rows.forEach((r,i)=>{
     const rank=i+1;const prev=prevLb.findIndex(p=>p.uid===r.uid);
@@ -2760,8 +2830,14 @@ function renderLeaderboard(){
     const ptsCls=!r.sub?'':(r.pts>=0?'pts-pos':'pts-neg');
     const rankCell=rank===1?'🥇':rank===2?'🥈':rank===3?'🥉':rank;
     // Tiebreaker note — only when SF published and this user is tied in pts with adjacent user
+    const phaseStr=!r.sub?'<span style="color:var(--muted)">—</span>':(r.phasePts>0?`+${r.phasePts}`:r.phasePts<0?`${r.phasePts}`:'0');
+    const phaseCls=r.phasePts>0?'pts-today-pos':r.phasePts<0?'pts-today-neg':'pts-today-zero';
+    let badge='';
+    if(!compStarted&&r.complete) badge='<span class="badge badge-open">✓</span>';
+    else if(r.partial) badge=`<span class="badge" style="background:rgba(255,200,0,.15);color:#ffd000;border:1px solid rgba(255,200,0,.3);cursor:pointer" onclick="showPredGaps('${attrEsc(r.uid)}')" title="${lang==='pt'?'Ver dados em falta':'See missing data'}">⚠</span>`;
+    else if(!r.sub) badge=`<span class="badge badge-locked" style="cursor:pointer" onclick="showPredGaps('${attrEsc(r.uid)}')" title="${lang==='pt'?'Ver dados em falta':'See missing data'}">?</span>`;
     let tbNote='';
-    if(sfPublished&&r.sub){
+    if(compFinished&&r.sub){
       const prevRow=rows[i-1],nextRow=rows[i+1];
       const isTied=(prevRow&&prevRow.pts===r.pts&&prevRow.sub)||(nextRow&&nextRow.pts===r.pts&&nextRow.sub);
       if(isTied){
@@ -2780,8 +2856,8 @@ function renderLeaderboard(){
       <td class="${rc}" style="white-space:nowrap">${rankCell}${trend?` ${trend}`:''}</td>
       <td>${r.name}${r.uid===currentUser?.uid?' 👈':''}${adjBadge(r.uid)}${allUsers[r.uid]?.unpaidAnnounced?`<span class="unpaid-badge" title="Pagamento em falta — fala com o host">€</span>`:''}${tbNote}</td>
       <td class="${todayCls}">${todayStr}</td>
-      <td class="${ptsCls}">${ptsStr}</td>
-      <td>${r.complete?'<span class="badge badge-open">✓</span>':r.partial?'<span class="badge" style="background:rgba(255,200,0,.15);color:#ffd000;border:1px solid rgba(255,200,0,.3)">⚠</span>':'<span class="badge badge-locked">?</span>'}</td>
+      <td class="${phaseCls}">${phaseStr}</td>
+      <td class="${ptsCls}">${ptsStr}</td>${showBadgeCol?`<td>${badge}</td>`:''}
     </tr>`;
   });
   html+='</tbody></table>';c.innerHTML=html;
