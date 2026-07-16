@@ -19,7 +19,7 @@
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getAuth, signInAnonymously, signOut, onAuthStateChanged }
     from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-  import { getFirestore, doc, getDoc, setDoc, collection, getDocs, updateDoc, onSnapshot }
+  import { getFirestore, doc, getDoc, setDoc, collection, getDocs, updateDoc, onSnapshot, runTransaction, deleteField }
     from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
   const firebaseConfig = {
     apiKey: "AIzaSyAjKGFK8pAuO5ughXRAZXKbpriSQ-bcLKA",
@@ -34,7 +34,7 @@
   const auth = getAuth(app);
   const db = getFirestore(app);
   window._fb = { auth, db, signInAnonymously, signOut, onAuthStateChanged, 
-    doc, getDoc, setDoc, collection, getDocs, updateDoc, onSnapshot };
+    doc, getDoc, setDoc, collection, getDocs, updateDoc, onSnapshot, runTransaction, deleteField };
   window.dispatchEvent(new Event("firebase-ready"));
 </script>
 <style>
@@ -293,7 +293,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
 </style>
 </head>
 <body>
-<!-- FWF-BUILD:20260629j -->
+<!-- FWF-BUILD:20260629k -->
 <div id="update-banner" onclick="fwfUpdateNow()" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99999;background:#FFD700;color:#0D1B2A;text-align:center;padding:11px;font-weight:800;font-size:.85rem;cursor:pointer;font-family:system-ui,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.4)">🔄 Nova versão disponível — toca para atualizar</div>
 <div id="ptr"><div id="ptr-spinner"></div></div>
 <nav id="bottom-nav">
@@ -560,7 +560,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
 </div>
 <script>
 // ═══ ANTI-CACHE: deteta versão nova no servidor e mostra barra (NÃO recarrega sozinho) ═══
-const FWF_BUILD='20260629j';
+const FWF_BUILD='20260629k';
 function fwfUpdateNow(){
   try{if(typeof hasUnsavedEdits!=='undefined'&&hasUnsavedEdits&&!confirm('Tens alterações por guardar. Atualizar mesmo assim?'))return;}catch(e){}
   location.href=location.pathname+'?v='+Date.now();
@@ -1669,29 +1669,18 @@ async function doSimpleAuth(){
       if(members[uid].name===name&&members[uid].pin===pin) existingUid=uid;
     });
 
-    let effectiveUid=fbUid;
-    if(existingUid){
-      // Returning user. If the stored UID differs from current Firebase UID,
-      // migrate the membership entry + predictions to the new UID so writes work.
-      if(existingUid!==fbUid){
-        const compRef=doc(db,'competitions',compDoc.id);
-        const fresh=await getDoc(compRef);
-        if(fresh.exists()){
-          const fd=fresh.data();
-          const newMembers={...(fd.members||{})};
-          const oldMember=newMembers[existingUid];
-          if(oldMember){
-            newMembers[fbUid]=oldMember;
-            delete newMembers[existingUid];
-            const newPreds={...(fd.predictions||{})};
-            if(newPreds[existingUid]){newPreds[fbUid]=newPreds[existingUid];delete newPreds[existingUid];}
-            const writes={members:newMembers,predictions:newPreds};
-            if(fd.hostUid===existingUid) writes.hostUid=fbUid;
-            await updateDoc(compRef,writes);
-          }
-        }
-      }
-    }else{
+    // ═══ STABLE PLAYER IDENTITY — do not migrate UIDs ═══
+    // Firebase Anonymous Auth issues a NEW uid per device/browser, so the same
+    // person is uid X on their PC and uid Y on their phone. The old code reacted by
+    // MIGRATING members+predictions onto whichever uid logged in last. That made the
+    // key ping-pong on every device switch, and silently ORPHANED every other
+    // uid-keyed map — adjustments, playerChars, approvedTopScorers — because the
+    // migration only ever moved members and predictions. That is exactly why points
+    // changed depending on which device you logged in with.
+    // Fix: the anon uid authenticates only. The app identity is the uid this player
+    // already owns (found by name+PIN) and it never changes again.
+    let effectiveUid=existingUid||fbUid;
+    if(!existingUid){
       // New user — check for similar existing names to prevent accidental duplicates.
       // fuzzyScore returns 0-1; >0.82 is very likely the same person with a typo/variant.
       const similar=Object.values(members).find(m=>m.name&&fuzzyScore(m.name,name)>0.82);
@@ -1701,10 +1690,10 @@ async function doSimpleAuth(){
           :`"${similar.name}" already exists in this competition.\n\nIs that you? Use the exact name and PIN you used before to log in.\n\nIf you're a different person, click OK to continue.`;
         if(!confirm(msg)) return;
       }
-      // Add to competition under the Firebase UID
-      const newMembers={...members};
-      newMembers[fbUid]={name,pin,role:'member',joinedAt:new Date().toISOString()};
-      await updateDoc(doc(db,'competitions',compDoc.id),{members:newMembers});
+      // Add to competition under this device's Firebase UID. Written as a single
+      // field path so a simultaneous join from another device cannot clobber it
+      // (the old whole-map write would drop whichever member was written first).
+      await updateDoc(doc(db,'competitions',compDoc.id),{[`members.${fbUid}`]:{name,pin,role:'member',joinedAt:new Date().toISOString()}});
     }
 
     currentUser={uid:effectiveUid,displayName:name};
@@ -4004,7 +3993,7 @@ function renderHostAdjust(){
       const sign=a.delta>0?'+':'';const when=a.ts?new Date(a.ts).toLocaleDateString('pt-PT',{day:'2-digit',month:'short'}):'';
       return `<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;background:#0D1B2A;border:1px solid var(--border);border-radius:7px;padding:6px 9px">
         <span style="font-size:.74rem"><b style="color:${a.delta>0?'var(--green)':'var(--red)'}">${sign}${a.delta}</b> · ${a.reason?a.reason.replace(/</g,'&lt;'):'(sem motivo)'}<span style="color:var(--muted)">${when?' · '+when:''}</span></span>
-        <button class="btn btn-ghost btn-sm" style="padding:3px 8px;font-size:.7rem" onclick="removeAdjustment('${attrEsc(uid)}',${idx})">🗑️</button>
+        <button class="btn btn-ghost btn-sm" style="padding:3px 8px;font-size:.7rem" onclick="removeAdjustment('${attrEsc(uid)}',${a.ts||0})">🗑️</button>
       </div>`;
     }).join('')}</div>`:'';
     return `<div style="padding:11px 0;border-bottom:1px solid var(--border)">
@@ -4022,6 +4011,24 @@ function renderHostAdjust(){
     </div>`;
   }).join('');
 }
+// Atomically read-modify-write ONE player's adjustment list. Two guarantees:
+//  · runTransaction re-reads the server copy at write time, so a stale in-memory
+//    currentComp (backgrounded phone, listener not yet re-synced) can never be
+//    written back over another device's data.
+//  · the write is a single field path (adjustments.<uid>), so it physically cannot
+//    touch any other player — unlike the old whole-map write, where the last device
+//    to save replaced everyone's adjustments with its own snapshot.
+async function mutateAdjustments(uid,mutator){
+  const{db,doc,runTransaction,deleteField}=window._fb;
+  const ref=doc(db,'competitions',currentCompId);
+  await runTransaction(db,async tx=>{
+    const snap=await tx.get(ref);
+    if(!snap.exists()) throw new Error(lang==='pt'?'Competição não encontrada':'Competition not found');
+    const cur=((snap.data().adjustments)||{})[uid];
+    const next=mutator(Array.isArray(cur)?[...cur]:[]);
+    tx.update(ref,{[`adjustments.${uid}`]:(next&&next.length)?next:deleteField()});
+  });
+}
 async function addAdjustment(uid){
   if(!isAdmin){toast('Apenas host/admin',true);return;}
   const deltaInp=document.querySelector(`.adj-delta[data-uid="${cssEsc(uid)}"]`);
@@ -4030,28 +4037,27 @@ async function addAdjustment(uid){
   const delta=parseInt(deltaInp.value,10);
   if(isNaN(delta)||delta===0){toast(lang==='pt'?'Insere um valor (+ ou −)':'Enter a value',true);return;}
   const reason=(reasonInp?reasonInp.value:'').trim().slice(0,80);
-  const{db,doc,updateDoc}=window._fb;
-  const adjustments={...((currentComp&&currentComp.adjustments)||{})};
-  const list=Array.isArray(adjustments[uid])?[...adjustments[uid]]:[];
-  list.push({delta,reason,by:currentUser?.displayName||'host',ts:Date.now()});
-  adjustments[uid]=list;
   try{
-    await updateDoc(doc(db,'competitions',currentCompId),{adjustments});
+    await mutateAdjustments(uid,list=>{list.push({delta,reason,by:currentUser?.displayName||'host',ts:Date.now()});return list;});
+    deltaInp.value='';if(reasonInp)reasonInp.value='';
     toast(lang==='pt'?'Ajuste aplicado':'Adjustment applied');
   }catch(e){console.error(e);toast('Erro: '+e.message,true);}
 }
-async function removeAdjustment(uid,idx){
+// Removal targets the entry by its timestamp, not its position: the list may have
+// changed on the server since this screen was rendered, and an index would then
+// delete the wrong adjustment.
+async function removeAdjustment(uid,ts){
   if(!isAdmin){toast('Apenas host/admin',true);return;}
-  const adjustments={...((currentComp&&currentComp.adjustments)||{})};
-  const list=Array.isArray(adjustments[uid])?[...adjustments[uid]]:[];
-  if(idx<0||idx>=list.length) return;
   if(!confirm(lang==='pt'?'Remover este ajuste?':'Remove this adjustment?')) return;
-  list.splice(idx,1);
-  if(list.length) adjustments[uid]=list; else delete adjustments[uid];
-  const{db,doc,updateDoc}=window._fb;
   try{
-    await updateDoc(doc(db,'competitions',currentCompId),{adjustments});
-    toast(lang==='pt'?'Ajuste removido':'Adjustment removed');
+    let found=false;
+    await mutateAdjustments(uid,list=>{
+      const i=list.findIndex(a=>a&&a.ts===ts);
+      if(i>=0){list.splice(i,1);found=true;}
+      return list;
+    });
+    toast(found?(lang==='pt'?'Ajuste removido':'Adjustment removed')
+               :(lang==='pt'?'Esse ajuste já não existe':'That adjustment no longer exists'),!found);
   }catch(e){console.error(e);toast('Erro: '+e.message,true);}
 }
 // Escape a string for use inside a CSS attribute selector [data-uid="..."]
@@ -4663,26 +4669,14 @@ async function startFirebase(){
     });
 
     if(matchedUid){
-      // Found existing membership. If Firebase gave us a new UID, migrate the
-      // membership entry so this user's predictions/role move to the new UID.
-      if(matchedUid!==activeUid){
-        const oldMember=members[matchedUid];
-        const preds=compData.predictions||{};
-        // Move membership entry from old UID to new UID
-        const newMembers={...members};
-        newMembers[activeUid]=oldMember;
-        delete newMembers[matchedUid];
-        const newPreds={...preds};
-        if(newPreds[matchedUid]){newPreds[activeUid]=newPreds[matchedUid];delete newPreds[matchedUid];}
-        const writes={members:newMembers,predictions:newPreds};
-        // If this user was the host, update hostUid too
-        if(compData.hostUid===matchedUid) writes.hostUid=activeUid;
-        await updateDoc(compRef,writes);
-      }
-      localStorage.setItem('fwf_uid',activeUid);
-      currentUser={uid:activeUid,displayName:storedName};
+      // Found existing membership. Keep using the uid this player already owns —
+      // never migrate onto this device's anon uid. See doJoinCompetition for why:
+      // migrating ping-ponged the key between devices and orphaned adjustments,
+      // playerChars and approvedTopScorers, which were never moved.
+      localStorage.setItem('fwf_uid',matchedUid);
+      currentUser={uid:matchedUid,displayName:storedName};
       currentCompId=storedComp;
-      await initMainApp(activeUid);
+      await initMainApp(matchedUid);
     }else{
       // No name+PIN match in this competition -> they were kicked or PIN was wrong
       clearStoredAuth();
