@@ -293,7 +293,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
 </style>
 </head>
 <body>
-<!-- FWF-BUILD:20260716e -->
+<!-- FWF-BUILD:20260716f -->
 <div id="update-banner" onclick="fwfUpdateNow()" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99999;background:#FFD700;color:#0D1B2A;text-align:center;padding:11px;font-weight:800;font-size:.85rem;cursor:pointer;font-family:system-ui,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.4)">🔄 Nova versão disponível — toca para atualizar</div>
 <div id="ptr"><div id="ptr-spinner"></div></div>
 <nav id="bottom-nav">
@@ -560,7 +560,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
 </div>
 <script>
 // ═══ ANTI-CACHE: deteta versão nova no servidor e mostra barra (NÃO recarrega sozinho) ═══
-const FWF_BUILD='20260716e';
+const FWF_BUILD='20260716f';
 function fwfUpdateNow(){
   try{if(typeof hasUnsavedEdits!=='undefined'&&hasUnsavedEdits&&!confirm('Tens alterações por guardar. Atualizar mesmo assim?'))return;}catch(e){}
   location.href=location.pathname+'?v='+Date.now();
@@ -3273,8 +3273,19 @@ function downloadCSV(){
     const pr=allPredictions[uid]||{};
     const bp=pr.bracket||{};
     const pad=(arr,n)=>{const a=Array.isArray(arr)?arr.slice(0,n):[];while(a.length<n)a.push('');return a;};
-    const gw=groupKeys.map(g=>pr[`gw_${g}`]||'');
-    const gs=groupKeys.map(g=>pr[`gs_${g}`]||'');
+    // Derive the group 1st/2nd from the player's CURRENT predicted scores, using
+    // the same groupStandings() the scorer uses. Previously this exported the
+    // stored gw_/gs_ fields — which are a WRITE-ONCE SNAPSHOT: autoGroupKeys()
+    // fills them on first submit behind an `if(!userPredictions[k])` guard, so
+    // they are never refreshed when a player edits their group scores afterwards.
+    // calcBreakdown() derives live from the current scores, so any player who
+    // edited after their first submit had a CSV that disagreed with their own
+    // score — and any sheet built from that CSV inherited the disagreement.
+    // Exporting the derived value makes the CSV and the scorer agree by
+    // construction. gw_/gs_ now have no readers anywhere in the app.
+    const st=groupKeys.map(g=>groupStandings(g,pr));
+    const gw=st.map(x=>(x[0]&&x[0].P>0&&x[0].name)||'');
+    const gs=st.map(x=>(x[1]&&x[1].P>0&&x[1].name)||'');
     const koCols=[
       ...pad(bp.r32,16),
       ...pad(bp.r16,8),
