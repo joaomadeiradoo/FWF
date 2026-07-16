@@ -293,7 +293,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
 </style>
 </head>
 <body>
-<!-- FWF-BUILD:20260716f -->
+<!-- FWF-BUILD:20260716g -->
 <div id="update-banner" onclick="fwfUpdateNow()" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99999;background:#FFD700;color:#0D1B2A;text-align:center;padding:11px;font-weight:800;font-size:.85rem;cursor:pointer;font-family:system-ui,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.4)">🔄 Nova versão disponível — toca para atualizar</div>
 <div id="ptr"><div id="ptr-spinner"></div></div>
 <nav id="bottom-nav">
@@ -365,7 +365,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:7px;margin-bottom:12px">
         <h2 style="margin:0">🏆 Classificação</h2>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <button class="btn btn-ghost btn-sm" onclick="shareLeaderboard()">📤 Partilhar</button>
+          <button class="btn btn-ghost btn-sm" id="lb-share-btn" onclick="shareLeaderboard()">📤 Partilhar</button>
         </div>
       </div>
       <div id="lb-content"><p style="color:var(--muted)">A carregar...</p></div>
@@ -560,7 +560,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
 </div>
 <script>
 // ═══ ANTI-CACHE: deteta versão nova no servidor e mostra barra (NÃO recarrega sozinho) ═══
-const FWF_BUILD='20260716f';
+const FWF_BUILD='20260716g';
 function fwfUpdateNow(){
   try{if(typeof hasUnsavedEdits!=='undefined'&&hasUnsavedEdits&&!confirm('Tens alterações por guardar. Atualizar mesmo assim?'))return;}catch(e){}
   location.href=location.pathname+'?v='+Date.now();
@@ -2691,6 +2691,9 @@ function takeDailySnapshot(rows){
 // ═══ CLASSIFICAÇÃO ESTÁTICA (display-only) ═══
 // Os cálculos são feitos à parte pelo host; esta tabela mostra os valores fixos abaixo.
 // Para voltar ao cálculo automático: mudar STATIC_LEADERBOARD para false.
+// Tabela escondida: a classificação oficial é publicada à parte pelo host.
+// Para voltar a mostrar: mudar HIDE_LEADERBOARD para false.
+const HIDE_LEADERBOARD=true;
 const STATIC_LEADERBOARD=false;
 const STATIC_LB_DATA=[
   ['Rodrigo Silva',61,135],['João Eira',59,135],['Rafael Gamilha',54,135],['Miguel Rodrigues Lopes',52,140],
@@ -2724,6 +2727,15 @@ function staticLbRows(){
 
 function renderLeaderboard(){
   const c=$('lb-content');if(!c) return;
+  if(HIDE_LEADERBOARD){
+    lbRows=[];
+    c.innerHTML=`<div style="padding:26px 16px;text-align:center;color:var(--muted);font-size:.85rem;line-height:1.7">
+      <div style="font-size:1.6rem;margin-bottom:8px">📊</div>
+      <strong style="color:var(--gold);display:block;margin-bottom:6px">Classificação temporariamente indisponível</strong>
+      A classificação oficial está a ser publicada à parte pelo Professor Karamba.<br>Volta em breve.
+    </div>`;
+    return;
+  }
   if(STATIC_LEADERBOARD){
     const rows=staticLbRows();lbRows=rows;
     let h=`<table class="leaderboard"><thead><tr><th>#</th><th>${t('player')}</th><th style="font-size:.72rem">R32</th><th>${t('totalPts')}</th></tr></thead><tbody>`;
@@ -3173,6 +3185,9 @@ function renderDailySummary(rows){
 
 // ═══ SHARE / CSV ═══
 async function shareLeaderboard(){
+  // The share image is drawn from lbRows, which is empty while the table is
+  // hidden — it would produce a blank board. Nothing to share.
+  if(HIDE_LEADERBOARD) return;
   const canvas=$('lb-canvas');const wrap=$('lb-canvas-wrap');
   // Use the EXACT rows the leaderboard computed (same order, tiebreakers, submitted handling)
   if(!lbRows.length) renderLeaderboard();
@@ -4645,7 +4660,7 @@ function showTab(id){
   const tb=$(`tab-btn-${id.replace('tab-','')}`);if(tb) tb.classList.add('active');
   document.querySelectorAll('.bnav-btn').forEach(el=>el.classList.remove('active'));
   const nb=$(`bnav-${id.replace('tab-','')}`);if(nb) nb.classList.add('active');
-  if(id==='tab-leaderboard'){renderLeaderboard();renderPodium();renderOtherPreds();renderLive();}
+  if(id==='tab-leaderboard'){const sb=$('lb-share-btn');if(sb&&HIDE_LEADERBOARD)sb.style.display='none';renderLeaderboard();renderPodium();renderOtherPreds();renderLive();}
   if(id==='tab-grupos') renderGruposTab();
   if(id==='tab-bracket'){renderBracket();renderBracketMobile();renderBracketSwipe();}
   if(id==='tab-historia'){renderPodium();renderHistoria();}
