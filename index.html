@@ -182,6 +182,8 @@ table.gct tr:nth-child(3) td{background:rgba(255,215,0,.03)}
 .skel-name{flex:1;min-width:0}
 .skel-pts{width:34px;flex-shrink:0}
 @media(prefers-reduced-motion:reduce){.skel{animation:none}}
+.lb-name{cursor:pointer;border-bottom:1px dotted rgba(255,215,0,.35)}
+.lb-name:hover{color:var(--gold)}
 #lb-tools{display:flex;gap:6px;align-items:center;margin-bottom:10px}
 #lb-search{flex:1;min-width:0;background:var(--dark);border:1px solid var(--border);color:var(--text);font-family:var(--fb);font-size:.82rem;padding:9px 11px;border-radius:9px;min-height:36px}
 #lb-search:focus{outline:none;border-color:var(--gold)}
@@ -312,7 +314,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
 </style>
 </head>
 <body>
-<!-- FWF-BUILD:20260717b -->
+<!-- FWF-BUILD:20260717c -->
 <div id="update-banner" onclick="fwfUpdateNow()" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99999;background:#FFD700;color:#0D1B2A;text-align:center;padding:11px;font-weight:800;font-size:.85rem;cursor:pointer;font-family:system-ui,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.4)">🔄 Nova versão disponível — toca para atualizar</div>
 <div id="ptr"><div id="ptr-spinner"></div></div>
 <nav id="bottom-nav">
@@ -584,7 +586,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
 </div>
 <script>
 // ═══ ANTI-CACHE: deteta versão nova no servidor e mostra barra (NÃO recarrega sozinho) ═══
-const FWF_BUILD='20260717b';
+const FWF_BUILD='20260717c';
 function fwfUpdateNow(){
   try{if(typeof hasUnsavedEdits!=='undefined'&&hasUnsavedEdits&&!confirm('Tens alterações por guardar. Atualizar mesmo assim?'))return;}catch(e){}
   location.href=location.pathname+'?v='+Date.now();
@@ -1820,11 +1822,35 @@ async function regenerateCode(){
   await updateDoc(doc(db,'competitions',currentCompId),{inviteCode:code});
   $('host-invite-code').textContent=code;toast(t('copied'));
 }
+// ═══ MEMBER MUTATION — field paths + transaction (§6.4) ═══
+// Every mutator below used to do `const members={...allUsers}; updateDoc({members})`
+// — a whole-object write of a shared, per-uid map, built from a local snapshot.
+// Two admins acting at once, or one stale onSnapshot, and the loser's change is
+// silently reverted. kickUser was worse: it also wrote back the ENTIRE predictions
+// map, so kicking one player while allPredictions was stale reverted someone
+// else's submission. Same failure mode that made autoApplyScores() a permanent
+// no-go (§6.2).
+//
+// mutateMember reads the member INSIDE a transaction and writes ONE field path.
+// Concurrent edits to different players can no longer touch each other; a
+// concurrent edit to the same player retries against fresh data.
+// Behaviour is unchanged — only the write mechanism.
+async function mutateMember(uid,mutator){
+  const{db,doc,runTransaction}=window._fb;
+  const ref=doc(db,'competitions',currentCompId);
+  await runTransaction(db,async tx=>{
+    const snap=await tx.get(ref);
+    if(!snap.exists()) throw new Error(lang==='pt'?'Competição não encontrada':'Competition not found');
+    const cur=((snap.data().members)||{})[uid];
+    if(!cur) throw new Error(lang==='pt'?'Participante não encontrado':'Member not found');
+    tx.update(ref,{[`members.${uid}`]:mutator({...cur})});
+  });
+}
 async function toggleAdmin(uid){
   if(!isHost) return;
-  const{db,doc,updateDoc}=window._fb;const members={...allUsers};if(!members[uid]) return;
-  members[uid].role=members[uid].role==='admin'?'member':'admin';
-  await updateDoc(doc(db,'competitions',currentCompId),{members});toast(t('saved'));
+  if(!allUsers[uid]) return;
+  try{ await mutateMember(uid,m=>({...m,role:m.role==='admin'?'member':'admin'})); toast(t('saved')); }
+  catch(e){ toast(e.message||'Erro',true); }
 }
 async function kickUser(uid,name){
   if(!isAdmin) return;
@@ -1833,10 +1859,22 @@ async function kickUser(uid,name){
     toast(lang==='pt'?'Não podes expulsar o host':'Cannot kick the host',true);return;
   }
   if(!confirm(lang==='pt'?`Expulsar ${name}? Esta ação remove o utilizador permanentemente da competição.`:`Kick ${name}? This permanently removes the user from the competition.`)) return;
-  const{db,doc,updateDoc}=window._fb;
-  const members={...allUsers};delete members[uid];
-  const preds={...allPredictions};delete preds[uid];
-  await updateDoc(doc(db,'competitions',currentCompId),{members,predictions:preds});
+  // Two field-path deletes in ONE transaction. The old version rebuilt the whole
+  // members AND predictions maps from local state and wrote them back wholesale —
+  // one stale snapshot and kicking A silently reverted B's predictions.
+  const{db,doc,runTransaction,deleteField}=window._fb;
+  const ref=doc(db,'competitions',currentCompId);
+  try{
+    await runTransaction(db,async tx=>{
+      const snap=await tx.get(ref);
+      if(!snap.exists()) throw new Error(lang==='pt'?'Competição não encontrada':'Competition not found');
+      const d=snap.data();
+      // Re-check the host guard against FRESH data, not the local copy.
+      if(((d.members||{})[uid]||{}).role==='host'||d.hostUid===uid)
+        throw new Error(lang==='pt'?'Não podes expulsar o host':'Cannot kick the host');
+      tx.update(ref,{[`members.${uid}`]:deleteField(),[`predictions.${uid}`]:deleteField()});
+    });
+  }catch(e){ toast(e.message||'Erro',true); return; }
   toast(lang==='pt'?'Utilizador expulso':'User kicked');
 }
 
@@ -2659,6 +2697,100 @@ function predictionGaps(uid){
   if(!(pr.topScorer&&pr.topScorer.trim())) gaps.push(lang==='pt'?'Melhor marcador em falta':'Top scorer missing');
   return gaps;
 }
+// ═══ PLAYER PROFILE (#7) ═══
+// WHICH STATS: decided here, not asked. The rule was "only show what the app can
+// already prove". calcBreakdown() already computes a full per-layer breakdown AND
+// fills bd.dbg with per-sub-layer diagnostics — that instrumentation exists for
+// the CSV audit and is exactly a profile. So the profile is a VIEW over the single
+// scoring path (§6.1), never a second computation. Nothing here re-derives a total.
+//
+// Deliberately absent: "best day"/"worst day" and any history-over-time. The app
+// keeps no points history — only today's opening snapshot (see takeDailySnapshot).
+// Inventing a trend from one data point would be fiction.
+//
+// Shaped for #21 (head-to-head): profileStats(uid) returns rows, render is separate.
+// #21 is then two columns of the same rows, not new logic.
+function profileStats(uid){
+  const bd=calcBreakdown(uid);
+  const d=bd.dbg||{};
+  const pr=allPredictions[uid]||{};
+  const bp=pr.bracket||{};
+  const hit=(pred,act)=>{
+    const A=new Set([].concat(act||[]).filter(Boolean));
+    if(!A.size) return null; // round not played yet — don't imply a zero
+    let n=0;new Set([].concat(pred||[]).filter(Boolean)).forEach(t=>{if(A.has(t))n++;});
+    return{n,of:A.size};
+  };
+  const pt=lang==='pt';
+  const rounds=[
+    ['R32',hit(bp.r32,actualScores.ko_r32)],
+    ['R16',hit(bp.r16,actualScores.ko_r16)],
+    [pt?'Quartos':'Quarters',hit(bp.qf,actualScores.ko_qf)],
+    [pt?'Meias':'Semis',hit(bp.sf,actualScores.ko_sf)],
+  ];
+  // Exact group scorelines called — counted, not scored (scoring is calcBreakdown's job)
+  let exact=0,played=0;
+  for(const m of ALL_MATCHES){
+    const p=pr[m.id]||{},a=actualScores[m.id];
+    if(!(a&&a.home!==undefined&&a.home!=='')) continue;
+    played++;
+    if(p.home!==undefined&&p.home!==''&&parseInt(p.home)===parseInt(a.home)&&parseInt(p.away)===parseInt(a.away))exact++;
+  }
+  return{bd,d,bp,pr,rounds,exact,played,total:bdTotal(bd)};
+}
+function showPlayerProfile(uid){
+  const u=allUsers[uid]||{};
+  if(!u.name){showInfoModal('—',lang==='pt'?'Participante não encontrado.':'Player not found.');return;}
+  const pt=lang==='pt';
+  if(!Object.keys(allPredictions[uid]||{}).length){
+    showInfoModal(`👤 ${u.name}`,`<span style="color:var(--muted)">${pt?'Este jogador não submeteu previsões.':'This player has not submitted predictions.'}</span>`);
+    return;
+  }
+  const s=profileStats(uid);
+  const sign=n=>`${n>0?'+':''}${n}`;
+  const cls=n=>n>0?'pts-pos':n<0?'pts-neg':'';
+  const row=(label,val,sub)=>`<div style="display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05)">
+    <span style="color:${sub?'var(--muted)':'var(--text)'};${sub?'padding-left:12px;font-size:.72rem':''}">${label}</span>
+    <span class="${sub?'':cls(val)}" style="white-space:nowrap;${sub?'color:var(--muted);font-size:.72rem':'font-weight:700'}">${typeof val==='number'?sign(val):val}</span></div>`;
+
+  let h=`<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px">
+    <span style="color:var(--muted);font-size:.72rem">${pt?'Total':'Total'}</span>
+    <span class="${cls(s.total)}" style="font-family:var(--fh);font-size:1.6rem">${sign(s.total)}</span></div>`;
+
+  h+=`<div style="color:var(--gold);font-size:.68rem;letter-spacing:1px;font-family:var(--fh);margin:10px 0 4px">${pt?'POR FASE':'BY PHASE'}</div>`;
+  h+=row(pt?'Grupos':'Groups',s.bd.grupos);
+  h+=row(pt?'· resultados exactos':'· exact scores',s.d.exatos||0,true);
+  h+=row(pt?'· 1.ºs de grupo':'· group winners',s.d.gw||0,true);
+  h+=row(pt?'· 2.ºs de grupo':'· group runners-up',s.d.gs||0,true);
+  h+=row(pt?'· equipas no R32':'· teams reaching R32',s.d.r32reach||0,true);
+  h+=row('R32',s.bd.r32);
+  h+=row('R16',s.bd.r16);
+  h+=row(pt?'Quartos':'Quarters',s.bd.qf);
+  h+=row(pt?'Meias':'Semis',s.bd.sf);
+  h+=row('Final',s.bd.fin);
+  if(s.d.f3)h+=row(pt?'· 3.º lugar':'· 3rd place',s.d.f3,true);
+  if(s.d.champ)h+=row(pt?'· campeão':'· champion',s.d.champ,true);
+  if(s.d.vice)h+=row(pt?'· vice':'· runner-up',s.d.vice,true);
+  if(s.d.top)h+=row(pt?'· melhor marcador':'· top scorer',s.d.top,true);
+  if(s.bd.adj)h+=row(pt?'Ajustes do host':'Host adjustments',s.bd.adj);
+
+  h+=`<div style="color:var(--gold);font-size:.68rem;letter-spacing:1px;font-family:var(--fh);margin:12px 0 4px">${pt?'PRECISÃO':'ACCURACY'}</div>`;
+  h+=row(pt?'Resultados exactos':'Exact scorelines',s.played?`${s.exact}/${s.played}`:'—');
+  for(const [label,r] of s.rounds) h+=row(pt?`Equipas certas · ${label}`:`Teams right · ${label}`,r?`${r.n}/${r.of}`:'—');
+
+  const fin=s.bp.fin||[];
+  h+=`<div style="color:var(--gold);font-size:.68rem;letter-spacing:1px;font-family:var(--fh);margin:12px 0 4px">${pt?'APOSTAS':'PICKS'}</div>`;
+  h+=row(pt?'Campeão':'Champion',fin[0]||'—');
+  h+=row(pt?'Vice':'Runner-up',fin[1]||'—');
+  h+=row(pt?'3.º lugar':'3rd place',(s.bp.f3||[])[0]||'—');
+  h+=row(pt?'Melhor marcador':'Top scorer',s.pr.topScorer||'—');
+  h+=`<div style="margin-top:10px;color:var(--muted);font-size:.66rem;line-height:1.5">${pt
+    ?'Números calculados pela app (calcBreakdown). A classificação oficial é publicada à parte pelo host e pode diferir.'
+    :'Figures computed by the app (calcBreakdown). The official classification is published separately by the host and may differ.'}</div>`;
+
+  showInfoModal(`👤 ${u.name}`,h);
+}
+window.showPlayerProfile=showPlayerProfile;
 function showInfoModal(title,bodyHtml){
   let el=$('info-modal');
   if(!el){
@@ -2996,7 +3128,7 @@ function renderLeaderboard(){
     }
     html+=`<tr data-lbname="${attrEsc(_lbNorm(r.name))}"${r.uid===currentUser?.uid?' data-lbme="1"':''}>
       <td class="${rc}" style="white-space:nowrap">${rankCell}${trend?` ${trend}`:''}</td>
-      <td>${r.name}${r.uid===currentUser?.uid?' 👈':''}${adjBadge(r.uid)}${allUsers[r.uid]?.unpaidAnnounced?`<span class="unpaid-badge" title="Pagamento em falta — fala com o host">€</span>`:''}${tbNote}</td>
+      <td><span class="lb-name" onclick="showPlayerProfile('${attrEsc(r.uid)}')" title="${lang==='pt'?'Ver perfil':'View profile'}">${r.name}</span>${r.uid===currentUser?.uid?' 👈':''}${adjBadge(r.uid)}${allUsers[r.uid]?.unpaidAnnounced?`<span class="unpaid-badge" title="Pagamento em falta — fala com o host">€</span>`:''}${tbNote}</td>
       <td class="${todayCls}">${todayStr}</td>
       <td class="${phaseCls}">${phaseStr}</td>
       <td class="${ptsCls}">${ptsStr}</td>${showBadgeCol?`<td>${badge}</td>`:''}
@@ -4127,7 +4259,7 @@ function renderHostMembers(){
   if(!members.length){c.innerHTML='<p style="color:var(--muted)">Nenhum participante</p>';return;}
   c.innerHTML=`<table class="leaderboard" style="margin-bottom:0;font-size:.78rem"><thead><tr><th>Nome</th><th>Role</th><th>Pts</th><th style="min-width:200px"></th></tr></thead><tbody>
   ${members.map(([uid,u])=>{const role=u.role||'member';const paid=!!u.paid;const unpaid=!!u.unpaidAnnounced;return`<tr>
-    <td>${u.name}${uid===currentUser.uid?' ⭐':''}</td>
+    <td><span class="lb-name" onclick="showPlayerProfile('${attrEsc(uid)}')" title="Ver perfil">${u.name}</span>${uid===currentUser.uid?' ⭐':''}</td>
     <td><span class="badge ${role==='host'?'badge-host':role==='admin'?'badge-admin':'badge-locked'}" style="font-size:.65rem">${role.toUpperCase()}</span>${isHost?`<div style="font-size:.62rem;color:var(--muted);margin-top:2px">PIN: ${u.pin||'—'}</div>`:''}</td>
     <td class="${calcTotal(uid)>=0?'pts-pos':'pts-neg'}" style="font-size:.78rem">${calcTotal(uid)>=0?'+':''}${calcTotal(uid)}</td>
     <td style="display:flex;gap:3px;flex-wrap:nowrap;align-items:center">
@@ -4150,28 +4282,26 @@ async function togglePaid(uid){
   const u=allUsers[uid];if(!u)return;
   const nowPaid=!u.paid;
   if(!confirm(nowPaid?`Marcar ${u.name} como PAGO?`:`Remover pagamento de ${u.name}?`))return;
-  const{db,doc,updateDoc}=window._fb;
-  const members={...allUsers};
-  members[uid]={...members[uid],paid:nowPaid};
-  // If marking as paid, clear unpaid announcement
-  if(nowPaid)members[uid].unpaidAnnounced=false;
-  await updateDoc(doc(db,'competitions',currentCompId),{members});toast(nowPaid?`✓ ${u.name} marcado como pago`:`${u.name} desmarcado`);
+  try{
+    // Marking paid also clears the unpaid announcement — preserved from the original.
+    await mutateMember(uid,m=>({...m,paid:nowPaid,...(nowPaid?{unpaidAnnounced:false}:{})}));
+    toast(nowPaid?`✓ ${u.name} marcado como pago`:`${u.name} desmarcado`);
+  }catch(e){ toast(e.message||'Erro',true); }
 }
 async function toggleUnpaidAnnounce(uid,name){
   if(!isHost)return;
   const u=allUsers[uid];if(!u)return;
   const nowAnnounced=!u.unpaidAnnounced;
   if(!confirm(nowAnnounced?`Anunciar ${name} como NÃO PAGO? Ficará visível na classificação.`:`Remover aviso de não pagamento de ${name}?`))return;
-  const{db,doc,updateDoc}=window._fb;
-  const members={...allUsers};
-  members[uid]={...members[uid],unpaidAnnounced:nowAnnounced,paid:nowAnnounced?false:members[uid].paid};
-  await updateDoc(doc(db,'competitions',currentCompId),{members});
-  toast(nowAnnounced?`€ ${name} anunciado como não pago`:`Aviso removido de ${name}`);
+  try{
+    await mutateMember(uid,m=>({...m,unpaidAnnounced:nowAnnounced,paid:nowAnnounced?false:m.paid}));
+    toast(nowAnnounced?`€ ${name} anunciado como não pago`:`Aviso removido de ${name}`);
+  }catch(e){ toast(e.message||'Erro',true); }
 }
 async function toggleUnlock(uid){
-  const{db,doc,updateDoc}=window._fb;const members={...allUsers};if(!members[uid]) return;
-  members[uid].unlockedEdit=!members[uid].unlockedEdit;
-  await updateDoc(doc(db,'competitions',currentCompId),{members});toast(t('saved'));
+  if(!allUsers[uid]) return;
+  try{ await mutateMember(uid,m=>({...m,unlockedEdit:!m.unlockedEdit})); toast(t('saved')); }
+  catch(e){ toast(e.message||'Erro',true); }
 }
 
 // ═══ POINTS ADJUSTMENTS (host-only manual override layer) ═══

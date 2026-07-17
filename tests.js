@@ -100,7 +100,7 @@ function loadApp() {
     ;__fwf = {
       calcMatch, calcBreakdown, bdTotal, calcTotal, groupStandings,
       getQualified32, getBestThirds, ALL_MATCHES, GROUPS, MATCH_SCHEDULE,
-      DEFAULT_RULES, currentPhaseId,
+      DEFAULT_RULES, currentPhaseId, profileStats,
       setState(a, p) { actualScores = a; allPredictions = p; },
       setToggles(t) { ptsToggles = t; },
       setAdjustments(x) { adjustments = x; },
@@ -451,6 +451,47 @@ test('a malformed prediction does not throw', () => {
   const s = fullGroupStage();
   withState({ ...s, ko_r32: null, ko_fin: undefined }, { bracket: { r32: [null, 'TBD', undefined] } },
     () => { A.bdTotal(A.calcBreakdown(U)); });
+});
+
+/* ─────────────────────────────────────────────────────────────────────────
+   5b. profileStats (#7) — must be a VIEW over calcBreakdown, never a 2nd path
+   ───────────────────────────────────────────────────────────────────────── */
+group('profileStats — a view over the single scoring path (§6.1)');
+
+test('profileStats total always equals bdTotal(calcBreakdown) exactly', () => {
+  const s = fullGroupStage();
+  const team = A.groupStandings(Object.keys(A.GROUPS)[0], s)[0].name;
+  const cases = [
+    [{}, {}],
+    [s, { ...s, bracket: emptyBracket }],
+    [{ ...s, ko_r32: [team], ko_r16: [team], ko_qf: [], ko_sf: [], ko_fin: [], ko_f3: [] },
+     { ...s, bracket: { ...emptyBracket, r32: [team], r16: [team] } }],
+  ];
+  for (const [actual, pred] of cases) {
+    withState(actual, pred, () => {
+      eq(A.profileStats(U).total, A.bdTotal(A.calcBreakdown(U)), 'profile total drifted from the scorer');
+    });
+  }
+});
+test('profileStats exact-scoreline count never exceeds matches played', () => {
+  const s = fullGroupStage();
+  withState(s, { ...s, bracket: emptyBracket }, () => {
+    const p = A.profileStats(U);
+    eq(p.played, 72, 'all group matches played');
+    ok(p.exact <= p.played, 'exact > played is impossible');
+    eq(p.exact, 72, 'a perfect group stage is 72/72 exact');
+  });
+});
+test('profileStats reports null (not 0) for a round that has not been played', () => {
+  const s = fullGroupStage();
+  withState({ ...s, ko_r32: [], ko_r16: [], ko_qf: [], ko_sf: [] },
+    { ...s, bracket: emptyBracket }, () => {
+      for (const [label, r] of A.profileStats(U).rounds)
+        eq(r, null, `${label} should be null, not a fake 0/0`);
+    });
+});
+test('profileStats does not throw on a malformed prediction', () => {
+  withState({ ko_r32: null }, { bracket: { r32: [null, 'TBD'] } }, () => { A.profileStats(U); });
 });
 
 /* ─────────────────────────────────────────────────────────────────────────
