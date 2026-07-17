@@ -166,7 +166,16 @@ table.gct tr:nth-child(3) td{background:rgba(255,215,0,.03)}
 .b-team.advanced{background:rgba(255,215,0,.16);color:var(--gold);box-shadow:inset 3px 0 0 var(--gold)}
 /* Leaderboard */
 .leaderboard{width:100%;border-collapse:collapse}
-.leaderboard th{background:rgba(255,215,0,.1);color:var(--gold);font-family:var(--fh);letter-spacing:1px;padding:9px 8px;text-align:left;font-size:.8rem;border-bottom:1px solid var(--border)}
+/* Sticky header: the translucent gold wash needs an opaque base or rows scroll
+   through it. background-image keeps the exact original tint over var(--card). */
+.leaderboard th{position:sticky;top:0;z-index:3;background-color:var(--card);background-image:linear-gradient(rgba(255,215,0,.1),rgba(255,215,0,.1));color:var(--gold);font-family:var(--fh);letter-spacing:1px;padding:9px 8px;text-align:left;font-size:.8rem;border-bottom:1px solid var(--border)}
+/* "Onde estou?" — pulse the row so the eye lands on it after the scroll. */
+@keyframes lbFlash{0%,100%{background:transparent}18%,55%{background:rgba(255,215,0,.22)}}
+.leaderboard tr.lb-flash td{animation:lbFlash 1.5s ease-in-out}
+#lb-tools{display:flex;gap:6px;align-items:center;margin-bottom:10px}
+#lb-search{flex:1;min-width:0;background:var(--dark);border:1px solid var(--border);color:var(--text);font-family:var(--fb);font-size:.82rem;padding:9px 11px;border-radius:9px;min-height:36px}
+#lb-search:focus{outline:none;border-color:var(--gold)}
+#lb-search::placeholder{color:var(--muted)}
 .leaderboard td{padding:10px 8px;border-bottom:1px solid rgba(255,255,255,.05);font-size:.84rem}
 .r1{color:var(--gold);font-weight:800}.r2{color:#C0C0C0;font-weight:800}.r3{color:#cd7f32;font-weight:800}
 .pts-pos{color:var(--green);font-weight:800}.pts-neg{color:var(--red);font-weight:800}
@@ -293,7 +302,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
 </style>
 </head>
 <body>
-<!-- FWF-BUILD:20260716g -->
+<!-- FWF-BUILD:20260717a -->
 <div id="update-banner" onclick="fwfUpdateNow()" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99999;background:#FFD700;color:#0D1B2A;text-align:center;padding:11px;font-weight:800;font-size:.85rem;cursor:pointer;font-family:system-ui,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.4)">🔄 Nova versão disponível — toca para atualizar</div>
 <div id="ptr"><div id="ptr-spinner"></div></div>
 <nav id="bottom-nav">
@@ -368,7 +377,12 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
           <button class="btn btn-ghost btn-sm" id="lb-share-btn" onclick="shareLeaderboard()">📤 Partilhar</button>
         </div>
       </div>
+      <div id="lb-tools" class="hidden">
+        <input id="lb-search" type="search" autocomplete="off" placeholder="🔎 Procurar jogador…" oninput="lbApplyFilter()"/>
+        <button class="btn btn-ghost btn-sm hidden" id="lb-findme-btn" onclick="lbFindMe()">👈 Onde estou?</button>
+      </div>
       <div id="lb-content"><p style="color:var(--muted)">A carregar...</p></div>
+      <div id="lb-noresults" class="hidden" style="padding:18px 8px;text-align:center;color:var(--muted);font-size:.82rem">Nenhum jogador encontrado.</div>
       <div id="lb-canvas-wrap"><canvas id="lb-canvas"></canvas><div style="margin-top:7px"><button class="btn btn-ghost btn-sm" onclick="downloadLb()">⬇️ Imagem</button></div></div>
     </div>
     <div class="card"><h2>👁️ Previsões dos outros</h2><p style="color:var(--muted);font-size:.8rem;margin-bottom:10px">Visíveis após submeter as tuas.</p><div id="op-content"></div></div>
@@ -560,7 +574,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
 </div>
 <script>
 // ═══ ANTI-CACHE: deteta versão nova no servidor e mostra barra (NÃO recarrega sozinho) ═══
-const FWF_BUILD='20260716g';
+const FWF_BUILD='20260717a';
 function fwfUpdateNow(){
   try{if(typeof hasUnsavedEdits!=='undefined'&&hasUnsavedEdits&&!confirm('Tens alterações por guardar. Atualizar mesmo assim?'))return;}catch(e){}
   location.href=location.pathname+'?v='+Date.now();
@@ -1495,11 +1509,19 @@ const KO_ROUNDS=[
 
 // FIFA 2026 R32 match dates (Matches 73-88, Jul 1-4)
 const R32_MATCH_DATES={73:'1 Jul',74:'1 Jul',75:'1 Jul',76:'1 Jul',77:'2 Jul',78:'2 Jul',79:'2 Jul',80:'2 Jul',81:'3 Jul',82:'3 Jul',83:'3 Jul',84:'3 Jul',85:'4 Jul',86:'4 Jul',87:'4 Jul',88:'4 Jul'};
+// ⚠️ The 11 reach/bonus values below MUST mirror `P` inside calcBreakdown() —
+// that is the only place scoring actually reads. These are DISPLAY values (Regras
+// tab + host panel). They were out of sync (gw:6, gs:4, r16:10, finalist:25,
+// third:25, runner_up:30, top_scorer:30) and only looked right because Firestore
+// overrides them for THIS competition. A new competition with no `rules` doc would
+// have advertised points it does not pay. Synced by hand — keep them synced.
+// Only correct_result / wrong_goal / wrong_outcome / wrong_outcome_win are read
+// by the scorer (calcMatch); those are unchanged.
 const DEFAULT_RULES={
   correct_result:3,wrong_goal:-1,wrong_outcome:-2,wrong_outcome_win:-4,
-  group_winner:6,group_second:4,
-  round32:5,round16:10,quarters:10,semis:15,
-  finalist:25,third:25,runner_up:30,winner:30,top_scorer:30
+  group_winner:5,group_second:5,
+  round32:5,round16:5,quarters:10,semis:15,
+  finalist:15,third:15,runner_up:20,winner:30,top_scorer:20
 };
 const RULE_ITEMS=[
   {k:'correct_result',label:{pt:'Resultado correcto',en:'Correct result'}},
@@ -2725,10 +2747,60 @@ function staticLbRows(){
   return STATIC_LB_DATA.map((r,i)=>({name:r[0],pts:r[1],r32:r[2],sub:true,isMe:i===myIdx}));
 }
 
+// ═══ SEARCH / FIND-ME ═══
+// Filtering is done by toggling row display in the DOM, NOT by re-running
+// renderLeaderboard(). That is deliberate: renderLeaderboard() also writes
+// prevLb, lbRows and takes the daily snapshot, so calling it on every keystroke
+// would wipe the ↑/↓ trend arrows and corrupt the "Hoje" column. Ranks stay
+// correct under a filter because they are baked into the cells at render time.
+function lbApplyFilter(){
+  const inp=$('lb-search');
+  const q=_lbNorm(inp?inp.value:'');
+  const trs=document.querySelectorAll('#lb-content tbody tr');
+  let shown=0;
+  trs.forEach(tr=>{
+    const hit=!q||(tr.dataset.lbname||'').includes(q);
+    tr.style.display=hit?'':'none';
+    if(hit)shown++;
+  });
+  const nr=$('lb-noresults');
+  if(nr)nr.classList.toggle('hidden',!(q&&trs.length&&shown===0));
+}
+function lbMyRow(){return document.querySelector('#lb-content tbody tr[data-lbme="1"]');}
+function lbFindMe(){
+  const inp=$('lb-search');
+  if(inp&&inp.value){inp.value='';lbApplyFilter();}
+  const tr=lbMyRow();
+  if(!tr)return false;
+  tr.scrollIntoView({behavior:'smooth',block:'center'});
+  tr.classList.remove('lb-flash');void tr.offsetWidth;tr.classList.add('lb-flash');
+  return true;
+}
+// Auto-scroll to your own row — once per session only. Doing it on every
+// onSnapshot would yank the page out from under anyone reading the table.
+let _lbAutoScrolled=false;
+function lbAfterRender(){
+  const tools=$('lb-tools'),btn=$('lb-findme-btn');
+  const hasRows=!!document.querySelector('#lb-content tbody tr');
+  if(tools)tools.classList.toggle('hidden',!hasRows);
+  lbApplyFilter();
+  const mine=lbMyRow();
+  if(btn)btn.classList.toggle('hidden',!mine);
+  if(!_lbAutoScrolled&&mine&&$('tab-leaderboard')?.classList.contains('active')){
+    _lbAutoScrolled=true;
+    const r=mine.getBoundingClientRect();
+    // Already on screen? Then just flash it — no need to move the page.
+    const offscreen=r.top<70||r.bottom>window.innerHeight-70;
+    if(offscreen)mine.scrollIntoView({behavior:'smooth',block:'center'});
+    mine.classList.remove('lb-flash');void mine.offsetWidth;mine.classList.add('lb-flash');
+  }
+}
 function renderLeaderboard(){
   const c=$('lb-content');if(!c) return;
   if(HIDE_LEADERBOARD){
     lbRows=[];
+    $('lb-tools')?.classList.add('hidden');
+    $('lb-noresults')?.classList.add('hidden');
     c.innerHTML=`<div style="padding:26px 16px;text-align:center;color:var(--muted);font-size:.85rem;line-height:1.7">
       <div style="font-size:1.6rem;margin-bottom:8px">📊</div>
       <strong style="color:var(--gold);display:block;margin-bottom:6px">Classificação temporariamente indisponível</strong>
@@ -2743,12 +2815,12 @@ function renderLeaderboard(){
       const rank=i+1;const rc=rank===1?'r1':rank===2?'r2':rank===3?'r3':'';
       const rankCell=rank===1?'🥇':rank===2?'🥈':rank===3?'🥉':rank;
       const ptsCls=r.pts>=0?'pts-pos':'pts-neg';const ptsStr=`${r.pts>=0?'+':''}${r.pts}`;
-      h+=`<tr><td class="${rc}" style="white-space:nowrap">${rankCell}</td><td>${r.name}${r.isMe?' 👈':''}</td><td class="pts-today-zero">${r.r32}</td><td class="${ptsCls}">${ptsStr}</td></tr>`;
+      h+=`<tr data-lbname="${attrEsc(_lbNorm(r.name))}"${r.isMe?' data-lbme="1"':''}><td class="${rc}" style="white-space:nowrap">${rankCell}</td><td>${r.name}${r.isMe?' 👈':''}</td><td class="pts-today-zero">${r.r32}</td><td class="${ptsCls}">${ptsStr}</td></tr>`;
     });
-    h+='</tbody></table>';c.innerHTML=h;return;
+    h+='</tbody></table>';c.innerHTML=h;lbAfterRender();return;
   }
   const members=Object.entries(allUsers);
-  if(!members.length){c.innerHTML='<p style="color:var(--muted)">Sem participantes</p>';return;}
+  if(!members.length){c.innerHTML='<p style="color:var(--muted)">Sem participantes</p>';lbAfterRender();return;}
   // Tiebreakers (computed once per user, stored in row)
   // Only meaningful after SF results published — used in sort always, shown only then
   function calcTiebreakers(uid){
@@ -2858,7 +2930,7 @@ function renderLeaderboard(){
         tbNote=`<div style="font-size:.58rem;color:#8899aa;margin-top:1px">↕ ${TB_LABELS[criterionIdx]}</div>`;
       }
     }
-    html+=`<tr>
+    html+=`<tr data-lbname="${attrEsc(_lbNorm(r.name))}"${r.uid===currentUser?.uid?' data-lbme="1"':''}>
       <td class="${rc}" style="white-space:nowrap">${rankCell}${trend?` ${trend}`:''}</td>
       <td>${r.name}${r.uid===currentUser?.uid?' 👈':''}${adjBadge(r.uid)}${allUsers[r.uid]?.unpaidAnnounced?`<span class="unpaid-badge" title="Pagamento em falta — fala com o host">€</span>`:''}${tbNote}</td>
       <td class="${todayCls}">${todayStr}</td>
@@ -2867,6 +2939,7 @@ function renderLeaderboard(){
     </tr>`;
   });
   html+='</tbody></table>';c.innerHTML=html;
+  lbAfterRender();
   renderDailySummary(rows);prevLb=[...rows];
 }
 
