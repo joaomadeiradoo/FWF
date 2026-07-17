@@ -128,6 +128,68 @@ function matchTeams(match,apiHome,apiAway){
   const aa=normalizeTeamName(apiAway).toLowerCase();
   return (mh===ah||mh.includes(ah)||ah.includes(mh))&&(ma===aa||ma.includes(aa)||aa.includes(ma));
 }
+
+// ═══ football-data.org (#6) — identity, vocabulary, and the fullTime trap ═══
+// Verified against a real /v4/competitions/WC/matches payload (104 matches,
+// 102 played) pulled 17 Jul 2026. Nothing here is written from memory.
+//
+// WHY IDs AND NOT NAMES: the API says "Turkey"; we say "Türkiye". It says
+// "Bosnia-Herzegovina" and "Cape Verde Islands"; EN_TO_PT said "Bosnia and
+// Herzegovina" and "Cape Verde" — 2 of 48 silently unresolvable. Names drift,
+// numeric team ids do not. Lookup is EXACT — never substring. ("Congo" is a
+// prefix of "Congo DR"; substring matching is how you merge two teams.)
+const FD_TEAM_ID={
+  "México":769, "África do Sul":774, "Coreia do Sul":772, "Czechia":798, // A
+  "Canadá":828, "Bósnia e Herzegovina":1060, "Qatar":8030, "Suíça":788, // B
+  "Brasil":764, "Marrocos":815, "Haiti":836, "Escócia":8873, // C
+  "EUA":771, "Paraguai":761, "Austrália":779, "Türkiye":803, // D
+  "Alemanha":759, "Curaçao":9460, "Costa do Marfim":1935, "Equador":791, // E
+  "Países Baixos":8601, "Japão":766, "Suécia":792, "Tunísia":802, // F
+  "Bélgica":805, "Egipto":825, "Irão":840, "Nova Zelândia":783, // G
+  "Espanha":760, "Cabo Verde":1930, "Arábia Saudita":801, "Uruguai":758, // H
+  "França":773, "Senegal":804, "Noruega":8872, "Iraque":8062, // I
+  "Argentina":762, "Argélia":778, "Áustria":816, "Jordânia":8049, // J
+  "Portugal":765, "Congo DR":1934, "Uzbequistão":8070, "Colômbia":818, // K
+  "Inglaterra":770, "Croácia":799, "Gana":763, "Panamá":1836, // L
+};
+const FD_ID_TO_PT=Object.fromEntries(Object.entries(FD_TEAM_ID).map(([pt,id])=>[id,pt]));
+const fdTeamPT=id=>FD_ID_TO_PT[id]||null; // null, never a guess
+
+// The API's own stage vocabulary. Observed set, exhaustive for this payload:
+// GROUP_STAGE(72) LAST_32(16) LAST_16(8) QUARTER_FINALS(4) SEMI_FINALS(2)
+// THIRD_PLACE(1) FINAL(1). It is NOT api-football's 'Round of 32' / '3rd Place
+// Final' — ROUND_MAP below is dead vocabulary from the old provider.
+const FD_STAGE={GROUP_STAGE:'group',LAST_32:'r32',LAST_16:'r16',QUARTER_FINALS:'qf',SEMI_FINALS:'sf',THIRD_PLACE:'f3',FINAL:'fin'};
+// Observed status set: FINISHED, TIMED. The request filter vocabulary differs
+// from the response vocabulary: ?status=SCHEDULED returns status:"TIMED".
+const FD_DONE='FINISHED';
+
+// ⚠️ THE TRAP. For duration==='PENALTY_SHOOTOUT', score.fullTime is
+// regularTime + extraTime + penalties — NOT the score the match finished on.
+// Confirmed on all 4 shootouts in the 2026 payload:
+//   GER v PAR  real 1-1 (pens 3-4)  fullTime says 4-5
+//   NED v MAR  real 1-1 (pens 2-3)  fullTime says 3-4
+//   AUS v EGY  real 1-1 (pens 2-4)  fullTime says 3-5
+//   SUI v COL  real 0-0 (pens 4-3)  fullTime says 4-3
+// Reading fullTime blindly stores 4-5 for a 1-1 draw. For EXTRA_TIME with no
+// shootout, fullTime IS the honest 120' score. This is inference from 4
+// matches: the arithmetic is exact on all 4, but 4 is 4. It is falsifiable —
+// any shootout where fullTime !== regular+extra+pens trips the guard below.
+function fdMatchScore(m){
+  const s=m&&m.score; if(!s||!s.fullTime) return null;
+  if(s.fullTime.home==null||s.fullTime.away==null) return null;
+  const add=(k,side)=>s[k]?(s[k][side]??0):0;
+  if(s.duration==='PENALTY_SHOOTOUT'){
+    const home=add('regularTime','home')+add('extraTime','home');
+    const away=add('regularTime','away')+add('extraTime','away');
+    if(home+add('penalties','home')!==s.fullTime.home||away+add('penalties','away')!==s.fullTime.away){
+      console.warn('[fd] unexpected PENALTY_SHOOTOUT shape, refusing to guess:',m.id,JSON.stringify(s));
+      return null;
+    }
+    return {home,away,pens:{home:add('penalties','home'),away:add('penalties','away')},winner:s.winner||null};
+  }
+  return {home:s.fullTime.home,away:s.fullTime.away,pens:null,winner:s.winner||null};
+}
 async function autoApplyScores(finishedMatches){
   if(!isAdmin||!currentCompId) return;
   const{db,doc,updateDoc}=window._fb;
@@ -137,7 +199,7 @@ async function autoApplyScores(finishedMatches){
   const EN_TO_PT={
     'Mexico':'México','South Africa':'África do Sul','South Korea':'Coreia do Sul',
     'Korea Republic':'Coreia do Sul','Czech Republic':'Czechia','Czechia':'Czechia',
-    'Canada':'Canadá','Bosnia':'Bósnia e Herzegovina','Bosnia and Herzegovina':'Bósnia e Herzegovina',
+    'Canada':'Canadá','Bosnia':'Bósnia e Herzegovina','Bosnia and Herzegovina':'Bósnia e Herzegovina','Bosnia-Herzegovina':'Bósnia e Herzegovina','Bosnia-H.':'Bósnia e Herzegovina',
     'Qatar':'Qatar','Switzerland':'Suíça','Brazil':'Brasil','Morocco':'Marrocos',
     'Haiti':'Haiti','Scotland':'Escócia','USA':'EUA','United States':'EUA',
     'Paraguay':'Paraguai','Australia':'Austrália','Turkey':'Türkiye','Turkiye':'Türkiye',
@@ -146,7 +208,7 @@ async function autoApplyScores(finishedMatches){
     'Ecuador':'Equador','Netherlands':'Países Baixos','Japan':'Japão',
     'Sweden':'Suécia','Tunisia':'Tunísia','Belgium':'Bélgica','Egypt':'Egipto',
     'Iran':'Irão','New Zealand':'Nova Zelândia','Spain':'Espanha',
-    'Cape Verde':'Cabo Verde','Saudi Arabia':'Arábia Saudita','Uruguay':'Uruguai',
+    'Cape Verde':'Cabo Verde','Cape Verde Islands':'Cabo Verde','Saudi Arabia':'Arábia Saudita','Uruguay':'Uruguai',
     'France':'França','Senegal':'Senegal','Norway':'Noruega','Iraq':'Iraque',
     'Argentina':'Argentina','Algeria':'Argélia','Austria':'Áustria','Jordan':'Jordânia',
     'Portugal':'Portugal','DR Congo':'Congo DR','Congo DR':'Congo DR',

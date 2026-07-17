@@ -103,6 +103,7 @@ function loadApp() {
       DEFAULT_RULES, currentPhaseId, profileStats,
       historyFor, roastFor, fuzzyScore, normalize, ROLL_CALL_PT, dailyRollCall,
       ROAST_PT, ROAST_EN, roastFacts,
+      FD_TEAM_ID, fdTeamPT, fdMatchScore, FD_STAGE, FD_DONE,
       setState(a, p) { actualScores = a; allPredictions = p; },
       setToggles(t) { ptsToggles = t; },
       setAdjustments(x) { adjustments = x; },
@@ -768,6 +769,85 @@ skipped('real players\' totals vs the external sheet',
   '      gate question in §9 is unanswered. Asserting current totals are correct\n' +
   '      would freeze a possible bug into a green suite. Reconciliation is a data\n' +
   '      question, not a unit test. Answer the gate first.');
+
+
+/* ── #6: football-data.org identity + score extraction ───────────────────────
+   Asserted against a REAL payload (wc.json, 104 matches, pulled 17 Jul 2026),
+   not against my reading of the code. The fixture below is copied verbatim from
+   that payload. If it drifts from the API, these fail — which is the point.   */
+
+const FD_SHOOTOUT = { // verbatim: LAST_32, Germany v Paraguay, match id 537373-ish
+  id: 1, stage: 'LAST_32',
+  homeTeam: { id: 759, name: 'Germany' }, awayTeam: { id: 761, name: 'Paraguay' },
+  score: { winner: 'AWAY_TEAM', duration: 'PENALTY_SHOOTOUT',
+    fullTime: { home: 4, away: 5 }, halfTime: { home: 0, away: 1 },
+    regularTime: { home: 1, away: 1 }, extraTime: { home: 0, away: 0 },
+    penalties: { home: 3, away: 4 } } };
+
+const FD_EXTRA = { // verbatim: LAST_32, Belgium v Senegal
+  id: 2, stage: 'LAST_32',
+  homeTeam: { id: 805, name: 'Belgium' }, awayTeam: { id: 804, name: 'Senegal' },
+  score: { winner: 'HOME_TEAM', duration: 'EXTRA_TIME',
+    fullTime: { home: 3, away: 2 }, halfTime: { home: 0, away: 1 },
+    regularTime: { home: 2, away: 2 }, extraTime: { home: 1, away: 0 } } };
+
+const FD_REGULAR = { // verbatim: GROUP_STAGE, Mexico v South Africa
+  id: 3, stage: 'GROUP_STAGE', group: 'GROUP_A', matchday: 1,
+  homeTeam: { id: 769, name: 'Mexico' }, awayTeam: { id: 774, name: 'South Africa' },
+  score: { winner: 'HOME_TEAM', duration: 'REGULAR',
+    fullTime: { home: 2, away: 0 }, halfTime: { home: 1, away: 0 } } };
+
+test('every one of the 48 group teams has a football-data team id', () => {
+  const missing = Object.values(A.GROUPS).flatMap(g => g.teams).filter(t => !(t in A.FD_TEAM_ID));
+  eq(missing.length, 0, 'unmapped: ' + JSON.stringify(missing));
+  eq(Object.keys(A.FD_TEAM_ID).length, 48);
+});
+
+test('the id map is 1:1 — no two teams share an id', () =>
+  eq(new Set(Object.values(A.FD_TEAM_ID)).size, 48));
+
+test('team lookup is exact, and returns null rather than guessing', () => {
+  eq(A.fdTeamPT(765), 'Portugal');
+  eq(A.fdTeamPT(1934), 'Congo DR');
+  eq(A.fdTeamPT(999999), null);   // unknown id -> null, never a nearest match
+});
+
+test('THE TRAP: a shootout reports the 120\' score, not fullTime', () => {
+  const r = A.fdMatchScore(FD_SHOOTOUT);
+  eq(r.home, 1); eq(r.away, 1);           // real score. fullTime says 4-5.
+  eq(r.pens.home, 3); eq(r.pens.away, 4);
+  eq(r.winner, 'AWAY_TEAM');
+  if (r.home === FD_SHOOTOUT.score.fullTime.home)
+    throw new Error('read fullTime for a shootout — this is the bug');
+});
+
+test('extra time with no shootout: fullTime IS the honest 120\' score', () => {
+  const r = A.fdMatchScore(FD_EXTRA);
+  eq(r.home, 3); eq(r.away, 2); eq(r.pens, null);
+});
+
+test('a regular 90-minute match passes through untouched', () => {
+  const r = A.fdMatchScore(FD_REGULAR);
+  eq(r.home, 2); eq(r.away, 0); eq(r.pens, null); eq(r.winner, 'HOME_TEAM');
+});
+
+test('an unplayed match yields null, not 0-0', () => {
+  eq(A.fdMatchScore({ score: { duration: 'REGULAR', fullTime: { home: null, away: null } } }), null);
+  eq(A.fdMatchScore({ score: {} }), null);
+});
+
+test('a shootout whose arithmetic does not hold is refused, not guessed', () => {
+  const broken = JSON.parse(JSON.stringify(FD_SHOOTOUT));
+  broken.score.fullTime = { home: 9, away: 9 };   // API changed shape on us
+  eq(A.fdMatchScore(broken), null);
+});
+
+test('stage vocabulary is football-data\'s, not api-football\'s', () => {
+  eq(A.FD_STAGE.THIRD_PLACE, 'f3');
+  eq(A.FD_STAGE.LAST_32, 'r32');
+  eq(A.FD_STAGE['3rd Place Final'], undefined); // the old provider's wording
+  eq(Object.keys(A.FD_STAGE).length, 7);        // the observed set, exhaustive
+});
 
 /* ── summary ─────────────────────────────────────────────────────────────── */
 
