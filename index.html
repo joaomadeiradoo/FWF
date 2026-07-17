@@ -172,6 +172,16 @@ table.gct tr:nth-child(3) td{background:rgba(255,215,0,.03)}
 /* "Onde estou?" — pulse the row so the eye lands on it after the scroll. */
 @keyframes lbFlash{0%,100%{background:transparent}18%,55%{background:rgba(255,215,0,.22)}}
 .leaderboard tr.lb-flash td{animation:lbFlash 1.5s ease-in-out}
+/* ═══ LOADING SKELETONS (#17) ═══
+   Placeholder rows sized like the real ones, so the layout does not jump when
+   Firebase lands. prefers-reduced-motion drops the shimmer, keeps the shape. */
+@keyframes skelShimmer{0%{background-position:-380px 0}100%{background-position:380px 0}}
+.skel{background:linear-gradient(90deg,rgba(255,255,255,.04) 0%,rgba(255,255,255,.10) 50%,rgba(255,255,255,.04) 100%);background-size:380px 100%;animation:skelShimmer 1.25s linear infinite;border-radius:6px;height:12px}
+.skel-row{display:flex;align-items:center;gap:10px;padding:11px 8px;border-bottom:1px solid rgba(255,255,255,.05)}
+.skel-rank{width:18px;height:12px;flex-shrink:0}
+.skel-name{flex:1;min-width:0}
+.skel-pts{width:34px;flex-shrink:0}
+@media(prefers-reduced-motion:reduce){.skel{animation:none}}
 #lb-tools{display:flex;gap:6px;align-items:center;margin-bottom:10px}
 #lb-search{flex:1;min-width:0;background:var(--dark);border:1px solid var(--border);color:var(--text);font-family:var(--fb);font-size:.82rem;padding:9px 11px;border-radius:9px;min-height:36px}
 #lb-search:focus{outline:none;border-color:var(--gold)}
@@ -302,7 +312,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
 </style>
 </head>
 <body>
-<!-- FWF-BUILD:20260717a -->
+<!-- FWF-BUILD:20260717b -->
 <div id="update-banner" onclick="fwfUpdateNow()" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99999;background:#FFD700;color:#0D1B2A;text-align:center;padding:11px;font-weight:800;font-size:.85rem;cursor:pointer;font-family:system-ui,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.4)">🔄 Nova versão disponível — toca para atualizar</div>
 <div id="ptr"><div id="ptr-spinner"></div></div>
 <nav id="bottom-nav">
@@ -381,7 +391,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
         <input id="lb-search" type="search" autocomplete="off" placeholder="🔎 Procurar jogador…" oninput="lbApplyFilter()"/>
         <button class="btn btn-ghost btn-sm hidden" id="lb-findme-btn" onclick="lbFindMe()">👈 Onde estou?</button>
       </div>
-      <div id="lb-content"><p style="color:var(--muted)">A carregar...</p></div>
+      <div id="lb-content"><div class="skel-row"><div class="skel skel-rank"></div><div class="skel skel-name" style="max-width:150px"></div><div class="skel skel-pts"></div></div><div class="skel-row"><div class="skel skel-rank"></div><div class="skel skel-name" style="max-width:190px"></div><div class="skel skel-pts"></div></div><div class="skel-row"><div class="skel skel-rank"></div><div class="skel skel-name" style="max-width:120px"></div><div class="skel skel-pts"></div></div><div class="skel-row"><div class="skel skel-rank"></div><div class="skel skel-name" style="max-width:170px"></div><div class="skel skel-pts"></div></div><div class="skel-row"><div class="skel skel-rank"></div><div class="skel skel-name" style="max-width:140px"></div><div class="skel skel-pts"></div></div></div>
       <div id="lb-noresults" class="hidden" style="padding:18px 8px;text-align:center;color:var(--muted);font-size:.82rem">Nenhum jogador encontrado.</div>
       <div id="lb-canvas-wrap"><canvas id="lb-canvas"></canvas><div style="margin-top:7px"><button class="btn btn-ghost btn-sm" onclick="downloadLb()">⬇️ Imagem</button></div></div>
     </div>
@@ -574,7 +584,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
 </div>
 <script>
 // ═══ ANTI-CACHE: deteta versão nova no servidor e mostra barra (NÃO recarrega sozinho) ═══
-const FWF_BUILD='20260717a';
+const FWF_BUILD='20260717b';
 function fwfUpdateNow(){
   try{if(typeof hasUnsavedEdits!=='undefined'&&hasUnsavedEdits&&!confirm('Tens alterações por guardar. Atualizar mesmo assim?'))return;}catch(e){}
   location.href=location.pathname+'?v='+Date.now();
@@ -2700,13 +2710,67 @@ function showAdjReasons(uid){
 }
 
 // ═══ DAILY SNAPSHOT for "points today" column ═══
+// ═══ DAILY SNAPSHOT ═══
+// The "Hoje" column is (points now − points at the start of today). The snapshot
+// used to live only in memory, so every page load re-snapshotted the CURRENT
+// totals as "the start of the day" and Hoje read 0 for everybody. Refreshing the
+// page silently erased the column. It is now persisted on the competition doc.
+//
+// SCHEMA (decision made here, not asked): a single dedicated field
+//   dailySnapshot: { date:'YYYY-MM-DD', pts:{ uid:number } }
+// NOT a per-uid map merged by field path. §6.4's "no whole-object writes to
+// shared maps" exists because members/predictions/adjustments are written
+// concurrently by different users about themselves; a race there loses data.
+// This field is different in kind: it is one doc-scoped value, written at most
+// once per day, and the transaction below makes it first-writer-wins — a loser
+// aborts without writing. Whole-object is the correct shape for it.
+//
+// Day boundary is Europe/Lisbon, not UTC. toISOString() would have rolled the
+// day over at 01:00 Lisbon in summer, mid-evening for nobody's benefit.
+function lisbonToday(){
+  const p=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Lisbon',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+  return p; // en-CA gives YYYY-MM-DD
+}
+let _snapWriteInFlight=false;
+async function persistDailySnapshot(rows){
+  if(_snapWriteInFlight||!window._fb||!currentCompId)return;
+  _snapWriteInFlight=true;
+  try{
+    const{db,doc,runTransaction}=window._fb;
+    const ref=doc(db,'competitions',currentCompId);
+    const today=lisbonToday();
+    const pts={};rows.forEach(r=>{if(r.sub)pts[r.uid]=r.pts;});
+    await runTransaction(db,async tx=>{
+      const snap=await tx.get(ref);
+      if(!snap.exists())return;
+      const cur=snap.data().dailySnapshot;
+      if(cur&&cur.date===today)return; // someone already opened the day — theirs wins
+      tx.update(ref,{dailySnapshot:{date:today,pts}});
+    });
+  }catch(e){
+    // Non-fatal by design. Firestore rules for this doc have never been read
+    // (§9 open item) — if the write is denied we keep the old in-memory
+    // behaviour rather than breaking the leaderboard.
+    console.warn('[dailySnapshot] persist failed, falling back to in-memory:',e&&e.message);
+  }finally{_snapWriteInFlight=false;}
+}
 function takeDailySnapshot(rows){
-  const today=new Date().toISOString().split('T')[0];
+  const today=lisbonToday();
+  const stored=currentComp&&currentComp.dailySnapshot;
+  if(stored&&stored.date===today){
+    // Authoritative: today's opening totals, shared by every device.
+    dailySnapshotDate=today;
+    dailySnapshot=stored.pts||{};
+    return;
+  }
+  // First load of a new day (on this device). Seed locally so the column renders
+  // as 0 rather than garbage, then try to make it the shared truth.
   if(dailySnapshotDate!==today){
     dailySnapshotDate=today;
     dailySnapshot={};
     rows.forEach(r=>{dailySnapshot[r.uid]=r.pts;});
   }
+  persistDailySnapshot(rows);
 }
 
 // ═══ LEADERBOARD ═══
