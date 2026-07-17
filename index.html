@@ -314,7 +314,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
 </style>
 </head>
 <body>
-<!-- FWF-BUILD:20260717c -->
+<!-- FWF-BUILD:20260717d -->
 <div id="update-banner" onclick="fwfUpdateNow()" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99999;background:#FFD700;color:#0D1B2A;text-align:center;padding:11px;font-weight:800;font-size:.85rem;cursor:pointer;font-family:system-ui,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.4)">🔄 Nova versão disponível — toca para atualizar</div>
 <div id="ptr"><div id="ptr-spinner"></div></div>
 <nav id="bottom-nav">
@@ -586,7 +586,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
 </div>
 <script>
 // ═══ ANTI-CACHE: deteta versão nova no servidor e mostra barra (NÃO recarrega sozinho) ═══
-const FWF_BUILD='20260717c';
+const FWF_BUILD='20260717d';
 function fwfUpdateNow(){
   try{if(typeof hasUnsavedEdits!=='undefined'&&hasUnsavedEdits&&!confirm('Tens alterações por guardar. Atualizar mesmo assim?'))return;}catch(e){}
   location.href=location.pathname+'?v='+Date.now();
@@ -3328,6 +3328,194 @@ const ROLL_CALL_EN=[
   (n,c,r,N,p)=>`${n} parked at ${r}th. ${c?`Knowing that ${c} should count for something. It counts for ${r}th.`:'Beautifully mediocre.'}`,
   (n,c,r,N,p)=>`${n}, ${r}th of ${N}.${c?` They say ${c}. The ranking says ${r}.`:''}`,
 ];
+// ═══ ROASTS — data-driven, not personalised (#2) ═══
+// João's call: really good roasts that are NOT personalised. playerChars and the
+// whole ROLL_CALL_PT/EN bank above are LEFT INTACT and still work — flip
+// ROAST_MODE back to 'chars' and nothing is lost.
+//
+// WHY THIS IS BETTER THAN GENERIC. The obvious reading of "not personalised" is
+// jokes built from name + rank + points. That is exactly what the `char`-less
+// fallbacks in ROLL_CALL_PT already do, and they read like "Nome em 5º. Existe.
+// É algo." — no joke, because there is nothing to bite on. A line that could be
+// about anyone is about no one.
+//
+// But the app already knows something sharper than anyone's day job: WHAT THEY
+// PREDICTED. "Escolheu o Brasil para campeão; o Brasil saiu no R32" is specific,
+// true, checkable, funny — and not personal at all. So: roast the takes, never
+// the person. That is also the only version that is safe to publish to 64 real
+// people who know each other.
+//
+// THE HARD RULE: a roast that asserts a fact must never assert a WRONG fact. A
+// joke built on a bug is a public lie about someone. So every fact below is
+// derived from the same functions the scorer uses, returns null when unknown,
+// and each template DECLARES the facts it needs — templates are filtered out
+// unless every fact they need is known. No fact, no joke. Never a guessed one.
+const ROAST_MODE='data'; // 'data' = predictions-based | 'chars' = legacy playerChars bank
+
+// Is this team definitively out? true / false / null (= not yet decidable).
+// Reads the same ko_ arrays as the scorer. Walks rounds in order and stops at
+// the first one that is not fully decided, so it can never claim a team is out
+// on the basis of a half-entered round.
+function teamOut(team){
+  if(!team) return null;
+  const need={ko_r32:16,ko_r16:8,ko_qf:4,ko_sf:2};
+  let known=null;
+  for(const k of ['ko_r32','ko_r16','ko_qf','ko_sf']){
+    const arr=(actualScores[k]||[]).filter(Boolean);
+    if(arr.length<need[k]) break;      // round undecided → nothing further is knowable
+    if(!arr.includes(team)) return true;
+    known=false;                        // survived this round
+  }
+  return known;
+}
+// ═══ COMPETITION HISTORY (2008–2025) ═══
+// TOURNAMENT_HISTORY holds 18 years of this group's winners/runners-up/thirds.
+// A former champion languishing mid-table is the best roast material in the app.
+//
+// ⚠️ EXACT NORMALISED MATCH ONLY. NEVER fuzzyScore. This is not caution for its
+// own sake — fuzzyScore('João Luís Mota','Luís Mota') returns 0.85, ABOVE the
+// 0.82 the app uses elsewhere to decide two names are the same person. And the
+// 2019 CAN Egipto row lists runnerUp 'Luís Mota' and third 'João Luís Mota' —
+// the SAME PODIUM. They are demonstrably two different people. A fuzzy match
+// would publicly credit one man with the other's title, in a roast, in front of
+// the other 63. Same for João do Ó / Nuno do Ó and the three Motas.
+// If the name does not match exactly, there is no history fact and no history
+// joke. No fact, no joke.
+function historyFor(playerName){
+  const target=normalize(playerName);
+  if(!target) return null;
+  const bad=v=>!v||v==='TBD'||v==='?'||/no record/i.test(v);
+  const wins=[],seconds=[],thirds=[];
+  for(const t of TOURNAMENT_HISTORY){
+    if(t.year===2026) continue;                    // the competition being played
+    if(!bad(t.winner)&&normalize(t.winner)===target) wins.push(t);
+    if(!bad(t.runnerUp)&&normalize(t.runnerUp)===target) seconds.push(t);
+    if(!bad(t.third)&&normalize(t.third)===target) thirds.push(t);
+  }
+  if(!wins.length&&!seconds.length&&!thirds.length) return null;
+  return{wins,seconds,thirds};
+}
+// Every fact a roast may use. null means "not knowable yet" — never 0, never a guess.
+function roastFacts(uid,rows){
+  const r=rows.find(x=>x.uid===uid);
+  if(!r) return null;
+  const s=profileStats(uid);            // VIEW over calcBreakdown — not a second computation
+  const rank=rows.indexOf(r)+1,N=rows.length;
+  const groupsDone=ALL_MATCHES.every(m=>{const a=actualScores[m.id];return a&&a.home!==undefined&&a.home!=='';});
+  const champ=(s.bp.fin||[])[0]||null;
+  const vice=(s.bp.fin||[])[1]||null;
+  const leader=rows[0];
+  const h=historyFor(r.name);
+  const wins=h?h.wins:[];
+  const podiums=h?(h.wins.length+h.seconds.length+h.thirds.length):0;
+  const lastWin=wins.length?wins.reduce((a,b)=>b.year>a.year?b:a):null;
+  const wcWin=wins.filter(t=>t.type==='WC').sort((a,b)=>b.year-a.year)[0]||null;
+  const bottomHalf=rank>Math.ceil(N/2);
+  return{
+    n:`<strong>${r.name}</strong>`,
+    // ── history (null unless an EXACT name match exists) ──
+    titles:wins.length||null,
+    lastWin,
+    wcWin,
+    wcWinFaded:(wcWin&&bottomHalf)?wcWin:null,
+    fallenChamp:(wins.length&&bottomHalf)?wins.length:null,
+    nearlyMan:(!wins.length&&podiums>=2)?podiums:null,
+    podiums:podiums||null,
+    veteran:(podiums>=4)?podiums:null,
+    rank,N,pts:r.pts,
+    // MUST be true-or-null, never false. Eligibility tests !==null/!==undefined,
+    // so a `false` here reads as "fact known" and fires the template. That bug
+    // shipped a "Paulo Niza lidera" line about a player in 5th. If it is not a
+    // fact, it is null.
+    last:rank===N?true:null,
+    first:rank===1?true:null,
+    neg:r.pts<0?r.pts:null,
+    gap:(leader&&leader.uid!==uid&&typeof leader.pts==='number')?leader.pts-r.pts:null,
+    champ,
+    champOut:teamOut(champ)===true?champ:null,
+    champAlive:teamOut(champ)===false?champ:null,
+    vice,viceOut:teamOut(vice)===true?vice:null,
+    topScorer:s.pr.topScorer||null,
+    exact:s.played?s.exact:null,played:s.played||null,
+    // "zero group winners" is only a fact once the group stage is complete
+    gwZero:(groupsDone&&(s.d.gw||0)===0)?true:null,
+    gwAll:(groupsDone&&(s.d.gw||0)>=60)?true:null,
+    adj:s.bd.adj?s.bd.adj:null,
+    r32hit:s.rounds[0][1],sfhit:s.rounds[3][1],
+  };
+}
+// Each entry: need = facts required (all must be non-null), f = the line.
+const ROAST_PT=[
+  // ── history-based (2008–2025) ──
+  {need:['wcWinFaded','rank','N'],f:x=>`${x.n} ganhou o ${x.wcWinFaded.name} em ${x.wcWinFaded.year}. Hoje vai em ${x.rank}º de ${x.N}. Os títulos não se herdam.`},
+  {need:['wcWin','rank'],f:x=>`Campeão do Mundial de ${x.wcWin.year}. Em ${x.rank}º agora. O Professor Karamba não faz descontos a ex-campeões.`},
+  {need:['fallenChamp','rank','N'],f:x=>`${x.n} tem ${x.fallenChamp} título${x.fallenChamp>1?'s':''} nesta casa e está em ${x.rank}º de ${x.N}. A glória é temporária. A tabela é permanente.`},
+  {need:['lastWin','rank'],f:x=>`Último troféu de ${x.n}: ${x.lastWin.name}, ${x.lastWin.year}. Desde então, ${x.rank}º e muito silêncio.`},
+  {need:['titles','rank'],f:x=>`${x.n}, ${x.titles}× vencedor. Este ano, ${x.rank}º. Toda a gente tem uma década má.`},
+  {need:['nearlyMan','rank'],f:x=>`${x.n}: ${x.nearlyMan} pódios, zero títulos. O eterno padrinho, nunca o noivo. Este ano, ${x.rank}º — nem padrinho.`},
+  {need:['nearlyMan'],f:x=>`${x.n} já subiu ao pódio ${x.nearlyMan} vezes sem nunca ganhar. Há quem chame a isso consistência.`},
+  {need:['veteran','rank','N'],f:x=>`${x.veteran} pódios ao longo dos anos para ${x.n}. Hoje: ${x.rank}º de ${x.N}. A experiência conta — contra.`},
+  {need:['lastWin','champOut'],f:x=>`${x.n} ganhou em ${x.lastWin.year}. Este ano apostou no ${x.champOut}, que já saiu. O tempo é cruel.`},
+  {need:['titles','neg'],f:x=>`${x.n}: ${x.titles} título${x.titles>1?'s':''} no currículo e ${x.neg} pontos este ano. Isto é uma queda com história.`},
+  {need:['champOut'],f:x=>`${x.n} apostou tudo no ${x.champOut} para campeão. O ${x.champOut} já está de férias. ${x.n} continua aqui, em ${x.rank}º, de luto.`},
+  {need:['champOut'],f:x=>`Lembram-se de quando ${x.n} disse que o ${x.champOut} ganhava isto? O Mundial não se lembra.`},
+  {need:['champOut'],f:x=>`${x.champOut}, campeão — segundo ${x.n}. Segundo a realidade, não.`},
+  {need:['champOut','rank'],f:x=>`O campeão de ${x.n} era o ${x.champOut}. Saiu. ${x.n} ficou em ${x.rank}º a fingir que era o plano.`},
+  {need:['champAlive','rank'],f:x=>`${x.n} tem o ${x.champAlive} para campeão e ainda está vivo. Em ${x.rank}º, mas vivo. É mais do que muitos podem dizer.`},
+  {need:['viceOut'],f:x=>`${x.n} pôs o ${x.viceOut} na final. O ${x.viceOut} nem chegou lá perto. Detalhes.`},
+  {need:['gwZero','rank'],f:x=>`Doze grupos. Doze vencedores. ${x.n} acertou zero. Isso já não é azar, é uma metodologia.`},
+  {need:['gwZero'],f:x=>`${x.n} não acertou um único vencedor de grupo. Doze tentativas. Zero. Estatisticamente, isto dá trabalho.`},
+  {need:['gwAll','rank'],f:x=>`${x.n} acertou os doze vencedores de grupo e mesmo assim está em ${x.rank}º. Fascinante.`},
+  {need:['exact','played'],f:x=>x.exact===0?`${x.n} acertou o resultado exacto de ${x.exact} jogos em ${x.played}. Zero. Nem por acidente.`:x.exact===x.played?`${x.n} acertou os ${x.played} resultados todos. Isto ou é génio ou é fraude.`:`${x.n}: ${x.exact} resultados exactos em ${x.played}. O resto foi imaginação.`},
+  {need:['exact','played','rank'],f:x=>`${x.exact} em ${x.played} resultados certos e um ${x.rank}º lugar. Há aqui uma lição, mas ${x.n} não a vai aprender.`},
+  {need:['neg'],f:x=>`${x.n} tem ${x.neg} pontos. Negativo. Não submeter nada dava mais.`},
+  {need:['neg'],f:x=>`${x.n}: ${x.neg} pontos. Chegou abaixo de zero. Isso exige dedicação.`},
+  {need:['neg','N'],f:x=>`${x.n} conseguiu pontuação negativa num jogo onde acertar é opcional mas errar custa. Respeito, de certa forma.`},
+  {need:['topScorer','rank'],f:x=>`Melhor marcador segundo ${x.n}: ${x.topScorer}. Segundo ${x.rank}º lugar: talvez não.`},
+  {need:['topScorer','champOut'],f:x=>`${x.n} apostou no ${x.topScorer} para melhor marcador e no ${x.champOut} para campeão. Metade desse plano já morreu.`},
+  {need:['last','N'],f:x=>`${x.N}º de ${x.N}. Alguém tinha de ser. É ${x.n}. E foi convincente.`},
+  {need:['last'],f:x=>`${x.n} fecha a tabela. Não por pouco.`},
+  {need:['first','pts'],f:x=>`${x.n} lidera com ${x.pts>=0?'+':''}${x.pts}. Aproveita. Isto é um Mundial, não um contrato vitalício.`},
+  {need:['first'],f:x=>`${x.n} em 1º. Ou percebe mesmo de futebol, ou teve sorte. A tabela não distingue.`},
+  {need:['gap','rank'],f:x=>`${x.n} está a ${x.gap} pontos da liderança. A pé, dava para lá chegar mais depressa.`},
+  {need:['gap'],f:x=>x.gap>60?`${x.gap} pontos atrás do líder. ${x.n} não está a jogar o mesmo Mundial que nós.`:`${x.n}, a ${x.gap} do topo. Tecnicamente ainda dá. Tecnicamente.`},
+  {need:['adj','rank'],f:x=>`${x.n} tem ${x.adj>0?'+':''}${x.adj} pontos de ajuste manual do host. Nem tudo se ganha a prever.`},
+  {need:['r32hit'],f:x=>`${x.n} acertou ${x.r32hit.n} das ${x.r32hit.of} equipas que passaram o R32. As outras ${x.r32hit.of-x.r32hit.n} foram uma surpresa — para ${x.n}, pelo menos.`},
+  {need:['sfhit'],f:x=>x.sfhit.n===0?`Finalistas previstos por ${x.n}: nenhum acertado. Nem um. A sério.`:`${x.n} acertou ${x.sfhit.n} finalista(s). Vamos fingir que foi de propósito.`},
+  {need:['rank','N','pts'],f:x=>`${x.n}: ${x.rank}º de ${x.N}, ${x.pts>=0?'+':''}${x.pts} pontos. Sem drama, sem glória, sem comentários.`},
+  {need:['rank','N'],f:x=>x.rank<=Math.ceil(x.N/2)?`${x.n} em ${x.rank}º. Metade de cima. Não é vitória, é ausência de vergonha.`:`${x.n} em ${x.rank}º. Metade de baixo. Há espaço para descer.`},
+  {need:['champ','rank'],f:x=>`${x.n} escolheu o ${x.champ} para campeão e está em ${x.rank}º. Uma dessas coisas ainda pode salvar-se.`},
+  {need:['pts','rank'],f:x=>`${x.pts>=0?'+':''}${x.pts} pontos para ${x.n}. O Professor Karamba viu as previsões e não quis comentar.`},
+  {need:['exact','played'],f:x=>x.exact===x.played?`${x.n} previu ${x.played} jogos em ${x.played} ao certo. Alguém verifique isto.`:`${x.n} viu ${x.played} jogos acontecerem e previu ${x.exact} deles ao certo. Os outros ${x.played-x.exact} também os viu.`},
+];
+const ROAST_EN=[
+  {need:['wcWinFaded','rank','N'],f:x=>`${x.n} won the ${x.wcWinFaded.year} World Cup pool. Currently ${x.rank}th of ${x.N}. Titles don't carry over.`},
+  {need:['fallenChamp','rank','N'],f:x=>`${x.n} has ${x.fallenChamp} title${x.fallenChamp>1?'s':''} here and sits ${x.rank}th of ${x.N}. Glory is temporary. The table is permanent.`},
+  {need:['lastWin','rank'],f:x=>`${x.n}'s last trophy: ${x.lastWin.name}, ${x.lastWin.year}. Since then: ${x.rank}th, and silence.`},
+  {need:['nearlyMan'],f:x=>`${x.n}: ${x.nearlyMan} podiums, no titles. Always the bridesmaid.`},
+  {need:['champOut'],f:x=>`${x.n} backed ${x.champOut} to win it all. ${x.champOut} went home. ${x.n} is still here, in ${x.rank}th, grieving.`},
+  {need:['champAlive','rank'],f:x=>`${x.n}'s champion pick ${x.champAlive} is somehow still alive. ${x.n}, in ${x.rank}th, less so.`},
+  {need:['gwZero'],f:x=>`Twelve groups. Twelve winners. ${x.n} got zero. That takes effort.`},
+  {need:['exact','played'],f:x=>x.exact===0?`${x.n} called ${x.exact} exact scorelines out of ${x.played}. Not one. Not even by accident.`:`${x.n}: ${x.exact} exact scorelines from ${x.played}. The rest was fiction.`},
+  {need:['neg'],f:x=>`${x.n} is on ${x.neg} points. Negative. Submitting nothing would have scored higher.`},
+  {need:['last','N'],f:x=>`${x.N}th of ${x.N}. Someone had to be. It's ${x.n}, and it wasn't close.`},
+  {need:['first','pts'],f:x=>`${x.n} leads on ${x.pts>=0?'+':''}${x.pts}. Enjoy it. This is a World Cup, not a tenure.`},
+  {need:['gap'],f:x=>`${x.n} is ${x.gap} points off the lead. You could walk there faster.`},
+  {need:['topScorer','rank'],f:x=>`Top scorer according to ${x.n}: ${x.topScorer}. According to ${x.rank}th place: perhaps not.`},
+  {need:['rank','N','pts'],f:x=>`${x.n}: ${x.rank}th of ${x.N}, ${x.pts>=0?'+':''}${x.pts}. No drama, no glory, no notes.`},
+];
+// Eligible = every declared fact is known. Deterministic pick per player per day.
+function roastFor(uid,rows,today,i){
+  const x=roastFacts(uid,rows);
+  if(!x) return null;
+  const bank=lang==='pt'?ROAST_PT:ROAST_EN;
+  const ok=bank.filter(t=>t.need.every(k=>x[k]!==null&&x[k]!==undefined));
+  if(!ok.length) return null;
+  const dayHash=today.split('-').reduce((a,b)=>a+parseInt(b,10),0);
+  const idx=(dayHash+i*13+x.rank*7)%ok.length;
+  try{ return ok[idx].f(x); }catch(e){ return null; }
+}
+
 // Pick K players from the sorted-by-uid list, deterministically rotating by date
 function rotateForDay(uids,K,today){
   const N=uids.length;if(N===0) return [];
@@ -3350,6 +3538,12 @@ function dailyRollCall(rows,excludeUids,today){
   const dayHash=today.split('-').reduce((a,b)=>a+parseInt(b,10),0);
   return picked.map((uid,i)=>{
     const r=rows.find(x=>x.uid===uid);if(!r) return null;
+    // Data-driven roasts (#2). Falls through to the legacy playerChars bank if
+    // ROAST_MODE is flipped, or if no roast has enough known facts to fire.
+    if(ROAST_MODE==='data'){
+      const roast=roastFor(uid,rows,today,i);
+      if(roast) return roast;
+    }
     const rank=rows.indexOf(r)+1;
     // Split by comma, pick ONE characteristic deterministically per day
     const rawChar=chars[uid]||'';

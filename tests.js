@@ -101,6 +101,7 @@ function loadApp() {
       calcMatch, calcBreakdown, bdTotal, calcTotal, groupStandings,
       getQualified32, getBestThirds, ALL_MATCHES, GROUPS, MATCH_SCHEDULE,
       DEFAULT_RULES, currentPhaseId, profileStats,
+      historyFor, roastFor, fuzzyScore, normalize, ROLL_CALL_PT, dailyRollCall,
       setState(a, p) { actualScores = a; allPredictions = p; },
       setToggles(t) { ptsToggles = t; },
       setAdjustments(x) { adjustments = x; },
@@ -507,6 +508,164 @@ test('profileStats reports null (not 0) for a round that has not been played', (
 });
 test('profileStats does not throw on a malformed prediction', () => {
   withState({ ko_r32: null }, { bracket: { r32: [null, 'TBD'] } }, () => { A.profileStats(U); });
+});
+
+/* ─────────────────────────────────────────────────────────────────────────
+   5c. Roasts (#2) — published to 64 real people. A roast that states a fact
+   must never state a WRONG fact.
+   ───────────────────────────────────────────────────────────────────────── */
+group('roasts — history attribution & fact safety');
+
+test('REGRESSION: the Mota brothers are never conflated (they are two people)', () => {
+  // João Luís Mota and Luís Mota are brothers — confirmed by João. The app's own
+  // fuzzyScore rates them 0.85, ABOVE the 0.82 it uses elsewhere to decide two
+  // names are the same person. historyFor must use EXACT normalised matching.
+  // Note they legitimately share PODIUMS (2019, 2020) in different positions —
+  // sharing a tournament is not sharing a result. So assert the exact records.
+  ok(A.fuzzyScore('João Luís Mota', 'Luís Mota') > 0.82,
+    'premise check: fuzzy really would merge them — if this fails, the trap changed');
+  const rec = n => {
+    const h = A.historyFor(n);
+    return {
+      wins: h.wins.map(t => t.year).sort(),
+      seconds: h.seconds.map(t => t.year).sort(),
+      thirds: h.thirds.map(t => t.year).sort(),
+    };
+  };
+  eq(rec('Luís Mota'), { wins: [], seconds: [2019], thirds: [2020, 2021] },
+    'Luís Mota: no titles, 2nd in 2019, 3rd in 2020 & 2021');
+  eq(rec('João Luís Mota'), { wins: [2015], seconds: [2020], thirds: [2012, 2019, 2023] },
+    'João Luís Mota: won 2015, 2nd in 2020, 3rd in 2012/2019/2023');
+  // The brother with no titles must never inherit one.
+  eq(A.historyFor('Luís Mota').wins.length, 0, "Luís Mota must never be credited with his brother's 2015 title");
+});
+test('no person is credited twice on the same podium', () => {
+  for (const n of ['Luís Mota', 'João Luís Mota', 'João do Ó', 'Nuno do Ó', 'Luís Vargas Mota']) {
+    const h = A.historyFor(n);
+    if (!h) continue;
+    const seen = new Set();
+    for (const t of [...h.wins, ...h.seconds, ...h.thirds]) {
+      const k = t.year + '|' + t.name;
+      ok(!seen.has(k), `${n} credited twice at ${t.name} ${t.year}`);
+      seen.add(k);
+    }
+  }
+});
+
+test('the third Mota is also kept separate', () => {
+  const v = A.historyFor('Luís Vargas Mota');
+  ok(v && v.wins.some(t => t.year === 2022), 'Luís Vargas Mota won the 2022 WC');
+  eq(A.historyFor('Luís Mota').wins.length, 0, 'his title must not leak to Luís Mota');
+});
+test('the do Ó brothers are kept separate', () => {
+  const j = A.historyFor('João do Ó'), n = A.historyFor('Nuno do Ó');
+  ok(j && n, 'both found');
+  const yrs = x => [...x.wins, ...x.seconds, ...x.thirds].map(t => t.year + t.name);
+  eq(yrs(j).filter(y => yrs(n).includes(y)), [], 'no shared results');
+});
+test('an unknown name yields no history — never a near-miss', () => {
+  eq(A.historyFor('Someone Not In The History'), null);
+  eq(A.historyFor('Mota'), null, 'a bare surname must not match any Mota');
+  eq(A.historyFor(''), null);
+  eq(A.historyFor(null), null);
+});
+test('placeholder rows are never treated as a person', () => {
+  eq(A.historyFor('TBD'), null);
+  eq(A.historyFor('No records'), null);
+  eq(A.historyFor('?'), null);
+});
+test('the 2026 competition is excluded from history', () => {
+  for (const name of ['Luís Vargas Mota', 'Paulo Niza', 'João Luís Mota']) {
+    const h = A.historyFor(name);
+    if (!h) continue;
+    ok(![...h.wins, ...h.seconds, ...h.thirds].some(t => t.year === 2026),
+      `${name}: 2026 must not count as history — it is being played`);
+  }
+});
+test('no roast ever emits undefined / null / NaN, in any player state', () => {
+  const s = fullGroupStage();
+  const team = A.groupStandings(Object.keys(A.GROUPS)[0], s)[0].name;
+  const states = [
+    [{}, {}],
+    [s, { ...s, bracket: emptyBracket }],
+    [{ ...s, ko_r32: [team], ko_r16: [], ko_qf: [], ko_sf: [], ko_fin: [], ko_f3: [] },
+     { ...s, bracket: { ...emptyBracket, fin: [team, team], f3: [team] }, topScorer: 'X' }],
+  ];
+  // include a real former champion so the history templates actually fire
+  for (const name of ['Luís Vargas Mota', 'Zzz Nobody']) {
+    for (const [actual, pred] of states) {
+      withState(actual, pred, () => {
+        const rows = [{ uid: U, name, pts: 10, sub: true }, { uid: 'o', name: 'Other', pts: 99, sub: true }];
+        for (let i = 0; i < 40; i++) {
+          const out = A.roastFor(U, rows, '2026-07-' + String((i % 28) + 1).padStart(2, '0'), i);
+          if (out === null) continue;
+          ok(!/undefined|NaN|null|\[object/.test(out), `leaked a value: ${out}`);
+          ok(out.length > 10, `suspiciously short roast: ${out}`);
+        }
+      });
+    }
+  }
+});
+test('REGRESSION: a mid-table player is never called leader or last', () => {
+  // Booleans set to `false` used to pass the eligibility check (it tests
+  // !==null/!==undefined), so `first:rank===1` => false fired the "leads the
+  // table" template for a player in 5th. Facts must be true-or-null.
+  const s = fullGroupStage();
+  withState(s, { ...s, bracket: emptyBracket }, () => {
+    const rows = [
+      { uid: 'a', name: 'Aaa', pts: 90, sub: true }, { uid: 'b', name: 'Bbb', pts: 80, sub: true },
+      { uid: 'c', name: 'Ccc', pts: 70, sub: true }, { uid: U, name: 'Zzz Nobody', pts: 12, sub: true },
+      { uid: 'e', name: 'Eee', pts: 5, sub: true },
+    ];
+    for (let i = 0; i < 80; i++) {
+      const o = A.roastFor(U, rows, '2026-07-' + String((i % 28) + 1).padStart(2, '0'), i);
+      if (!o) continue;
+      // careful: "a X pontos da liderança" is CORRECT for 4th — match the claim, not the word
+      ok(!/lidera com|\bem 1º\b|\bleads on\b/i.test(o), `4th of 5 called leader: ${o}`);
+      ok(!/fecha a tabela|Alguém tinha de ser|of \d+\. Someone had to be/i.test(o), `4th of 5 called last: ${o}`);
+    }
+  });
+});
+test('a genuinely first / last player still gets those roasts', () => {
+  const s = fullGroupStage();
+  withState(s, { ...s, bracket: emptyBracket }, () => {
+    const rows = [{ uid: U, name: 'Zzz Nobody', pts: 90, sub: true }, { uid: 'b', name: 'Bbb', pts: 10, sub: true }];
+    let sawFirst = false;
+    for (let i = 0; i < 80; i++) {
+      const o = A.roastFor(U, rows, '2026-07-' + String((i % 28) + 1).padStart(2, '0'), i);
+      if (o && /lidera com|\bem 1º\b/i.test(o)) sawFirst = true;
+    }
+    ok(sawFirst, 'the leader must still be eligible for leader lines — do not over-null');
+  });
+});
+test('no roast contradicts itself on a perfect group stage', () => {
+  const s = fullGroupStage();
+  withState(s, { ...s, bracket: emptyBracket }, () => {
+    const rows = [{ uid: U, name: 'Zzz Nobody', pts: 400, sub: true }, { uid: 'b', name: 'B', pts: 10, sub: true }];
+    for (let i = 0; i < 80; i++) {
+      const o = A.roastFor(U, rows, '2026-07-' + String((i % 28) + 1).padStart(2, '0'), i);
+      if (o && /72 resultados exactos em 72|72 em 72/.test(o))
+        ok(!/O resto foi imaginação|Os outros 0/.test(o), `contradicts itself: ${o}`);
+    }
+  });
+});
+test('a player with no history never gets a history roast', () => {
+  const s = fullGroupStage();
+  withState(s, { ...s, bracket: emptyBracket }, () => {
+    const rows = [{ uid: U, name: 'Zzz Nobody', pts: 5, sub: true }, { uid: 'o', name: 'O', pts: 9, sub: true }];
+    const outs = [];
+    for (let i = 0; i < 60; i++) {
+      const o = A.roastFor(U, rows, '2026-07-' + String((i % 28) + 1).padStart(2, '0'), i);
+      if (o) outs.push(o);
+    }
+    ok(outs.length > 0, 'should still get non-history roasts');
+    for (const o of outs)
+      ok(!/título|troféu|pódio|venceu|Campeão do Mundial/i.test(o), `invented history: ${o}`);
+  });
+});
+test('playerChars infrastructure is preserved (João asked to keep it)', () => {
+  ok(typeof A.ROLL_CALL_PT !== 'undefined' && A.ROLL_CALL_PT.length > 0, 'legacy char bank intact');
+  ok(typeof A.dailyRollCall === 'function', 'roll call intact');
 });
 
 /* ─────────────────────────────────────────────────────────────────────────
