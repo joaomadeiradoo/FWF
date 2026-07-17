@@ -1,44 +1,78 @@
 // ═══ LIVE SCORES ═══
-// ── Unified fetch: ONE API call gives upcoming + live + finished. ──
-// A 3-day window (yesterday→tomorrow) catches games that run past midnight UTC
-// (e.g. late kick-offs). The same response that lists today's fixtures also
-// contains in-play games with current score/elapsed, so a separate live=all
-// call is redundant. This halves API usage versus the old two-call cycle.
-const LIVE_STATUSES=['1H','HT','2H','ET','BT','P','SUSP','INT','LIVE'];
-const DONE_STATUSES=['FT','AET','PEN'];
+// ── Source: data/live.json, published by .github/workflows/results.yml ──
+//
+// WHY NOT CALL AN API DIRECTLY. Measured 17 Jul 2026 from the console on the
+// live site, both times:
+//   api-football       CORS ✅  2026 data ❌  "Free plans do not have access to
+//                                             this season, try from 2022 to 2024"
+//   football-data.org  CORS ❌  2026 data ✅  Access-Control-Allow-Origin is
+//                                             hardcoded to 'http://localhost'
+// Neither works from a browser. A GitHub Action fetches server-side (no CORS,
+// token in repo secrets) and commits data/live.json. We read it from our OWN
+// origin, so nothing blocks it and no key ships to the client. The old
+// API_FOOTBALL_KEY and the canApi/bumpApi daily counter are now unused by this
+// path — that counter measured a per-day budget that no longer exists.
+//
+// LATENCY, honestly: GitHub queues scheduled runs, so 5-15 min late is normal.
+// Fine for results. The live dot will lag. A Cloudflare Worker would fix that.
+const LIVE_WINDOW_MS=3.5*60*60*1000; // kick-off → assume over after 3h30 (90'+ET+pens+breaks)
 async function fetchAll(){
-  const key=window.API_FOOTBALL_KEY;if(!key||!await canApi()) return;
   try{
-    const d0=new Date();
-    const day=ms=>new Date(d0.getTime()+ms).toISOString().split('T')[0];
-    const from=day(-24*60*60*1000),to=day(24*60*60*1000);
-    const r=await fetch(`https://v3.football.api-sports.io/fixtures?league=${WC_LEAGUE_ID}&season=2026&from=${from}&to=${to}`,{headers:{'x-rapidapi-key':key,'x-rapidapi-host':'v3.football.api-sports.io'}});
-    await bumpApi('fixtures');const d=await r.json();
-    if(d.response){
-      const all=d.response;
-      // Live games (in progress) — for the ticker
-      liveData=all.filter(f=>LIVE_STATUSES.includes(f.fixture.status.short)).map(f=>({home:f.teams.home.name,away:f.teams.away.name,hs:f.goals.home,as:f.goals.away,min:f.fixture.status.elapsed,status:f.fixture.status.short}));
-      // Upcoming (not started) — next 3 by kick-off time
-      upcomingData=all.filter(f=>f.fixture.status.short==='NS')
-        .sort((a,b)=>new Date(a.fixture.date)-new Date(b.fixture.date))
-        .slice(0,3)
-        .map(f=>({home:f.teams.home.name,away:f.teams.away.name,time:new Date(f.fixture.date).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}),venue:f.fixture.venue?.name||''}));
-      // Finished — for results + auto-apply. Process a generous window so a busy
-      // day (many games finishing between fetches) never drops a result. The
-      // ticker display re-slices to the latest few separately. autoApplyScores is
-      // idempotent, so re-processing already-applied games is harmless.
-      recentData=all.filter(f=>DONE_STATUSES.includes(f.fixture.status.short))
-        .sort((a,b)=>new Date(a.fixture.date)-new Date(b.fixture.date))
-        .slice(-30)
-        .map(f=>({home:f.teams.home.name,away:f.teams.away.name,hs:f.goals.home,as:f.goals.away,penHome:f.score?.penalty?.home??null,penAway:f.score?.penalty?.away??null,round:f.league?.round||null}));
-      // AUTO-APPLY DESLIGADO (2026-06-29): resultados inseridos manualmente pelo host.
-      // A escrita automática reescrevia o actualScores inteiro e causava sobreposição
-      // entre dispositivos ("o último a fazer refresh ganhava"). Para reativar:
-      // if(isAdmin) await autoApplyScores(recentData);
-      updateLiveTimestamp();
-    }
+    // Cache-bust: GitHub Pages' CDN caches assets hard, and a stale live.json
+    // would look exactly like "nothing has happened yet".
+    const r=await fetch('data/live.json?t='+Date.now(),{cache:'no-store'});
+    if(!r.ok){console.warn('[live] data/live.json not published yet:',r.status);return;} // fall back to local ticker
+    const d=await r.json();
+    if(!d||!Array.isArray(d.matches)) return;
+    const now=Date.now();
+    const ko=m=>new Date(m.utcDate).getTime();
+    const nm=id=>fdTeamPT(id)||null;
+
+    // LIVE. Deliberately NOT keyed on a status string: the only in-play values
+    // we have ever seen are FINISHED and TIMED, because every match in the
+    // sample payload was one or the other. Guessing 'IN_PLAY' would be
+    // inventing API vocabulary. Instead: not finished + kicked off + inside a
+    // 3h30 window. That uses only utcDate and FINISHED, both verified.
+    // (A postponed match would show as live for 3h30. Known, acceptable.)
+    liveData=d.matches
+      .filter(m=>m.status!==FD_DONE&&ko(m)<=now&&now-ko(m)<LIVE_WINDOW_MS)
+      .map(m=>{const sc=fdMatchScore(m);return{home:nm(m.homeTeam.id)||m.homeTeam.name,away:nm(m.awayTeam.id)||m.awayTeam.name,
+        hs:sc?sc.home:null,as:sc?sc.away:null,min:null,status:m.status};}); // min: no elapsed-minute field exists in this API
+    if(liveData.length) console.log('[live] in-play status string is:',JSON.stringify(liveData.map(m=>m.status)));
+
+    // UPCOMING — next 3 by kick-off, with a real time. The app has no kick-off
+    // times of its own (MATCH_SCHEDULE is date-only, line ~4686 hardcodes
+    // time:''), so this is the first real clock in the project. Unblocks #16/#20.
+    upcomingData=d.matches
+      .filter(m=>m.status!==FD_DONE&&ko(m)>now)
+      .sort((a,b)=>ko(a)-ko(b)).slice(0,3)
+      .map(m=>({home:nm(m.homeTeam.id)||m.homeTeam.name,away:nm(m.awayTeam.id)||m.awayTeam.name,
+        time:new Date(m.utcDate).toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Lisbon'}),venue:''}));
+
+    // FINISHED — feeds autoApplyScores only; renderLive builds RECENTES from
+    // actualScores, not from here. Shape kept identical to the old api-football
+    // one so autoApplyScores needs no change when it is eventually re-armed.
+    recentData=d.matches
+      .filter(m=>m.status===FD_DONE)
+      .sort((a,b)=>ko(a)-ko(b)).slice(-30)
+      .map(m=>{const sc=fdMatchScore(m);if(!sc) return null;
+        return{home:nm(m.homeTeam.id)||m.homeTeam.name,away:nm(m.awayTeam.id)||m.awayTeam.name,
+          hs:sc.home,as:sc.away,penHome:sc.pens?sc.pens.home:null,penAway:sc.pens?sc.pens.away:null,round:FD_STAGE[m.stage]||null};})
+      .filter(Boolean);
+
+    // AUTO-APPLY DESLIGADO (2026-06-29): resultados inseridos manualmente pelo host.
+    // A escrita automática reescrevia o actualScores inteiro e causava sobreposição
+    // entre dispositivos ("o último a fazer refresh ganhava"). Para reativar:
+    // if(isAdmin) await autoApplyScores(recentData);
+    //
+    // ⚠️ STILL DEAD, DELIBERATELY. Changing the data source does not fix the
+    // write. Before re-arming: convert to field-path writes inside
+    // runTransaction (same pattern as mutateMember). Fixing the pipe and
+    // re-introducing the worst bug in the project's history in one commit
+    // would be a bad day.
+    updateLiveTimestamp();
     renderLive();
-  }catch(e){console.warn('API:',e);}
+  }catch(e){console.warn('[live]',e);}
 }
 // Back-compat aliases — both now route through the single unified call.
 async function fetchLive(){return fetchAll();}

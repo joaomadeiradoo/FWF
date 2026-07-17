@@ -1,0 +1,56 @@
+name: results
+
+# Publishes football-data.org results to data/live.json so the app can read them
+# from its own origin. See scripts/fetch-results.js for why this exists.
+#
+# WINDOW: WC 2026 kick-offs span ~16:00–04:00 UTC. Runs every 10 min from 14:00
+# to 07:00 UTC only — outside that there is nothing to fetch. Cron here is UTC.
+#
+# ⚠️ GitHub does not honour cron precisely. Scheduled runs are queued and can be
+# 5–15 minutes late, occasionally worse under load. That is acceptable for
+# results (a full-time score does not change) but it means the live dot will
+# lag reality. If you want a real-time dot, this needs a Cloudflare Worker
+# instead — same 30 lines, fetches on demand.
+
+on:
+  schedule:
+    - cron: '*/10 14-23 * * *'
+    - cron: '*/10 0-6 * * *'
+  workflow_dispatch:        # lets you run it by hand from the Actions tab
+
+permissions:
+  contents: write
+
+concurrency:
+  group: results            # never let two runs race the same commit
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Fetch results
+        env:
+          FD_TOKEN: ${{ secrets.FD_TOKEN }}
+        run: node scripts/fetch-results.js
+
+      - name: Commit if changed
+        run: |
+          git config user.name  "FWF results bot"
+          git config user.email "actions@github.com"
+          git add data/live.json
+          # No change → no commit → no Pages rebuild. Between games this is a
+          # no-op, which is the point: 64 people are not re-downloading the app
+          # every 10 minutes for nothing.
+          if git diff --staged --quiet; then
+            echo "no change"
+          else
+            git commit -m "results: $(date -u +%FT%TZ)"
+            git push
+          fi
