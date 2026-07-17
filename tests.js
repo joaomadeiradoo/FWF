@@ -102,6 +102,7 @@ function loadApp() {
       getQualified32, getBestThirds, ALL_MATCHES, GROUPS, MATCH_SCHEDULE,
       DEFAULT_RULES, currentPhaseId, profileStats,
       historyFor, roastFor, fuzzyScore, normalize, ROLL_CALL_PT, dailyRollCall,
+      ROAST_PT, ROAST_EN,
       setState(a, p) { actualScores = a; allPredictions = p; },
       setToggles(t) { ptsToggles = t; },
       setAdjustments(x) { adjustments = x; },
@@ -660,8 +661,35 @@ test('a player with no history never gets a history roast', () => {
     }
     ok(outs.length > 0, 'should still get non-history roasts');
     for (const o of outs)
-      ok(!/título|troféu|pódio|venceu|Campeão do Mundial/i.test(o), `invented history: ${o}`);
+      // match the CLAIM about the past, not the word — "Pódio à vista" is about now
+      ok(!/\b(19|20)\d{2}\b|título|troféu|× vencedor|já ganhou|ganhou o |ganhou em |pódios|já lá vão|Campeão do Mundial|anos sem ganhar/i.test(o),
+        `invented history: ${o}`);
   });
+});
+test('no roast ever asserts a player has NO history', () => {
+  // An absent exact match means "new player" OR "never podiumed" OR "name spelled
+  // differently in TOURNAMENT_HISTORY". Unsupportable, so never claimable.
+  const s = fullGroupStage();
+  withState(s, { ...s, bracket: emptyBracket }, () => {
+    const rows = [{ uid: U, name: 'Zzz Nobody', pts: 90, sub: true }, { uid: 'b', name: 'B', pts: 1, sub: true }];
+    for (let i = 0; i < 120; i++) {
+      const o = A.roastFor(U, rows, '2026-07-' + String((i % 28) + 1).padStart(2, '0'), i);
+      if (!o) continue;
+      ok(!/nunca ter subido|nunca ganhou|sem historial|sem qualquer pódio|never made a podium|no history/i.test(o),
+        `asserts absent history: ${o}`);
+    }
+  });
+});
+test('the bank is big enough that 64 players do not see repeats for weeks', () => {
+  ok(A.ROAST_PT.length >= 100, `ROAST_PT is only ${A.ROAST_PT.length}; João asked for 100+`);
+  ok(A.ROAST_EN.length >= 30, `ROAST_EN is only ${A.ROAST_EN.length}`);
+});
+test('every template declares needs and is a function', () => {
+  for (const bank of [A.ROAST_PT, A.ROAST_EN])
+    for (const t of bank) {
+      ok(Array.isArray(t.need) && t.need.length > 0, 'template with no declared needs');
+      ok(typeof t.f === 'function', 'template f is not a function');
+    }
 });
 test('playerChars infrastructure is preserved (João asked to keep it)', () => {
   ok(typeof A.ROLL_CALL_PT !== 'undefined' && A.ROLL_CALL_PT.length > 0, 'legacy char bank intact');
