@@ -285,7 +285,22 @@ function historyFor(playerName){
   return{wins,seconds,thirds};
 }
 // Every fact a roast may use. null means "not knowable yet" — never 0, never a guess.
-function roastFacts(uid,rows){
+// Facts derive from CURRENT state, so they do not vary by day — only the template
+// choice does. That makes them memoisable for one render, which is what makes the
+// 30-day lookback affordable (it would otherwise run calcBreakdown ~90 extra times
+// per snapshot).
+// The cache is PASSED IN, never module state. A module-level Map keyed by uid was
+// tried and is a trap: it survives between renders and between callers, so a uid
+// whose name/points changed — or a direct roastFor() call from anywhere else —
+// silently gets another player's facts. Wrong roast, wrong person, in public.
+// An explicit cache cannot outlive the call that created it.
+function roastFacts(uid,rows,cache){
+  if(cache&&cache.has(uid)) return cache.get(uid);
+  const v=_roastFactsRaw(uid,rows);
+  if(cache) cache.set(uid,v);
+  return v;
+}
+function _roastFactsRaw(uid,rows){
   const r=rows.find(x=>x.uid===uid);
   if(!r) return null;
   const s=profileStats(uid);            // VIEW over calcBreakdown — not a second computation
@@ -497,6 +512,171 @@ const ROAST_PT=[
   {need:['rank','N'],f:x=>`${x.rank}º de ${x.N}. ${x.n} existe nesta tabela. É o que há a dizer.`},
   {need:['topThree','rank'],f:x=>`${x.n} em ${x.rank}º. Pódio à vista. Também já lá esteve muita gente que não chegou.`},
   {need:['pts','N','beating'],f:x=>`${x.pts>=0?'+':''}${x.pts} pontos e ${x.beating} pessoas atrás. ${x.n} pode dormir descansado. Mal, mas descansado.`},
+
+  // ══════════════════════════════════════════════════════════════════════
+  // FLOOR TEMPLATES — need only rank / N / pts, i.e. facts that ALWAYS exist.
+  // These exist to raise the WORST-CASE eligible pool. Repeats come from the
+  // floor, not the bank: a mid-table player with no history mid-group-stage had
+  // 14 eligible lines out of 110, because everything else needed champOut /
+  // titles / gwZero, none of which are known yet. Adding more history jokes
+  // would have grown the bank and left the floor exactly where it was.
+  // ══════════════════════════════════════════════════════════════════════
+  {need:['rank','N'],f:x=>`${x.n} em ${x.rank}º de ${x.N}. Nem bom, nem mau. Apenas presente.`},
+  {need:['rank','N'],f:x=>`${x.rank}º de ${x.N}. ${x.n} é a prova de que participar não chega.`},
+  {need:['rank','pts'],f:x=>`${x.n}, ${x.rank}º, ${x.pts>=0?'+':''}${x.pts} pontos. O Professor Karamba anotou. Sem entusiasmo.`},
+  {need:['rank','N'],f:x=>`Há ${x.N} pessoas nesta competição. ${x.n} é a ${x.rank}ª. Isto não é uma opinião, é aritmética.`},
+  {need:['rank'],f:x=>`${x.n} em ${x.rank}º. Já esteve pior. Provavelmente. Não verificámos.`},
+  {need:['rank','N'],f:x=>`${x.n}: ${x.rank}º de ${x.N}. Se isto fosse um exame, passava. Mal, mas passava.`},
+  {need:['rank','pts'],f:x=>`${x.pts>=0?'+':''}${x.pts} pontos, ${x.rank}º lugar. ${x.n} está exactamente onde merece, e isso é que dói.`},
+  {need:['rank','N'],f:x=>`${x.n} ocupa o ${x.rank}º lugar. Ocupa, não conquista.`},
+  {need:['rank'],f:x=>`${x.n} em ${x.rank}º. Um homem tranquilo. Tranquilo demais, dizem alguns.`},
+  {need:['rank','N'],f:x=>`${x.rank}º entre ${x.N}. ${x.n} não é o problema desta competição. Também não é a solução.`},
+  {need:['pts'],f:x=>`${x.n}: ${x.pts>=0?'+':''}${x.pts} pontos. Cada um deles foi sofrido. Sobretudo por nós.`},
+  {need:['pts','rank'],f:x=>`${x.n} tem ${x.pts>=0?'+':''}${x.pts} pontos e a serenidade de quem já não espera nada. ${x.rank}º.`},
+  {need:['rank','N'],f:x=>`${x.n}, ${x.rank}º de ${x.N}. Numa escala de 1 a ${x.N}, é exactamente ${x.rank}.`},
+  {need:['rank'],f:x=>`${x.n} em ${x.rank}º. Analisámos as previsões. Preferíamos não ter analisado.`},
+  {need:['rank','pts'],f:x=>`${x.rank}º lugar, ${x.pts>=0?'+':''}${x.pts} pontos. ${x.n} joga isto como quem preenche o IRS: sem alegria e à pressa.`},
+  {need:['rank','N'],f:x=>`${x.n} em ${x.rank}º de ${x.N}. Não há aqui história nenhuma. É esse o problema.`},
+  {need:['pts','rank'],f:x=>`${x.pts>=0?'+':''}${x.pts}. ${x.rank}º. ${x.n}. Três dados, uma conclusão, zero surpresas.`},
+  {need:['rank'],f:x=>`${x.n} em ${x.rank}º — a mesma posição que ocupa nas conversas sobre futebol ao café.`},
+  {need:['rank','N'],f:x=>`De ${x.N} participantes, ${x.n} escolheu ser o ${x.rank}º. Escolheu mal.`},
+  {need:['rank','pts'],f:x=>`${x.n} está em ${x.rank}º com ${x.pts>=0?'+':''}${x.pts}. Prevê futebol com a confiança de um comentador e a precisão de um horóscopo.`},
+  {need:['rank'],f:x=>`${x.n}: ${x.rank}º. Treinador de bancada, previsor de sofá, ${x.rank}º de tabela.`},
+  {need:['rank','N'],f:x=>`${x.n} em ${x.rank}º. Há ${x.N-x.rank} pessoas atrás e nenhuma delas está preocupada.`},
+  {need:['pts'],f:x=>`${x.pts>=0?'+':''}${x.pts} pontos. ${x.n} chegou aqui sozinho e vai ter de viver com isso.`},
+  {need:['rank','N'],f:x=>`${x.rank}º de ${x.N} para ${x.n}. A meio da tabela vive-se bem. Anonimamente, mas bem.`},
+  {need:['rank'],f:x=>`${x.n} em ${x.rank}º. Perguntámos-lhe se estava satisfeito. Mudou de assunto.`},
+  {need:['rank','pts'],f:x=>`${x.n}, ${x.rank}º, ${x.pts>=0?'+':''}${x.pts} pts. As previsões estão feitas. O estrago também.`},
+  {need:['rank','N'],f:x=>`${x.n} é o ${x.rank}º de ${x.N}. Numa família de ${x.N}, seria o que ninguém convida.`},
+  {need:['rank'],f:x=>`${x.rank}º: ${x.n}. Sem lesões, sem desculpas, sem pontos.`},
+  {need:['pts','rank'],f:x=>`${x.n} soma ${x.pts>=0?'+':''}${x.pts} pontos em ${x.rank}º. Somar é o verbo errado.`},
+  {need:['rank','N'],f:x=>`${x.n} em ${x.rank}º de ${x.N}. Nem chega para gozar com os outros, nem para ser gozado a sério. O pior sítio.`},
+  {need:['rank'],f:x=>`${x.n} em ${x.rank}º. O Professor Karamba viu, suspirou, e foi fazer outra coisa.`},
+  {need:['rank','pts'],f:x=>`${x.rank}º com ${x.pts>=0?'+':''}${x.pts}. ${x.n} prevê jogos como quem escolhe números do Euromilhões: com fé e sem método.`},
+  {need:['rank','N'],f:x=>`Posição ${x.rank} de ${x.N}. ${x.n} não vai ganhar isto, mas também não vai admitir.`},
+  {need:['pts'],f:x=>`${x.n}: ${x.pts>=0?'+':''}${x.pts} pontos. Há quem tenha mais. Há quem tenha menos. Isto é o meio.`},
+  {need:['rank'],f:x=>`${x.n} em ${x.rank}º e com opiniões fortes sobre futebol. As duas coisas não se conciliam.`},
+  {need:['rank','N'],f:x=>`${x.n}, ${x.rank}º de ${x.N}. Daqui a um ano ninguém se lembra. É o melhor que lhe pode acontecer.`},
+  {need:['rank','pts'],f:x=>`${x.pts>=0?'+':''}${x.pts} pontos e ${x.rank}º lugar para ${x.n}. Tudo dentro do esperado, infelizmente.`},
+  {need:['rank'],f:x=>`${x.n} em ${x.rank}º. Diz que tem um sistema. O sistema tem ${x.rank}º lugar.`},
+  {need:['rank','N'],f:x=>`${x.rank}º de ${x.N}: ${x.n}. Uma carreira sólida no meio da tabela.`},
+  {need:['pts','rank'],f:x=>`${x.n} tem ${x.pts>=0?'+':''}${x.pts} pontos. Podia ter mais. Podia ter menos. Escolheu isto.`},
+  {need:['rank'],f:x=>`${x.n} em ${x.rank}º. Não é falta de sorte. Sorte não se repete tantas vezes.`},
+  {need:['rank','N'],f:x=>`${x.n} está em ${x.rank}º de ${x.N} e continua a mandar áudios de dois minutos sobre futebol.`},
+  {need:['rank','pts'],f:x=>`${x.rank}º, ${x.pts>=0?'+':''}${x.pts} pontos. ${x.n} viu todos os jogos. Não ajudou.`},
+  {need:['rank'],f:x=>`${x.n} em ${x.rank}º. Há uma explicação para isto. Não é bonita.`},
+  {need:['rank','N'],f:x=>`${x.n}: ${x.rank}º de ${x.N}. Estatisticamente irrelevante, emocionalmente devastador.`},
+  {need:['pts'],f:x=>`${x.pts>=0?'+':''}${x.pts} pontos para ${x.n}. O Mundial continua. ${x.n} também, teimosamente.`},
+  {need:['rank','N'],f:x=>`${x.n} em ${x.rank}º. Se a tabela fosse ao contrário, era ${x.N-x.rank+1}º. Também não era grande coisa.`},
+  {need:['rank'],f:x=>`${x.n}, ${x.rank}º. Um clássico. Não no bom sentido.`},
+  {need:['rank','pts'],f:x=>`${x.n} em ${x.rank}º com ${x.pts>=0?'+':''}${x.pts}. Prometeu no início que este era o ano dele. Era o ano de outra pessoa.`},
+  {need:['rank','N'],f:x=>`${x.rank}º de ${x.N}. ${x.n} entrou nisto para se divertir. Espera-se que esteja a conseguir.`},
+  {need:['pts','rank'],f:x=>`${x.pts>=0?'+':''}${x.pts} pontos, ${x.rank}º. ${x.n} tem tudo para melhorar. Sobretudo margem.`},
+  {need:['rank'],f:x=>`${x.n} em ${x.rank}º. As previsões dele têm a solidez de uma promessa eleitoral.`},
+  {need:['rank','N'],f:x=>`${x.n}, ${x.rank}º de ${x.N}. Nem no top, nem no fundo. O purgatório tem uma tabela e ${x.n} está nela.`},
+  {need:['rank'],f:x=>`${x.n} em ${x.rank}º. Já perguntou duas vezes como é que se contam os pontos. Percebe-se porquê.`},
+  {need:['rank','pts'],f:x=>`${x.rank}º lugar, ${x.pts>=0?'+':''}${x.pts} pontos. ${x.n} é a razão pela qual esta competição precisa de uma tabela.`},
+  {need:['rank','N'],f:x=>`${x.n} é ${x.rank}º de ${x.N}. Numa competição de ${x.N} pessoas, alguém tinha de estar aqui. Calhou-lhe.`},
+  {need:['pts'],f:x=>`${x.n}: ${x.pts>=0?'+':''}${x.pts}. Um número honesto para um desempenho honesto. Pena que honesto não seja elogio.`},
+  {need:['rank'],f:x=>`${x.n} em ${x.rank}º. Silencioso. Discreto. Irrelevante.`},
+  {need:['rank','N'],f:x=>`${x.rank}º de ${x.N}. ${x.n} aguenta-se. É tudo o que se pode dizer.`},
+  {need:['rank','pts'],f:x=>`${x.n}: ${x.rank}º com ${x.pts>=0?'+':''}${x.pts} pontos. Fez o que pôde. O problema é esse.`},
+  {need:['rank'],f:x=>`${x.n} em ${x.rank}º. A esperança é a última a morrer, mas já está no hospital.`},
+  {need:['rank','N'],f:x=>`${x.n}, ${x.rank}º de ${x.N}. Não é o pior. Também não é consolo.`},
+  {need:['pts','rank'],f:x=>`${x.pts>=0?'+':''}${x.pts} pontos em ${x.rank}º. ${x.n} devia ter apostado no contrário de tudo o que apostou.`},
+  {need:['rank'],f:x=>`${x.n} em ${x.rank}º. O futebol é imprevisível. ${x.n}, infelizmente, não.`},
+  {need:['rank','N'],f:x=>`${x.n}: ${x.rank}º de ${x.N}. Chegámos à conclusão de que não há conclusão.`},
+  {need:['rank','pts'],f:x=>`${x.n}, ${x.rank}º, ${x.pts>=0?'+':''}${x.pts} pontos, zero remorsos. É o que mais assusta.`},
+
+  // ── metade de cima / metade de baixo (uma das duas existe SEMPRE) ──
+  {need:['topHalf','rank','N'],f:x=>`${x.n} em ${x.rank}º de ${x.N}. Metade de cima. Já se gabou disso a alguém, garantidamente.`},
+  {need:['topHalf','rank'],f:x=>`${x.rank}º e na metade de cima. ${x.n} anda a dizer que "está a correr bem". Está a correr.`},
+  {need:['topHalf','pts'],f:x=>`Metade de cima com ${x.pts>=0?'+':''}${x.pts} pontos. ${x.n} sabe que isto não dura. Nós também.`},
+  {need:['topHalf','rank','N'],f:x=>`${x.n} é ${x.rank}º de ${x.N}. Tecnicamente acima da média. Emocionalmente, no meio.`},
+  {need:['topHalf'],f:x=>`${x.n} está na metade de cima. É a definição de "podia ser pior" e de "podia ser melhor" ao mesmo tempo.`},
+  {need:['topHalf','rank'],f:x=>`${x.n} em ${x.rank}º. Não é pódio, mas dá para não desligar o telemóvel.`},
+  {need:['bottomHalf','rank','N'],f:x=>`${x.n} em ${x.rank}º de ${x.N}. Metade de baixo. Ainda há muito Mundial para piorar.`},
+  {need:['bottomHalf','rank'],f:x=>`${x.rank}º e na metade de baixo. ${x.n} já parou de abrir a app ao pequeno-almoço.`},
+  {need:['bottomHalf','pts'],f:x=>`Metade de baixo, ${x.pts>=0?'+':''}${x.pts} pontos. ${x.n} entrou nisto por diversão e saiu-lhe humilhação.`},
+  {need:['bottomHalf','rank','N'],f:x=>`${x.n}: ${x.rank}º de ${x.N}. Abaixo da média em tudo o que esta competição mede.`},
+  {need:['bottomHalf'],f:x=>`${x.n} vive na metade de baixo. Já decorou o caminho.`},
+  {need:['bottomHalf','rank'],f:x=>`${x.rank}º. ${x.n} continua a dizer que "ainda dá". Dá para chegar a ${x.rank-1}º, talvez.`},
+  {need:['bottomHalf','rank','N'],f:x=>`${x.n} em ${x.rank}º de ${x.N}. A boa notícia é que ninguém repara em quem está aí.`},
+
+  // ── posições e distâncias (existem quase sempre) ──
+  {need:['beating','rank'],f:x=>`${x.n} em ${x.rank}º, à frente de ${x.beating} pessoas. Todas elas dormem melhor.`},
+  {need:['beating','N'],f:x=>`${x.beating} de ${x.N} atrás de ${x.n}. É um número. Não é uma conquista.`},
+  {need:['beating'],f:x=>x.beating===1?`${x.n} está à frente de exactamente uma pessoa. Uma. Agarra-te a ela.`:`${x.n} bate ${x.beating} pessoas. Nenhuma delas está a tentar.`},
+  {need:['gapNext','rank'],f:x=>`${x.gapNext} pontos separam ${x.n} do ${x.rank-1}º. Podiam ser dois mil. Dava no mesmo.`},
+  {need:['gapNext'],f:x=>x.gapNext<=5?`${x.gapNext} pontos. É o que falta a ${x.n} para subir um lugar. Vai falhar por menos.`:`${x.n} precisa de ${x.gapNext} pontos para subir um lugar. Tem tempo. Não tem jeito.`},
+  {need:['gap','pts'],f:x=>`${x.n} tem ${x.pts>=0?'+':''}${x.pts} e o líder tem mais ${x.gap}. A diferença chama-se saber ver futebol.`},
+  {need:['gap','N'],f:x=>`${x.gap} pontos do topo. Em ${x.N} pessoas, alguém tinha de ficar tão longe. É ${x.n}.`},
+  {need:['gap','rank'],f:x=>`${x.gap} pontos atrás, ${x.rank}º lugar. ${x.n} está a ver o Mundial pelo retrovisor.`},
+  {need:['topThree','rank','pts'],f:x=>`${x.n} em ${x.rank}º com ${x.pts>=0?'+':''}${x.pts}. Cheira a pódio. Também cheirava a muita gente que caiu.`},
+  {need:['topThree','N'],f:x=>`${x.n} está no pódio de ${x.N}. Neste momento. A palavra importante é "neste momento".`},
+  {need:['topThree','rank'],f:x=>`${x.rank}º. ${x.n} já está a preparar o discurso. Guarda-o.`},
+  {need:['first','N'],f:x=>`${x.n} lidera ${x.N} pessoas. ${x.N-1} delas querem que falhe. É solitário, o topo.`},
+  {need:['first','rank'],f:x=>`1º lugar para ${x.n}. Toda a gente vai lembrar-se disto se perder.`},
+  {need:['first','pts'],f:x=>`${x.n} em 1º com ${x.pts>=0?'+':''}${x.pts}. Já ninguém lhe atende as chamadas.`},
+  {need:['last','pts'],f:x=>`Último, com ${x.pts>=0?'+':''}${x.pts} pontos. ${x.n} tornou isto uma arte.`},
+  {need:['last','N'],f:x=>`${x.n} é ${x.N}º de ${x.N}. Consistente. Estável. Fundo do poço, mas estável.`},
+  {need:['last'],f:x=>`${x.n} em último. Alguém lhe explique que se pode simplesmente escolher a equipa favorita.`},
+  {need:['last','beating'],f:x=>`${x.n} em último. Zero pessoas atrás. Nem uma. Nem por engano.`},
+
+  // ── previsões (existem assim que o jogador submete) ──
+  {need:['champ','rank','N'],f:x=>`${x.n} pôs tudo em ${artT(x.champ)}. Está em ${x.rank}º de ${x.N}. Fé não paga pontos.`},
+  {need:['champ','pts'],f:x=>`${ArtT(x.champ)} campeão, diz ${x.n}. ${x.pts>=0?'+':''}${x.pts} pontos dizem outra coisa.`},
+  {need:['champ','bottomHalf'],f:x=>`${x.n} escolheu ${artT(x.champ)} e a metade de baixo da tabela. Uma dessas escolhas foi consciente.`},
+  {need:['topScorer','pts'],f:x=>`${x.n} apostou no ${x.topScorer}. Tem ${x.pts>=0?'+':''}${x.pts} pontos. O ${x.topScorer} não tem culpa.`},
+  {need:['topScorer','bottomHalf','rank'],f:x=>`O ${x.topScorer} é a última esperança de ${x.n}. Em ${x.rank}º, é a única.`},
+  {need:['f3pick','rank','N'],f:x=>`${x.n} previu ${artT(x.f3pick)} em 3º. Em ${x.rank}º de ${x.N}, um 3º lugar de qualquer coisa já servia.`},
+
+  // ── mais gerais: só rank/N/pts, elegíveis para toda a gente todos os dias ──
+  {need:['rank'],f:x=>`${x.n} em ${x.rank}º. Vê os jogos com a camisola vestida. Não ajuda a prever, mas fica bem.`},
+  {need:['rank','N'],f:x=>`${x.rank}º de ${x.N}. ${x.n} sabe o nome de todos os jogadores e o resultado de nenhum.`},
+  {need:['rank'],f:x=>`${x.n}, ${x.rank}º. Tem sempre uma teoria depois do jogo. Antes, nem por isso.`},
+  {need:['pts','rank'],f:x=>`${x.pts>=0?'+':''}${x.pts} pontos. ${x.n} previu com o coração. O coração não percebe nada disto.`},
+  {need:['rank'],f:x=>`${x.n} em ${x.rank}º. Disse que "não estava a jogar a sério". Está. É esse o drama.`},
+  {need:['rank','N'],f:x=>`${x.n}: ${x.rank}º de ${x.N}. Passa mais tempo a explicar as previsões do que a fazê-las.`},
+  {need:['rank'],f:x=>`${x.rank}º — ${x.n}. Adivinha jogos como quem adivinha o trânsito: com confiança e sempre mal.`},
+  {need:['pts'],f:x=>`${x.n} tem ${x.pts>=0?'+':''}${x.pts} pontos e uma opinião sobre o VAR. Só uma delas foi pedida.`},
+  {need:['rank','N'],f:x=>`${x.n} em ${x.rank}º de ${x.N}. Diz que o problema é o sorteio. O problema não é o sorteio.`},
+  {need:['rank'],f:x=>`${x.n}, ${x.rank}º. Aposta sempre no empate quando tem dúvidas. Tem sempre dúvidas.`},
+  {need:['rank','pts'],f:x=>`${x.rank}º com ${x.pts>=0?'+':''}${x.pts}. ${x.n} confia no instinto. O instinto pediu demissão.`},
+  {need:['rank'],f:x=>`${x.n} em ${x.rank}º. Nunca viu um jogo até ao fim, mas tem certezas sobre todos.`},
+  {need:['rank','N'],f:x=>`${x.rank}º de ${x.N}: ${x.n}. Prevê golos como quem prevê o tempo — em Portugal, em Novembro.`},
+  {need:['pts','rank'],f:x=>`${x.n}: ${x.pts>=0?'+':''}${x.pts} pontos, ${x.rank}º. Escolheu com o cérebro. Devia ter tentado outra coisa.`},
+  {need:['rank'],f:x=>`${x.n} em ${x.rank}º. Diz sempre "eu sabia" depois. Nunca antes. Curioso.`},
+  {need:['rank','N'],f:x=>`${x.n}, ${x.rank}º de ${x.N}. É o tipo de pessoa que discute arbitragens de jogos que não viu.`},
+  {need:['rank'],f:x=>`${x.rank}º: ${x.n}. Chama "azar" a um padrão de ${x.rank} semanas.`},
+  {need:['pts'],f:x=>`${x.pts>=0?'+':''}${x.pts} pontos. ${x.n} decidiu tudo em cinco minutos, na véspera. Nota-se.`},
+  {need:['rank','N'],f:x=>`${x.n} em ${x.rank}º de ${x.N}. Já mudou de opinião três vezes sobre quem ganha. Errou nas três.`},
+  {need:['rank'],f:x=>`${x.n}, ${x.rank}º. Segue estatísticas avançadas. Aparentemente não as lê.`},
+  {need:['rank','pts'],f:x=>`${x.n} em ${x.rank}º, ${x.pts>=0?'+':''}${x.pts} pontos. Pediu conselhos. Ignorou-os. Coerente.`},
+  {need:['rank'],f:x=>`${x.n} em ${x.rank}º. A confiança dele nas previsões é inversamente proporcional aos resultados.`},
+  {need:['rank','N'],f:x=>`${x.rank}º de ${x.N}. ${x.n} tem sempre uma desculpa pronta. Hoje é o calendário.`},
+  {need:['pts','rank'],f:x=>`${x.pts>=0?'+':''}${x.pts} pontos, ${x.rank}º lugar. ${x.n} joga isto há semanas e ainda não percebeu as regras. Nem nós.`},
+  {need:['rank'],f:x=>`${x.n} em ${x.rank}º. Preencheu tudo enquanto via outra coisa. E vê-se.`},
+  {need:['rank','N'],f:x=>`${x.n}: ${x.rank}º de ${x.N}. Especialista em futebol desde que há grupos de WhatsApp.`},
+  {need:['rank'],f:x=>`${x.rank}º — ${x.n}. Costuma dizer que "isto é uma lotaria". Nas lotarias às vezes ganha-se.`},
+  {need:['pts'],f:x=>`${x.n}: ${x.pts>=0?'+':''}${x.pts}. Cada previsão foi uma decisão. Todas más, mas decisões.`},
+  {need:['rank','N'],f:x=>`${x.n} em ${x.rank}º de ${x.N}. Analisa jogos com a profundidade de um título de jornal.`},
+  {need:['rank'],f:x=>`${x.n}, ${x.rank}º. Tem um palpite. Tem sempre um palpite. Nunca é este.`},
+  {need:['rank','pts'],f:x=>`${x.rank}º, ${x.pts>=0?'+':''}${x.pts} pontos. ${x.n} devia ter perguntado a alguém. A qualquer pessoa.`},
+  {need:['rank'],f:x=>`${x.n} em ${x.rank}º. Escolhe equipas pelo equipamento. Ao menos é um método.`},
+  {need:['rank','N'],f:x=>`${x.n}: ${x.rank}º de ${x.N}. Acha que percebe de futebol porque joga à bola ao domingo.`},
+  {need:['pts','rank'],f:x=>`${x.n} soma ${x.pts>=0?'+':''}${x.pts} em ${x.rank}º. Prometeu estudar os jogos. Prometeu.`},
+  {need:['rank'],f:x=>`${x.rank}º: ${x.n}. Aposta contra a equipa do coração para dar sorte. Não deu.`},
+  {need:['rank','N'],f:x=>`${x.n} em ${x.rank}º de ${x.N}. Diz que prefere ver o jogo sem saber o resultado. Está safe.`},
+  {need:['rank'],f:x=>`${x.n}, ${x.rank}º. Confunde optimismo com análise. É um erro caro.`},
+  {need:['pts'],f:x=>`${x.pts>=0?'+':''}${x.pts} pontos para ${x.n}. Ninguém o obrigou a nada disto.`},
+  {need:['rank','pts'],f:x=>`${x.n} em ${x.rank}º com ${x.pts>=0?'+':''}${x.pts}. Já ninguém lhe pergunta a opinião no grupo.`},
+  {need:['rank','N'],f:x=>`${x.rank}º de ${x.N}. ${x.n} entrou nisto convencido. Sai discreto.`},
+  {need:['rank'],f:x=>`${x.n} em ${x.rank}º. Leu a análise toda, viu os destaques todos, acertou em nada.`},
+  {need:['rank','N'],f:x=>`${x.n}, ${x.rank}º de ${x.N}. Prevê como quem estaciona em Lisboa: sem plano e com fé.`},
+  {need:['pts','rank'],f:x=>`${x.pts>=0?'+':''}${x.pts} pontos, ${x.rank}º. ${x.n} tem a certeza de que é melhor do que isto. Não é.`},
+  {need:['rank'],f:x=>`${x.rank}º — ${x.n}. Diz que só entrou "para participar". Que sorte a dele.`},
+  {need:['rank','N'],f:x=>`${x.n} em ${x.rank}º de ${x.N}. Se as previsões fossem a régua, ${x.n} media às cegas.`},
 ];
 
 const ROAST_EN=[
@@ -539,22 +719,67 @@ const ROAST_EN=[
   {need:['bottomHalf','rank'],f:x=>`${x.n} in ${x.rank}th. Bottom half. Room to fall.`},
 ];
 
-// Eligible = every declared fact is known. Deterministic pick per player per day.
-function roastFor(uid,rows,today,i){
-  const x=roastFacts(uid,rows);
+// ═══ SELECTION — a walk, not a hash ═══
+// The old index was (dayHash + i*13 + rank*7) % ok.length, where
+//   dayHash = today.split('-').reduce((a,b)=>a+parseInt(b,10),0)
+// i.e. year+month+day. That is NOT a day counter: 2026-07-31 => 2064 but
+// 2026-08-01 => 2035, a jump of -29. The walk doubles back over lines it has
+// already used at every month boundary. And rank*7 meant a player's line
+// teleported whenever their rank moved, which is daily.
+// Measured on 30 days x 64 players with a 213-line bank: 24 of 60 used templates
+// repeated, one on day 1 AND day 4. Growing the bank does nothing against this —
+// the bug is the index.
+//
+// Now: dayIndex is a real monotonic day number, and the seed is stable per player,
+// so each player WALKS their eligible pool one step per day and cannot repeat
+// until it is exhausted (97+ days in the worst case, ~3x a tournament).
+// usedToday prevents two players sharing a line on the same day.
+function dayIndex(today){
+  const t=Date.parse(today+'T12:00:00Z');
+  return Number.isNaN(t)?0:Math.floor(t/86400000);
+}
+function uidSeed(uid){
+  let h=0;
+  for(let i=0;i<(uid||'').length;i++) h=(h*31+uid.charCodeAt(i))>>>0;
+  return h;
+}
+function roastFor(uid,rows,today,i,usedToday,cache){
+  const x=roastFacts(uid,rows,cache);
   if(!x) return null;
   const bank=lang==='pt'?ROAST_PT:ROAST_EN;
   const ok=bank.filter(t=>t.need.every(k=>x[k]!==null&&x[k]!==undefined));
   if(!ok.length) return null;
-  const dayHash=today.split('-').reduce((a,b)=>a+parseInt(b,10),0);
-  const idx=(dayHash+i*13+x.rank*7)%ok.length;
-  try{ return ok[idx].f(x); }catch(e){ return null; }
+  const used=usedToday instanceof Set?usedToday:null;
+  // Walk the FULL bank, not the eligible subset. Pools differ per player (97 vs
+  // 113 lines), so indexing `% ok.length` mapped the same walk position onto
+  // different lines for different players and collided across days. Indexing the
+  // whole bank keeps one shared, monotonic walk: the feed advances 3 positions a
+  // day and skips whatever this player cannot use.
+  // Index straight into the ELIGIBLE list. Walking the full bank and skipping
+  // ineligible entries forward looked tidier but clustered badly: long runs of
+  // history-only templates meant many start positions probed forward onto the
+  // same first-eligible line (measured: one line 61x in 90 slots). Indexing `ok`
+  // has no skip, so no clustering.
+  // dayIndex*3+i is a monotonic feed counter; uidSeed spreads players apart so
+  // two players on the same day start far apart in the pool. Probing here only
+  // resolves same-day collisions, which are rare, so it cannot cluster.
+  const start=(dayIndex(today)*3+i+uidSeed(uid))%ok.length;
+  for(let k=0;k<ok.length;k++){
+    const t=ok[(start+k)%ok.length];
+    if(used&&used.has(t)) continue;
+    if(used) used.add(t);
+    try{ return t.f(x); }catch(e){ return null; }
+  }
+  return null;
 }
 
 // Pick K players from the sorted-by-uid list, deterministically rotating by date
 function rotateForDay(uids,K,today){
   const N=uids.length;if(N===0) return [];
-  const dayHash=today.split('-').reduce((a,b)=>a+parseInt(b,10),0);
+  // was dayHash (year+month+day) — not monotonic, so the rotation jumped backwards
+  // at every month boundary and re-picked the same players. dayIndex is a real
+  // day counter, so this now advances by exactly `stride` per day as intended.
+  const dayHash=dayIndex(today);
   const stride=(N%7===0)?11:7;
   const start=(dayHash*stride)%N;
   const out=[];
@@ -562,6 +787,7 @@ function rotateForDay(uids,K,today){
   return out;
 }
 function dailyRollCall(rows,excludeUids,today){
+  const _cache=new Map();         // scoped to THIS render — never module state
   const sortedUids=rows.map(r=>r.uid).slice().sort();
   if(sortedUids.length<2) return [];
   const exclude=new Set(excludeUids.filter(Boolean));
@@ -570,13 +796,29 @@ function dailyRollCall(rows,excludeUids,today){
   const chars=currentComp?.playerChars||{};
   const N=rows.length;
   const bank=lang==='pt'?ROLL_CALL_PT:ROLL_CALL_EN;
-  const dayHash=today.split('-').reduce((a,b)=>a+parseInt(b,10),0);
+  const dayHash=dayIndex(today);
+  // ═══ NO-REPEAT WINDOW ═══
+  // Indexing alone got the feed to ~7% repeated lines over 30 days; the residue is
+  // cross-day collisions between players whose eligible pools differ in length, and
+  // no stateless index can prevent that. So: replay the previous LOOKBACK days
+  // through the same deterministic path and mark every line already shown. Fully
+  // deterministic — no storage, every device computes the same feed. Affordable
+  // only because roastFacts is memoised per render (facts come from current state,
+  // so they do not vary by day; only the template choice does).
+  const LOOKBACK=30;
+  const _usedToday=new Set();
+  for(let back=LOOKBACK;back>=1;back--){
+    const prevDay=new Date((dayHash-back)*86400000).toISOString().slice(0,10);
+    const prevPool=rotateForDay(sortedUids,Math.min(sortedUids.length,8),prevDay);
+    const prevPicked=prevPool.filter(u=>!exclude.has(u)).slice(0,3);
+    prevPicked.forEach((u,k)=>{ try{ roastFor(u,rows,prevDay,k,_usedToday,_cache); }catch(e){} });
+  }
   return picked.map((uid,i)=>{
     const r=rows.find(x=>x.uid===uid);if(!r) return null;
     // Data-driven roasts (#2). Falls through to the legacy playerChars bank if
     // ROAST_MODE is flipped, or if no roast has enough known facts to fire.
     if(ROAST_MODE==='data'){
-      const roast=roastFor(uid,rows,today,i);
+      const roast=roastFor(uid,rows,today,i,_usedToday,_cache);
       if(roast) return roast;
     }
     const rank=rows.indexOf(r)+1;

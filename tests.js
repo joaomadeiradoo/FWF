@@ -102,7 +102,7 @@ function loadApp() {
       getQualified32, getBestThirds, ALL_MATCHES, GROUPS, MATCH_SCHEDULE,
       DEFAULT_RULES, currentPhaseId, profileStats,
       historyFor, roastFor, fuzzyScore, normalize, ROLL_CALL_PT, dailyRollCall,
-      ROAST_PT, ROAST_EN,
+      ROAST_PT, ROAST_EN, roastFacts,
       setState(a, p) { actualScores = a; allPredictions = p; },
       setToggles(t) { ptsToggles = t; },
       setAdjustments(x) { adjustments = x; },
@@ -632,9 +632,11 @@ test('a genuinely first / last player still gets those roasts', () => {
   withState(s, { ...s, bracket: emptyBracket }, () => {
     const rows = [{ uid: U, name: 'Zzz Nobody', pts: 90, sub: true }, { uid: 'b', name: 'Bbb', pts: 10, sub: true }];
     let sawFirst = false;
-    for (let i = 0; i < 80; i++) {
-      const o = A.roastFor(U, rows, '2026-07-' + String((i % 28) + 1).padStart(2, '0'), i);
-      if (o && /lidera com|\bem 1º\b/i.test(o)) sawFirst = true;
+    // walk far enough to cover the pool — it is ~140 lines now, not 30
+    for (let i = 0; i < 400; i++) {
+      const d = new Date(Date.UTC(2026, 0, 1) + i * 86400000).toISOString().slice(0, 10);
+      const o = A.roastFor(U, rows, d, i % 3);
+      if (o && /lidera com|\bem 1º\b|lidera \d/i.test(o)) sawFirst = true;
     }
     ok(sawFirst, 'the leader must still be eligible for leader lines — do not over-null');
   });
@@ -690,6 +692,19 @@ test('every template declares needs and is a function', () => {
       ok(Array.isArray(t.need) && t.need.length > 0, 'template with no declared needs');
       ok(typeof t.f === 'function', 'template f is not a function');
     }
+});
+test('REGRESSION: facts are never cached across players', () => {
+  // A module-level uid-keyed cache was tried and leaked one player's facts onto
+  // another. The cache must be passed in and die with the call.
+  const s = fullGroupStage();
+  withState(s, { ...s, bracket: emptyBracket }, () => {
+    const asChamp = [{ uid: U, name: 'Luís Vargas Mota', pts: 50, sub: true }, { uid: 'b', name: 'B', pts: 10, sub: true }];
+    const asNobody = [{ uid: U, name: 'Zzz Nobody', pts: 50, sub: true }, { uid: 'b', name: 'B', pts: 10, sub: true }];
+    const a = A.roastFacts(U, asChamp);
+    const b = A.roastFacts(U, asNobody);
+    ok(a.titles !== null, 'the champion must have titles');
+    eq(b.titles, null, 'same uid, different person => must NOT inherit titles');
+  });
 });
 test('playerChars infrastructure is preserved (João asked to keep it)', () => {
   ok(typeof A.ROLL_CALL_PT !== 'undefined' && A.ROLL_CALL_PT.length > 0, 'legacy char bank intact');
