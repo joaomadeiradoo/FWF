@@ -1,0 +1,272 @@
+</head>
+<body>
+<!-- FWF-BUILD:20260717c -->
+<div id="update-banner" onclick="fwfUpdateNow()" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99999;background:#FFD700;color:#0D1B2A;text-align:center;padding:11px;font-weight:800;font-size:.85rem;cursor:pointer;font-family:system-ui,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.4)">🔄 Nova versão disponível — toca para atualizar</div>
+<div id="ptr"><div id="ptr-spinner"></div></div>
+<nav id="bottom-nav">
+  <button class="bnav-btn active" onclick="showTab('tab-leaderboard')" id="bnav-leaderboard"><span class="bi">🏆</span><span>Classif.</span></button>
+  <button class="bnav-btn" onclick="showTab('tab-predictions')" id="bnav-predictions"><span class="bi">🎯</span><span>Previsões</span></button>
+  <button class="bnav-btn" onclick="showTab('tab-grupos')" id="bnav-grupos"><span class="bi">📋</span><span>Grupos</span></button>
+  <button class="bnav-btn" onclick="showTab('tab-bracket')" id="bnav-bracket"><span class="bi">📊</span><span>Fases</span></button>
+  <button class="bnav-btn" onclick="showTab('tab-historia')" id="bnav-historia"><span class="bi">🏛️</span><span>História</span></button>
+  <button class="bnav-btn" onclick="showTab('tab-rules')" id="bnav-rules"><span class="bi">📖</span><span>Regras</span></button>
+  <button class="bnav-btn hidden" onclick="showTab('tab-host')" id="bnav-host"><span class="bi">⚙️</span><span>Host</span></button>
+</nav>
+<div id="app">
+<header><div class="hdr-row"><img class="hdr-img" src="karamba.jpg" alt="Professor Karamba" onerror="this.style.display='none'"/><div class="hdr-txt"><h1>PREVISÕES DO PROFESSOR KARAMBA</h1><p id="hdr-sub">2026 · USA · CANADA · MEXICO</p></div></div>
+<div class="lang-toggle">
+  <button class="active" onclick="setLang('pt')">🇵🇹 PT</button>
+  <button onclick="setLang('en')">🇬🇧 EN</button>
+</div>
+</header>
+<div id="screen-loading" class="card" style="text-align:center;padding:40px 20px">
+  <div style="font-size:2.5rem;margin-bottom:10px">⚽</div>
+  <div style="font-size:1rem;color:var(--muted)">A carregar...</div>
+</div>
+<div id="screen-auth" class="card hidden">
+  <h2 style="text-align:center;margin-bottom:16px">Previsões do Professor Karamba</h2>
+  <div class="form-group"><label>Nome e Apelido / Full Name</label><input type="text" id="auth-name" placeholder="Ex: Paulo Silva" autocomplete="name"/></div>
+  <div class="form-group"><label>PIN (4 dígitos)</label><input type="password" id="auth-pin" placeholder="••••" maxlength="4" pattern="[0-9]{4}" inputmode="numeric" autocomplete="off"/></div>
+  <div class="form-group"><label>Código de Convite</label><input type="text" id="auth-code" placeholder="XXXXXX" style="text-transform:uppercase" autocomplete="off"/></div>
+  <button class="btn btn-gold btn-full" onclick="doSimpleAuth()">Entrar / Join</button>
+  <p style="color:var(--muted);font-size:.75rem;margin-top:12px;text-align:center">Primeira vez? Escolhe um nome e PIN. Próximas vezes usa o mesmo PIN para entrar.</p>
+  <div style="margin-top:16px;text-align:center;padding-top:16px;border-top:1px solid var(--border)">
+    <p style="color:var(--muted);font-size:.7rem;margin-bottom:8px">Apenas para administradores</p>
+    <button class="btn btn-green btn-sm" onclick="(function(){const p=prompt('PIN Administrador:');if(p==='2026'){document.getElementById('screen-auth').classList.add('hidden');document.getElementById('screen-host-create').classList.remove('hidden');}else if(p){alert('PIN incorreto');}})()">🎯 Criar Nova Competição</button>
+  </div>
+</div>
+<div id="screen-host-create" class="card hidden">
+  <h2 style="text-align:center;margin-bottom:16px">Criar Competição</h2>
+  <div class="form-group"><label>Teu Nome / Your Name</label><input type="text" id="host-name" placeholder="João Madeira" autocomplete="name"/></div>
+  <div class="form-group"><label>Teu PIN (4 dígitos)</label><input type="password" id="host-pin" placeholder="••••" maxlength="4" pattern="[0-9]{4}" inputmode="numeric" autocomplete="off"/></div>
+  <div class="form-group"><label>Nome da Competição</label><input type="text" id="host-comp-name" placeholder="World Cup 2026" value="Previsões do Professor Karamba"/></div>
+  <button class="btn btn-gold btn-full" onclick="doCreateCompetition()">Criar / Create</button>
+  <button class="btn btn-ghost btn-full" style="margin-top:8px" onclick="document.getElementById('screen-host-create').classList.add('hidden');document.getElementById('screen-auth').classList.remove('hidden');">← Voltar</button>
+</div>
+<div id="screen-main" class="hidden">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:6px">
+    <div style="display:flex;align-items:center;gap:9px">
+      <div style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--red));display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1rem;flex-shrink:0" id="user-avatar">?</div>
+      <div><div style="font-weight:700;font-size:.9rem" id="user-name-display">-</div><div style="font-size:.64rem;color:var(--muted)" id="user-comp-display">-</div></div>
+    </div>
+    <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap">
+      <span id="host-badge" class="badge badge-host hidden">HOST</span>
+      <span id="admin-badge" class="badge badge-admin hidden">ADMIN</span>
+      <button class="btn btn-ghost btn-sm" onclick="doSignOut()">Sair</button>
+    </div>
+  </div>
+  <div class="tabs" id="main-tabs">
+    <button class="tab active" onclick="showTab('tab-leaderboard')" id="tab-btn-leaderboard">🏆 Classif.</button>
+    <button class="tab" onclick="showTab('tab-predictions')" id="tab-btn-predictions">🎯 Previsões</button>
+    <button class="tab" onclick="showTab('tab-grupos')" id="tab-btn-grupos">📋 Grupos</button>
+    <button class="tab" onclick="showTab('tab-bracket')" id="tab-btn-bracket">📊 Fases</button>
+    <button class="tab" onclick="showTab('tab-historia')" id="tab-btn-historia">🏛️ História</button>
+    <button class="tab" onclick="showTab('tab-rules')" id="tab-btn-rules">📖 Regras</button>
+    <button class="tab hidden" onclick="showTab('tab-host')" id="tab-btn-host">⚙️ Host</button>
+  </div>
+  <div id="tab-leaderboard" class="tab-content active">
+    <div class="card"><h2>⚡ Ao Vivo &amp; Próximos <span id="live-updated" style="font-size:.65rem;color:var(--muted);font-family:var(--fb);font-weight:400;letter-spacing:0;text-transform:none"></span></h2><div id="live-content"><p style="color:var(--muted);font-size:.84rem">A carregar...</p></div></div>
+    <div id="dsum-wrap"></div>
+    <div id="podium-wrap"></div>
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:7px;margin-bottom:12px">
+        <h2 style="margin:0">🏆 Classificação</h2>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-ghost btn-sm" id="lb-share-btn" onclick="shareLeaderboard()">📤 Partilhar</button>
+        </div>
+      </div>
+      <div id="lb-tools" class="hidden">
+        <input id="lb-search" type="search" autocomplete="off" placeholder="🔎 Procurar jogador…" oninput="lbApplyFilter()"/>
+        <button class="btn btn-ghost btn-sm hidden" id="lb-findme-btn" onclick="lbFindMe()">👈 Onde estou?</button>
+      </div>
+      <div id="lb-content"><div class="skel-row"><div class="skel skel-rank"></div><div class="skel skel-name" style="max-width:150px"></div><div class="skel skel-pts"></div></div><div class="skel-row"><div class="skel skel-rank"></div><div class="skel skel-name" style="max-width:190px"></div><div class="skel skel-pts"></div></div><div class="skel-row"><div class="skel skel-rank"></div><div class="skel skel-name" style="max-width:120px"></div><div class="skel skel-pts"></div></div><div class="skel-row"><div class="skel skel-rank"></div><div class="skel skel-name" style="max-width:170px"></div><div class="skel skel-pts"></div></div><div class="skel-row"><div class="skel skel-rank"></div><div class="skel skel-name" style="max-width:140px"></div><div class="skel skel-pts"></div></div></div>
+      <div id="lb-noresults" class="hidden" style="padding:18px 8px;text-align:center;color:var(--muted);font-size:.82rem">Nenhum jogador encontrado.</div>
+      <div id="lb-canvas-wrap"><canvas id="lb-canvas"></canvas><div style="margin-top:7px"><button class="btn btn-ghost btn-sm" onclick="downloadLb()">⬇️ Imagem</button></div></div>
+    </div>
+    <div class="card"><h2>👁️ Previsões dos outros</h2><p style="color:var(--muted);font-size:.8rem;margin-bottom:10px">Visíveis após submeter as tuas.</p><div id="op-content"></div></div>
+  </div>
+  <div id="tab-predictions" class="tab-content">
+    <div class="card">
+      <h2>⏳ Tempo para fechar apostas</h2>
+      <div class="countdown">
+        <div class="cd-block"><div class="cd-num" id="cd-days">--</div><div class="cd-lbl">dias</div></div>
+        <div class="cd-block"><div class="cd-num" id="cd-hours">--</div><div class="cd-lbl">horas</div></div>
+        <div class="cd-block"><div class="cd-num" id="cd-mins">--</div><div class="cd-lbl">min</div></div>
+        <div class="cd-block"><div class="cd-num" id="cd-secs">--</div><div class="cd-lbl">seg</div></div>
+      </div>
+      <p id="deadline-note" style="text-align:center;color:var(--muted);font-size:.78rem"></p>
+    </div>
+    <div id="pred-banner" style="margin-bottom:10px"></div>
+    <div id="group-matches"></div>
+    <div style="text-align:center;margin:18px 0">
+      <button class="btn btn-gold" onclick="submitPredictions('group')" id="btn-submit" style="font-size:.95rem;padding:13px 36px">✅ Guardar Previsões de Grupo</button>
+      <p style="color:var(--muted);font-size:.74rem;margin-top:7px" id="submit-note"></p>
+      <button class="btn btn-ghost" id="btn-go-bracket" style="display:none;margin-top:10px;font-size:.88rem" onclick="showTab('tab-bracket')">📊 Avançar para Fases →</button>
+    </div>
+  </div>
+  <div id="tab-grupos" class="tab-content">
+    <div class="card">
+      <h2>📋 Classificação dos Grupos</h2>
+      <p style="color:var(--muted);font-size:.78rem;margin-bottom:14px" id="grupos-note"></p>
+      <div id="grupos-content"></div>
+    </div>
+  </div>
+  <div id="tab-bracket" class="tab-content">
+    <div class="card">
+      <h2>📊 Road to Final</h2>
+      <div class="bracket-instruction">
+        <strong>👆 Como jogar:</strong> As equipas entram automaticamente das tuas previsões de grupo.
+        <strong>Clica na equipa que prevês vencer</strong> — ela avança para a ronda seguinte, até ao campeão!
+        Rondas seguintes ficam vazias até clicares nos vencedores anteriores.
+        <br/><span style="color:var(--muted);font-size:.75rem">Verde = correcto · Vermelho = errado (quando houver resultados reais)</span>
+      </div>
+      <div id="bracket-content" class="bracket-outer"></div>
+      <div id="bracket-mobile" class="bracket-mobile"></div>
+      <div id="bracket-swipe-nav" class="bracket-nav-dots"></div>
+      <div id="bracket-swipe" class="bracket-swipe">
+        <div id="bracket-swipe-inner" class="bracket-swipe-inner"></div>
+      </div>
+      <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--border)">
+        <h2 style="font-size:1.1rem;margin-bottom:8px">🥇 Melhor Marcador</h2>
+        <div class="form-group" style="max-width:300px">
+          <label>Jogador que prevês como melhor marcador</label>
+          <input type="text" id="topscorer-input" placeholder="Escreve o nome..." autocomplete="off" oninput="markUnsaved()"/>
+        </div>
+      </div>
+      <div style="margin-top:14px;text-align:center">
+        <button class="btn btn-gold" onclick="submitPredictions('bracket')" id="btn-submit-bracket">✅ Guardar Fases &amp; Goleador</button>
+      </div>
+    </div>
+  </div>
+  <div id="tab-historia" class="tab-content">
+    <div class="card">
+      <h2>🏛️ Wall of Fame</h2>
+      <p style="color:var(--muted);font-size:.82rem;margin-bottom:16px">A história completa desde 2008. Desliza para ver todos os torneios.</p>
+      <div id="historia-content"></div>
+    </div>
+    <div class="card">
+      <h2>🏆 Troféus Especiais</h2>
+      <p style="color:var(--muted);font-size:.82rem;margin-bottom:14px">Estatísticas históricas dos melhores.</p>
+      <div id="awards-content"></div>
+    </div>
+  </div>
+  <div id="tab-rules" class="tab-content">
+    <div class="card"><h2>📖 Regras de Pontuação</h2><div id="rules-content"></div></div>
+    <div class="card">
+      <h2>↕ Critérios de Desempate</h2>
+      <p style="color:var(--muted);font-size:.78rem;margin-bottom:12px">Aplicados por esta ordem quando dois ou mais jogadores terminam com a mesma pontuação. Visíveis na classificação a partir das meias-finais.</p>
+      <ol style="color:var(--text);font-size:.82rem;line-height:2;padding-left:18px">
+        <li>Acertar o campeão</li>
+        <li>Acertar o melhor marcador</li>
+        <li>Acertar mais equipas nas meias-finais</li>
+        <li>Acertar mais equipas nos quartos-de-final</li>
+        <li>Acertar mais equipas no R16</li>
+        <li>Acertar mais equipas no R32</li>
+        <li>Mais resultados exactos na fase de grupos</li>
+        <li>Moeda ao ar</li>
+      </ol>
+    </div>
+  </div>
+  <div id="tab-host" class="tab-content">
+    <div class="card">
+      <h2>⚙️ Painel Host / Admin</h2>
+      <div id="invite-section" class="hidden">
+        <div class="invite-box">
+          <p style="color:var(--muted);font-size:.73rem;margin-bottom:3px">Código de convite</p>
+          <div class="invite-code" id="host-invite-code">----</div>
+          <div style="margin-top:8px;display:flex;gap:6px;justify-content:center;flex-wrap:wrap">
+            <button class="btn btn-ghost btn-sm" onclick="copyInvite()">📋 Copiar</button>
+            <button class="btn btn-ghost btn-sm" onclick="regenerateCode()">🔄 Novo código</button>
+          </div>
+        </div>
+      </div>
+      <div style="margin-bottom:18px">
+        <h3 style="font-family:var(--fh);color:var(--gold);letter-spacing:1px;margin-bottom:6px;font-size:.95rem">📡 API Requests Hoje</h3>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+          <span id="api-count-lbl" style="font-size:.8rem">0 / 100</span>
+          <button class="btn btn-ghost btn-sm" onclick="forceFetch()">🔄 Forçar fetch</button>
+        </div>
+        <div class="api-bar"><div class="api-bar-fill" id="api-bar-fill" style="width:0%;background:var(--green)"></div></div>
+        <div id="api-log" style="font-size:.68rem;color:var(--muted);margin-top:4px;max-height:70px;overflow-y:auto"></div>
+      </div>
+      <div style="margin-bottom:18px">
+        <h3 style="font-family:var(--fh);color:var(--gold);letter-spacing:1px;margin-bottom:5px;font-size:.95rem">🎭 Características dos Jogadores</h3>
+        <p style="color:var(--muted);font-size:.73rem;margin-bottom:8px">Para comentários picantes. Ex: "adepto do Benfica", "ex-árbitro".</p>
+        <div id="host-player-chars"></div>
+        <button class="btn btn-ghost btn-sm" style="margin-top:7px" onclick="savePlayerChars()">💾 Guardar</button>
+      </div>
+      <div style="margin-bottom:18px">
+        <h3 style="font-family:var(--fh);color:var(--gold);letter-spacing:1px;margin-bottom:8px;font-size:.95rem">👥 Participantes</h3>
+        <div id="host-members"></div>
+      </div>
+      <div style="margin-bottom:18px">
+        <h3 style="font-family:var(--fh);color:var(--gold);letter-spacing:1px;margin-bottom:6px;font-size:.95rem">🔓 Permitir Re-submissão</h3>
+        <p style="color:var(--muted);font-size:.73rem;margin-bottom:8px">O utilizador mantém previsões anteriores e edita até bloqueares novamente.</p>
+        <div id="host-unlock"></div>
+      </div>
+      <div style="margin-bottom:18px" id="pts-adjust-section">
+        <h3 style="font-family:var(--fh);color:var(--gold);letter-spacing:1px;margin-bottom:5px;font-size:.95rem">➕➖ Ajustar Pontos</h3>
+        <p style="color:var(--muted);font-size:.73rem;margin-bottom:10px">Salvaguarda manual: soma ou subtrai pontos a um jogador (ex: aposta paralela, penalização). A pontuação automática continua a funcionar por baixo — isto é só um ajuste por cima. Cada ajuste fica registado com o motivo e é reversível.</p>
+        <div id="host-adjust"></div>
+        <button class="btn btn-ghost btn-sm" style="margin-top:10px;color:var(--red);border-color:var(--red)" onclick="clearAllAdjustments()">🗑️ Apagar TODOS os ajustes</button>
+      </div>
+      <!-- POINTS TOGGLES - NEW -->
+      <div style="margin-bottom:18px" id="pts-toggles-section">
+        <h3 style="font-family:var(--fh);color:var(--gold);letter-spacing:1px;margin-bottom:5px;font-size:.95rem">🎛️ Lançamento de Pontos</h3>
+        <p style="color:var(--muted);font-size:.73rem;margin-bottom:10px">Controla quando os pontos de classificação de grupo e R32 são atribuídos. Útil para criar momentos dramáticos! Quando em OFF, os pontos não contam mesmo com resultados inseridos. "Lançar" torna permanentemente ON.</p>
+        <div id="pts-toggles-content"></div>
+      </div>
+      <div style="margin-bottom:18px">
+        <h3 style="font-family:var(--fh);color:var(--gold);letter-spacing:1px;margin-bottom:6px;font-size:.95rem">⚽ Inserir Resultados Reais</h3>
+        <p style="color:var(--muted);font-size:.73rem;margin-bottom:10px">API aplica automaticamente. Podes editar manualmente se necessário.</p>
+        <div id="host-score-inputs"></div>
+        <div style="margin-top:14px;padding:12px;background:#0D1B2A;border-radius:10px;border:1px solid var(--border)">
+          <label style="font-size:.8rem;color:var(--muted);font-weight:600;display:block;margin-bottom:6px">Melhor marcador real (nome oficial)</label>
+          <input type="text" id="host-topscorer" placeholder="Nome oficial" style="width:100%;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-family:var(--fb);font-size:.9rem;outline:none;margin-bottom:8px"/>
+          <button class="btn btn-ghost btn-sm" onclick="reviewTopScorer()">🔍 Rever previsões de goleador</button>
+          <div id="ts-fuzzy-results" style="margin-top:10px"></div>
+        </div>
+        <div style="margin-top:10px"><button class="btn btn-green" onclick="saveActualScores()">💾 Guardar Resultados</button></div>
+      </div>
+      <div style="margin-bottom:18px">
+        <h3 style="font-family:var(--fh);color:var(--gold);letter-spacing:1px;margin-bottom:6px;font-size:.95rem">🏆 Fase a Eliminar — Vencedores</h3>
+        <p style="color:var(--muted);font-size:.73rem;margin-bottom:10px">API aplica automaticamente. Corrige manualmente se necessário. Só o vencedor conta.</p>
+        <div id="host-ko-inputs"></div>
+        <div style="margin-top:10px" id="host-ko-save-btn" style="display:none"><button class="btn btn-green" onclick="saveKOResults()">💾 Guardar Fase a Eliminar</button></div>
+      </div>
+      <div style="margin-bottom:18px">
+        <h3 style="font-family:var(--fh);color:var(--gold);letter-spacing:1px;margin-bottom:6px;font-size:.95rem">📊 Acertos R32 por jogador</h3>
+        <p style="color:var(--muted);font-size:.73rem;margin-bottom:10px">Quantas das 32 equipas realmente apuradas ao R32 cada jogador acertou. Só leitura — não altera nada.</p>
+        <button class="btn btn-ghost btn-sm" onclick="renderR32Hits()">📊 Calcular acertos R32</button>
+        <div id="r32-hits-box" style="margin-top:10px"></div>
+      </div>
+      <div style="margin-bottom:18px">
+        <h3 style="font-family:var(--fh);color:var(--gold);letter-spacing:1px;margin-bottom:6px;font-size:.95rem">📥 Backup CSV</h3>
+        <button class="btn btn-ghost btn-sm" onclick="downloadCSV()">⬇️ Download todas as previsões</button>
+      </div>
+      <div style="margin-bottom:18px" id="podium-host-section">
+        <h3 style="font-family:var(--fh);color:var(--gold);letter-spacing:1px;margin-bottom:6px;font-size:.95rem">🏆 Pódio Final</h3>
+        <p style="color:var(--muted);font-size:.73rem;margin-bottom:10px">Ativa o pódio quando a competição terminar. Aparece na homepage e na História. Irreversível (ou fala com o Claude).</p>
+        <div id="podium-host-btns"></div>
+      </div>
+      <div id="rules-edit-section" class="hidden">
+        <h3 style="font-family:var(--fh);color:var(--gold);letter-spacing:1px;margin-bottom:7px;font-size:.95rem">🔧 Editar Pontuação</h3>
+        <div id="host-rules-edit"></div>
+        <button class="btn btn-ghost btn-sm" style="margin-top:9px" onclick="saveRules()">💾 Guardar Regras</button>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+<div id="toast"></div>
+<div id="a2hs" class="a2hs-card" style="display:none">
+  <button id="a2hs-close" class="a2hs-close" onclick="dismissA2HS()" aria-label="Fechar">&times;</button>
+  <div class="a2hs-row">
+    <img src="icon-192.png" alt="" class="a2hs-icon"/>
+    <div class="a2hs-text">
+      <div class="a2hs-title">Adiciona ao ecrã principal</div>
+      <div class="a2hs-sub" id="a2hs-sub">Abre as previsões com um toque, como uma app.</div>
+    </div>
+  </div>
+  <div id="a2hs-actions" class="a2hs-actions"></div>
+</div>

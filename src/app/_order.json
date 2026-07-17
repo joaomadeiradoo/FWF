@@ -1,0 +1,19 @@
+[
+  "00-boot-i18n",
+  "01-tournament-data",
+  "02-standings",
+  "03-state",
+  "04-auth-comp",
+  "05-predictions",
+  "06-scoring",
+  "07-profile-modal",
+  "08-daily-snapshot",
+  "09-leaderboard",
+  "10-commentary",
+  "11-share-csv",
+  "12-podium-history",
+  "13-host-panel",
+  "14-submit",
+  "15-live-api",
+  "16-ui-bootstrap"
+]

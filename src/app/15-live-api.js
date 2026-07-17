@@ -1,0 +1,337 @@
+// ═══ LIVE SCORES ═══
+// ── Unified fetch: ONE API call gives upcoming + live + finished. ──
+// A 3-day window (yesterday→tomorrow) catches games that run past midnight UTC
+// (e.g. late kick-offs). The same response that lists today's fixtures also
+// contains in-play games with current score/elapsed, so a separate live=all
+// call is redundant. This halves API usage versus the old two-call cycle.
+const LIVE_STATUSES=['1H','HT','2H','ET','BT','P','SUSP','INT','LIVE'];
+const DONE_STATUSES=['FT','AET','PEN'];
+async function fetchAll(){
+  const key=window.API_FOOTBALL_KEY;if(!key||!await canApi()) return;
+  try{
+    const d0=new Date();
+    const day=ms=>new Date(d0.getTime()+ms).toISOString().split('T')[0];
+    const from=day(-24*60*60*1000),to=day(24*60*60*1000);
+    const r=await fetch(`https://v3.football.api-sports.io/fixtures?league=${WC_LEAGUE_ID}&season=2026&from=${from}&to=${to}`,{headers:{'x-rapidapi-key':key,'x-rapidapi-host':'v3.football.api-sports.io'}});
+    await bumpApi('fixtures');const d=await r.json();
+    if(d.response){
+      const all=d.response;
+      // Live games (in progress) — for the ticker
+      liveData=all.filter(f=>LIVE_STATUSES.includes(f.fixture.status.short)).map(f=>({home:f.teams.home.name,away:f.teams.away.name,hs:f.goals.home,as:f.goals.away,min:f.fixture.status.elapsed,status:f.fixture.status.short}));
+      // Upcoming (not started) — next 3 by kick-off time
+      upcomingData=all.filter(f=>f.fixture.status.short==='NS')
+        .sort((a,b)=>new Date(a.fixture.date)-new Date(b.fixture.date))
+        .slice(0,3)
+        .map(f=>({home:f.teams.home.name,away:f.teams.away.name,time:new Date(f.fixture.date).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}),venue:f.fixture.venue?.name||''}));
+      // Finished — for results + auto-apply. Process a generous window so a busy
+      // day (many games finishing between fetches) never drops a result. The
+      // ticker display re-slices to the latest few separately. autoApplyScores is
+      // idempotent, so re-processing already-applied games is harmless.
+      recentData=all.filter(f=>DONE_STATUSES.includes(f.fixture.status.short))
+        .sort((a,b)=>new Date(a.fixture.date)-new Date(b.fixture.date))
+        .slice(-30)
+        .map(f=>({home:f.teams.home.name,away:f.teams.away.name,hs:f.goals.home,as:f.goals.away,penHome:f.score?.penalty?.home??null,penAway:f.score?.penalty?.away??null,round:f.league?.round||null}));
+      // AUTO-APPLY DESLIGADO (2026-06-29): resultados inseridos manualmente pelo host.
+      // A escrita automática reescrevia o actualScores inteiro e causava sobreposição
+      // entre dispositivos ("o último a fazer refresh ganhava"). Para reativar:
+      // if(isAdmin) await autoApplyScores(recentData);
+      updateLiveTimestamp();
+    }
+    renderLive();
+  }catch(e){console.warn('API:',e);}
+}
+// Back-compat aliases — both now route through the single unified call.
+async function fetchLive(){return fetchAll();}
+async function fetchUpcoming(){return fetchAll();}
+function updateLiveTimestamp(){
+  const el=$('live-updated');if(!el) return;
+  const now=new Date();
+  const time=now.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  el.textContent=`· ${lang==='pt'?'atualizado':'updated'} às ${time}`;
+}
+function scheduleApi(){
+  clearInterval(apiPollTimer);
+  if(!window.API_FOOTBALL_KEY) return;
+  if(!isAdmin) return;
+
+  // MULTI-ADMIN COORDINATION + ADAPTIVE CADENCE: the timer ticks every 5 min
+  // (cheap — only Firestore reads, no API call), but an actual API fetch only
+  // happens when enough time has passed since the last fetch (tracked globally
+  // in Firestore via lastFetchedAt, so all admins share one schedule).
+  //   • A game is LIVE  → fetch every ~10 min (fresh scores during play)
+  //   • Nothing live    → fetch every ~30 min (just catch kick-offs / results)
+  // This keeps live updates frequent during games while staying well under the
+  // 100/day budget on the idle stretches.
+  const LIVE_INTERVAL_MS=9.5*60*1000;
+  const IDLE_INTERVAL_MS=29*60*1000;
+
+  async function maybeFetch(){
+    // GATE 1: don't poll before the tournament has started — no games to fetch.
+    if(Date.now()<TOURNAMENT_START.getTime()){return;}
+    // GATE 2: only poll during the daily game window. WC 2026 kick-offs span
+    // ~16:00 UTC (12pm ET) to ~04:00 UTC next day (9pm PT); latest games finish
+    // ~06:30 UTC. Window 14:00–07:00 UTC covers every slot with buffer on both
+    // ends. Outside it, skip. (Manual "Forçar fetch" ignores this.)
+    const h=new Date().getUTCHours();
+    const inGameHours=(h>=14||h<7);
+    if(!inGameHours){return;}
+    const usage=await getApiUsage();
+    if(usage.n>=85){
+      console.warn('API: daily limit reached ('+usage.n+'/100), polling suspended');
+      clearInterval(apiPollTimer);
+      toast('⚠️ Limite diário da API atingido — fetch pausado',true);
+      return;
+    }
+    // Adaptive interval: faster when a game is live, slower when idle.
+    const minInterval=(liveData&&liveData.length>0)?LIVE_INTERVAL_MS:IDLE_INTERVAL_MS;
+    // Check when the last fetch happened (stored in competition doc)
+    try{
+      const{db,doc,getDoc,updateDoc}=window._fb;
+      const snap=await getDoc(doc(db,'competitions',currentCompId));
+      const lastFetch=snap.data()?.lastFetchedAt||0;
+      const msSinceLast=Date.now()-lastFetch;
+      if(msSinceLast<minInterval){
+        // Last fetch (by any admin) was recent enough — skip this tick
+        console.log('API: skipping fetch, last was '+(Math.round(msSinceLast/1000/60))+'min ago (need '+(Math.round(minInterval/60000))+'min)');
+        return;
+      }
+      // Claim this fetch window immediately before fetching
+      await updateDoc(doc(db,'competitions',currentCompId),{lastFetchedAt:Date.now()});
+    }catch(e){console.warn('API coord check failed:',e);}
+    fetchAll(); // ONE call gives upcoming + live + finished
+  }
+
+  apiPollTimer=setInterval(maybeFetch,5*60*1000); // tick every 5min; actual fetch gated by adaptive interval above
+}
+async function forceFetch(){
+  if(!isAdmin){toast('Apenas o host/admin',true);return;}
+  const usage=await getApiUsage();
+  if(usage.n>=85){toast('⚠️ Limite diário quase atingido ('+usage.n+'/100)',true);return;}
+  const btn=document.querySelector('[onclick="forceFetch()"]');
+  if(btn){btn.disabled=true;btn.textContent='⏳ A carregar...';}
+  await fetchAll(); // single unified call
+  // Update coordination timestamp after manual fetch too
+  try{const{db,doc,updateDoc}=window._fb;await updateDoc(doc(db,'competitions',currentCompId),{lastFetchedAt:Date.now()});}catch(e){}
+  toast(lang==='pt'?'Fetch feito!':'Fetched!');
+  if(btn){btn.disabled=false;btn.textContent='🔄 Forçar fetch';}
+}
+
+// ═══ AUTO-APPLY API SCORES ═══
+function normalizeTeamName(name){
+  // Remove flag emojis and normalize spacing
+  return name.replace(/[\u{1F1E6}-\u{1F1FF}]/gu,'').replace(/🇵🇹|🇧🇷|🇦🇷|🇫🇷|🇪🇸|🇩🇪|🇮🇹|🇬🇧|🏴󠁧󠁢󠁥󠁮󠁧󠁿|🇳🇱|🇧🇪|🇵🇹|🇲🇽|🇺🇸|🇨🇦/g,'').trim();
+}
+function matchTeams(match,apiHome,apiAway){
+  const mh=normalizeTeamName(match.home).toLowerCase();
+  const ma=normalizeTeamName(match.away).toLowerCase();
+  const ah=normalizeTeamName(apiHome).toLowerCase();
+  const aa=normalizeTeamName(apiAway).toLowerCase();
+  return (mh===ah||mh.includes(ah)||ah.includes(mh))&&(ma===aa||ma.includes(aa)||aa.includes(ma));
+}
+async function autoApplyScores(finishedMatches){
+  if(!isAdmin||!currentCompId) return;
+  const{db,doc,updateDoc}=window._fb;
+  let updated=false;
+
+  // ── English→Portuguese team name mapping for API responses ──
+  const EN_TO_PT={
+    'Mexico':'México','South Africa':'África do Sul','South Korea':'Coreia do Sul',
+    'Korea Republic':'Coreia do Sul','Czech Republic':'Czechia','Czechia':'Czechia',
+    'Canada':'Canadá','Bosnia':'Bósnia e Herzegovina','Bosnia and Herzegovina':'Bósnia e Herzegovina',
+    'Qatar':'Qatar','Switzerland':'Suíça','Brazil':'Brasil','Morocco':'Marrocos',
+    'Haiti':'Haiti','Scotland':'Escócia','USA':'EUA','United States':'EUA',
+    'Paraguay':'Paraguai','Australia':'Austrália','Turkey':'Türkiye','Turkiye':'Türkiye',
+    'Germany':'Alemanha','Curacao':'Curaçao','Ivory Coast':'Costa do Marfim',
+    "Cote d'Ivoire":'Costa do Marfim',"Côte d'Ivoire":'Costa do Marfim',
+    'Ecuador':'Equador','Netherlands':'Países Baixos','Japan':'Japão',
+    'Sweden':'Suécia','Tunisia':'Tunísia','Belgium':'Bélgica','Egypt':'Egipto',
+    'Iran':'Irão','New Zealand':'Nova Zelândia','Spain':'Espanha',
+    'Cape Verde':'Cabo Verde','Saudi Arabia':'Arábia Saudita','Uruguay':'Uruguai',
+    'France':'França','Senegal':'Senegal','Norway':'Noruega','Iraq':'Iraque',
+    'Argentina':'Argentina','Algeria':'Argélia','Austria':'Áustria','Jordan':'Jordânia',
+    'Portugal':'Portugal','DR Congo':'Congo DR','Congo DR':'Congo DR',
+    'Uzbekistan':'Uzbequistão','Colombia':'Colômbia','England':'Inglaterra',
+    'Croatia':'Croácia','Ghana':'Gana','Panama':'Panamá',
+  };
+  const toPT=name=>EN_TO_PT[name]||name;
+
+  // ── API round name → KO round id ──
+  const ROUND_MAP={
+    'Round of 32':'r32','Round of 16':'r16',
+    'Quarter-finals':'qf','Quarter-Finals':'qf','Quarterfinals':'qf',
+    'Semi-finals':'sf','Semi-Finals':'sf','Semifinals':'sf',
+    '3rd Place Final':'f3','Third Place':'f3',
+    'Final':'fin',
+  };
+
+  // ── Group stage matches (exact score) ──
+  // Match in EITHER orientation: the API's home/away may differ from our
+  // schedule's. When swapped, swap the score too so it lands on the right team.
+  const teamEq=(a,b)=>{
+    const x=normalizeTeamName(a).toLowerCase(),y=normalizeTeamName(b).toLowerCase();
+    return x===y||x.includes(y)||y.includes(x);
+  };
+  for(const apiMatch of finishedMatches){
+    const ah=toPT(apiMatch.home),aa=toPT(apiMatch.away);
+    let found=null,swapped=false;
+    for(const m of ALL_MATCHES){
+      if(teamEq(m.home,ah)&&teamEq(m.away,aa)){found=m;swapped=false;break;}
+      if(teamEq(m.home,aa)&&teamEq(m.away,ah)){found=m;swapped=true;break;}
+    }
+    if(found){
+      const hs=swapped?apiMatch.as:apiMatch.hs;
+      const as=swapped?apiMatch.hs:apiMatch.as;
+      const existing=actualScores[found.id];
+      if(!existing||(existing.source==='api')){
+        actualScores[found.id]={home:hs,away:as,source:'api'};
+        updated=true;
+      }
+    }
+  }
+
+  // ── KO stage: determine winner and slot ──
+  // Build current R32 matchups to identify slot indices
+  const r32Teams=getR32Teams(currentUser?.uid);
+
+  for(const apiMatch of finishedMatches){
+    if(!apiMatch.round) continue;
+    const roundId=ROUND_MAP[apiMatch.round];
+    if(!roundId) continue;
+
+    const homeTeam=toPT(apiMatch.home);
+    const awayTeam=toPT(apiMatch.away);
+    // Determine winner: higher score wins; if draw (AET/PEN) use penScore if available
+    let winner=null;
+    if(apiMatch.hs>apiMatch.as) winner=homeTeam;
+    else if(apiMatch.as>apiMatch.hs) winner=awayTeam;
+    else if(apiMatch.penHome!=null&&apiMatch.penAway!=null){
+      winner=apiMatch.penHome>apiMatch.penAway?homeTeam:awayTeam;
+    }
+    if(!winner) continue;
+
+    const ko=actualScores[`ko_${roundId}`]||[];
+    let slotIdx=-1;
+
+    if(roundId==='r32'){
+      slotIdx=r32Teams.findIndex(m=>
+        (m.home===homeTeam&&m.away===awayTeam)||
+        (m.home===awayTeam&&m.away===homeTeam)
+      );
+      // Fallback: if slot not found (group results incomplete), append winner
+      // to ko_r32 anyway. Scoring is Set-based so slot position doesn't matter.
+      if(slotIdx===-1&&winner){
+        const newKo=[...(actualScores.ko_r32||[])];
+        if(!newKo.includes(winner)){newKo.push(winner);actualScores.ko_r32=newKo;updated=true;}
+        continue;
+      }
+    }else if(roundId==='r16'){
+      // R16 slot i feeds from R32 slots 2i and 2i+1
+      const r32actual=actualScores.ko_r32||[];
+      slotIdx=[0,1,2,3,4,5,6,7].findIndex(i=>
+        [r32actual[i*2],r32actual[i*2+1]].includes(homeTeam)&&
+        [r32actual[i*2],r32actual[i*2+1]].includes(awayTeam)
+      );
+    }else if(roundId==='qf'){
+      const r16actual=actualScores.ko_r16||[];
+      slotIdx=[0,1,2,3].findIndex(i=>
+        [r16actual[i*2],r16actual[i*2+1]].includes(homeTeam)&&
+        [r16actual[i*2],r16actual[i*2+1]].includes(awayTeam)
+      );
+    }else if(roundId==='sf'){
+      const qfactual=actualScores.ko_qf||[];
+      slotIdx=[0,1].findIndex(i=>
+        [qfactual[i*2],qfactual[i*2+1]].includes(homeTeam)&&
+        [qfactual[i*2],qfactual[i*2+1]].includes(awayTeam)
+      );
+    }else if(roundId==='f3'){
+      // 3rd place match: both teams are SF losers
+      slotIdx=0;
+    }else if(roundId==='fin'){
+      // Final: slot 0 = champion, slot 1 = runner-up
+      slotIdx=0;
+    }
+
+    if(slotIdx===-1&&roundId!=='f3'&&roundId!=='fin') continue;
+
+    const newKo=[...ko];
+    newKo[roundId==='fin'?0:slotIdx]=winner;
+    // For final, also set runner-up (slot 1)
+    if(roundId==='fin'){
+      const loser=winner===homeTeam?awayTeam:homeTeam;
+      newKo[1]=loser;
+    }
+
+    const existing=actualScores[`ko_${roundId}`]||[];
+    if(existing[roundId==='fin'?0:slotIdx]!==winner){
+      actualScores[`ko_${roundId}`]=newKo;
+      updated=true;
+    }
+  }
+
+  if(updated){
+    await updateDoc(doc(db,'competitions',currentCompId),{actualScores});
+    renderGroupMatches();renderGruposTab();renderBracket();renderBracketMobile();renderBracketSwipe();
+    renderLeaderboard();renderLive();
+  }
+}
+function renderLive(){
+  const c=$('live-content');if(!c) return;
+  const uid=currentUser?.uid;const myPreds=allPredictions[uid]||{};
+  function predPill(homeName,awayName){
+    const m=ALL_MATCHES.find(m=>(m.home===homeName&&m.away===awayName)||(m.home===awayName&&m.away===homeName));
+    if(!m) return'';const p=myPreds[m.id]||{};if(p.home===undefined||p.home==='') return'';
+    const act=actualScores[m.id];let cls='';
+    if(act&&act.home!==undefined&&act.home!==''){const pts=calcMatch(p,act);cls=pts>0?'correct':pts<0?'wrong':'';}
+    const flip=m.home!==homeName;const ph=flip?p.away:p.home,pa=flip?p.home:p.away;
+    return`<span class="pred-pill ${cls}">👤 ${ph}-${pa}</span>`;
+  }
+  let html='';
+  // Match-day parser (schedule dates are "DD Jun"/"DD Jul" in Portugal time) plus
+  // today's number, so the homepage shows only TODAY's and upcoming games — past-day
+  // games drop once their day ends. Display-only; predictions/scoring untouched.
+  const parseDate=d=>{if(!d) return 9999;const mth=d.includes('Jul')?700:d.includes('Jun')?600:0;return mth+(parseInt(d,10)||0);};
+  const _pt=new Intl.DateTimeFormat('en-US',{timeZone:'Europe/Lisbon',month:'numeric',day:'numeric'}).formatToParts(new Date());
+  const todayNum=((+_pt.find(p=>p.type==='month').value)===7?700:600)+(+_pt.find(p=>p.type==='day').value);
+  // Recentes: the 3 most recently played results, built ONLY from entered results
+  // (actualScores — manual now, plus any API-applied later), ordered by match date
+  // (Portugal time), newest first. Independent of the live API list.
+  const allRecent=ALL_MATCHES
+    .filter(m=>{const s=actualScores[m.id];return s&&s.home!==undefined&&s.home!=='';})
+    .sort((a,b)=>parseDate(a.date)-parseDate(b.date))
+    .slice(-3)
+    .reverse()
+    .map(m=>({home:m.home,away:m.away,hs:actualScores[m.id].home,as:actualScores[m.id].away}));
+  if(allRecent.length){
+    html+=`<div style="margin-bottom:10px"><div class="sec-lbl">🏁 ${lang==='pt'?'Recentes':'Recent'}</div>`;
+    allRecent.forEach(m=>{html+=`<div class="lmc"><div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+      <span style="font-weight:700;font-size:.8rem;flex:1;text-align:right">${m.home}</span>
+      <div style="text-align:center;min-width:70px"><div class="ls">${m.hs} - ${m.as}</div>${predPill(m.home,m.away)}</div>
+      <span style="font-weight:700;font-size:.8rem;flex:1">${m.away}</span></div><div style="text-align:center;font-size:.6rem;color:var(--muted);margin-top:2px">FT</div></div>`;});
+    html+='</div>';
+  }
+  if(liveData.length){
+    html+=`<div style="margin-bottom:10px"><div class="sec-lbl" style="color:var(--red)">🔴 ${lang==='pt'?'AO VIVO':'LIVE'}</div>`;
+    liveData.forEach(m=>{html+=`<div class="lmc" style="border-color:rgba(230,57,70,.35)"><div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+      <span style="font-weight:700;font-size:.8rem;flex:1;text-align:right">${m.home}</span>
+      <div style="text-align:center;min-width:70px"><div class="ls">${m.hs??'-'} - ${m.as??'-'}</div><div class="lmin">${m.min?m.min+"'":m.status}</div>${predPill(m.home,m.away)}</div>
+      <span style="font-weight:700;font-size:.8rem;flex:1">${m.away}</span></div></div>`;});
+    html+='</div>';
+  }
+  // Fallback upcoming (when no API): only today's and future games, sorted by match day.
+  const manUp=ALL_MATCHES
+    .filter(m=>(!actualScores[m.id]||actualScores[m.id].home===undefined)&&parseDate(m.date)>=todayNum)
+    .sort((a,b)=>parseDate(a.date)-parseDate(b.date))
+    .slice(0,3)
+    .map(m=>({home:m.home,away:m.away,time:'',date:m.date}));
+  const allUp=[...upcomingData,...manUp].slice(0,3);
+  if(allUp.length){
+    html+=`<div><div class="sec-lbl">⏳ ${lang==='pt'?'Próximos':'Upcoming'}</div>`;
+    allUp.forEach(m=>{html+=`<div class="lmc" style="border-color:rgba(255,215,0,.12)"><div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+      <span style="font-weight:700;font-size:.8rem;flex:1;text-align:right">${m.home}</span>
+      <span style="font-family:var(--fh);font-size:.9rem;color:var(--gold);min-width:44px;text-align:center">${m.time||m.date||'vs'}</span>
+      <span style="font-weight:700;font-size:.8rem;flex:1">${m.away}</span></div>${m.venue?`<div style="text-align:center;font-size:.6rem;color:var(--muted);margin-top:2px">${m.venue}</div>`:''}</div>`;});
+    html+='</div>';
+  }
+  c.innerHTML=html||`<p style="color:var(--muted);font-size:.82rem">${lang==='pt'?'Sem jogos ao momento.':'No matches at this time.'}</p>`;
+}
+

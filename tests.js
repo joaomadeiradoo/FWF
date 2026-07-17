@@ -137,6 +137,21 @@ function group(name) { console.log('\n\x1b[1m' + name + '\x1b[0m'); }
 
 /* ── load ────────────────────────────────────────────────────────────────── */
 
+// ── build drift gate (#24) ───────────────────────────────────────────────
+// index.html is GENERATED from src/. Every session before this one edited
+// index.html directly, so the standing risk of the source split is that someone
+// still does and the next `node build.js` silently reverts them. Fail loudly and
+// first, before any test result can distract from it.
+try {
+  require('child_process').execFileSync(process.execPath, ['build.js', '--check'],
+    { cwd: __dirname, stdio: 'pipe' });
+} catch (e) {
+  console.error('\n\x1b[31mBUILD DRIFT — index.html does not match src/.\x1b[0m');
+  console.error((e.stderr || '').toString().trim());
+  console.error('\nTests not run: they would test a file that is about to be overwritten.\n');
+  process.exit(1);
+}
+
 const A = loadApp();
 console.log(`FWF test suite — build ${A.getBuild()}`);
 console.log('characterisation tests: green = behaviour unchanged, not = behaviour correct');
