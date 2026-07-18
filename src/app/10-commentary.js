@@ -919,7 +919,7 @@ function renderDailySummary(rows){
   // Cap total lines at 5: 1 main + at most 1 shout + 3 roll-call jabs
   const shoutLines=shouts.slice(0,1);
   const allLines=[...shoutLines,...rollCall].slice(0,4); // 4 extra + 1 main = 5 total
-  const html=`<div class="dsum"><div class="dsum-hl" style="display:flex;align-items:center;justify-content:space-between">🎙️ ${lang==='pt'?'Comentário do Dia':'Daily Commentary'}${isHost?`<button onclick="dailyComment='';dailyCommentDate='';renderLeaderboard()" style="background:none;border:none;cursor:pointer;font-size:1rem;opacity:.5" title="Forçar regeneração">🔄</button>`:''}</div><p class="dsum-p">${sum}</p>${allLines.map(s=>`<p class="dsum-p">${s}</p>`).join('')}</div>`;
+  const html=`<div class="dsum"><div class="dsum-hl" style="display:flex;align-items:center;justify-content:space-between">🎙️ ${lang==='pt'?'Comentário do Dia':'Daily Commentary'}${isAdmin?`<button onclick="dailyComment='';dailyCommentDate='';renderLeaderboard()" style="background:none;border:none;cursor:pointer;font-size:1rem;opacity:.5" title="Forçar regeneração">🔄</button>`:''}</div><p class="dsum-p">${sum}</p>${allLines.map(s=>`<p class="dsum-p">${s}</p>`).join('')}</div>`;
   dailyComment=html;dailyCommentDate=today;wrap.innerHTML=html;
 }
 

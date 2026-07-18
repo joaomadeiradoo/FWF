@@ -100,7 +100,7 @@ function lbAfterRender(){
     const b=document.createElement('div');
     b.className='lb-admin-preview';
     b.style.cssText='margin:0 0 12px;padding:8px 12px;border:1px solid var(--gold);border-radius:8px;background:rgba(212,175,55,.08);color:var(--gold);font-size:.78rem;line-height:1.5;text-align:center';
-    b.innerHTML='👁️ <strong>Pré-visualização do host</strong> — só tu vês esta tabela. Os outros participantes veem "indisponível".';
+    b.innerHTML='👁️ <strong>Pré-visualização (hosts)</strong> — só os hosts veem esta tabela. Os participantes veem "indisponível".';
     c.prepend(b);
   }
   const tools=$('lb-tools'),btn=$('lb-findme-btn');

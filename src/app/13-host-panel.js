@@ -139,7 +139,7 @@ async function saveKOResults(){
 window.saveKOResults=saveKOResults;
 
 function renderR32Hits(){
-  if(!isHost)return;
+  if(!isAdmin)return;
   const box=document.getElementById('r32-hits-box');
   if(!box)return;
   const collect=(uid,fp)=>{const s=new Set();(getR32Teams(uid,fp)||[]).forEach(m=>{[m.home,m.away].forEach(t=>{if(t&&t!=='TBD'&&t!=='?')s.add(t);});});return s;};
@@ -169,8 +169,8 @@ function renderHostMembers(){
     <td><span class="badge ${role==='host'?'badge-host':role==='admin'?'badge-admin':'badge-locked'}" style="font-size:.65rem">${role.toUpperCase()}</span>${isHost?`<div style="font-size:.62rem;color:var(--muted);margin-top:2px">PIN: ${u.pin||'—'}</div>`:''}</td>
     <td class="${calcTotal(uid)>=0?'pts-pos':'pts-neg'}" style="font-size:.78rem">${calcTotal(uid)>=0?'+':''}${calcTotal(uid)}</td>
     <td style="display:flex;gap:3px;flex-wrap:nowrap;align-items:center">
-      ${isHost?`<button class="btn btn-sm" style="padding:4px 7px;font-size:.7rem;background:${paid?'var(--green)':'rgba(45,198,83,.15)'};color:${paid?'#0D1B2A':'var(--green)'};border:1px solid var(--green)" onclick="togglePaid('${attrEsc(uid)}')">${paid?'✓ Pago':'Pago'}</button>`:''}
-      ${isHost?`<button class="btn btn-sm" style="padding:4px 7px;font-size:.7rem;background:${unpaid?'rgba(255,80,0,.25)':'rgba(255,255,255,.05)'};color:${unpaid?'#ff8040':'var(--muted)'};border:1px solid ${unpaid?'#ff8040':'var(--border)'}" onclick="toggleUnpaidAnnounce('${attrEsc(uid)}','${attrEsc(u.name)}')">${unpaid?'€ Anunciado':'€ Não Pago'}</button>`:''}
+      ${isAdmin?`<button class="btn btn-sm" style="padding:4px 7px;font-size:.7rem;background:${paid?'var(--green)':'rgba(45,198,83,.15)'};color:${paid?'#0D1B2A':'var(--green)'};border:1px solid var(--green)" onclick="togglePaid('${attrEsc(uid)}')">${paid?'✓ Pago':'Pago'}</button>`:''}
+      ${isAdmin?`<button class="btn btn-sm" style="padding:4px 7px;font-size:.7rem;background:${unpaid?'rgba(255,80,0,.25)':'rgba(255,255,255,.05)'};color:${unpaid?'#ff8040':'var(--muted)'};border:1px solid ${unpaid?'#ff8040':'var(--border)'}" onclick="toggleUnpaidAnnounce('${attrEsc(uid)}','${attrEsc(u.name)}')">${unpaid?'€ Anunciado':'€ Não Pago'}</button>`:''}
       ${isHost&&role!=='host'?`<button class="btn btn-ghost btn-sm" style="padding:4px 7px;font-size:.7rem" onclick="toggleAdmin('${attrEsc(uid)}')">${role==='admin'?'↓ Admin':'↑ Admin'}</button>`:''}
       ${isAdmin&&role!=='host'?`<button class="btn btn-red btn-sm" style="padding:4px 7px;font-size:.7rem" onclick="kickUser('${attrEsc(uid)}','${attrEsc(u.name)}')">🚫</button>`:''}
     </td>
@@ -184,7 +184,7 @@ function renderHostMembers(){
   </div>`).join('');
 }
 async function togglePaid(uid){
-  if(!isHost)return;
+  if(!isAdmin)return;
   const u=allUsers[uid];if(!u)return;
   const nowPaid=!u.paid;
   if(!confirm(nowPaid?`Marcar ${u.name} como PAGO?`:`Remover pagamento de ${u.name}?`))return;
@@ -195,7 +195,7 @@ async function togglePaid(uid){
   }catch(e){ toast(e.message||'Erro',true); }
 }
 async function toggleUnpaidAnnounce(uid,name){
-  if(!isHost)return;
+  if(!isAdmin)return;
   const u=allUsers[uid];if(!u)return;
   const nowAnnounced=!u.unpaidAnnounced;
   if(!confirm(nowAnnounced?`Anunciar ${name} como NÃO PAGO? Ficará visível na classificação.`:`Remover aviso de não pagamento de ${name}?`))return;
