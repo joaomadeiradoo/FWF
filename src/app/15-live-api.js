@@ -20,7 +20,7 @@ async function fetchAll(){
   try{
     // Cache-bust: GitHub Pages' CDN caches assets hard, and a stale live.json
     // would look exactly like "nothing has happened yet".
-    const r=await fetch('data/live.json?t='+Date.now(),{cache:'no-store'});
+    const r=await fetch('data/live.json?t='+Math.floor(Date.now()/60000),{cache:'no-store'}); // 60s bucket: all clients share one CDN object
     if(!r.ok){console.warn('[live] data/live.json not published yet:',r.status);return;} // fall back to local ticker
     const d=await r.json();
     if(!d||!Array.isArray(d.matches)) return;
@@ -85,67 +85,32 @@ function updateLiveTimestamp(){
 }
 function scheduleApi(){
   clearInterval(apiPollTimer);
-  if(!window.API_FOOTBALL_KEY) return;
-  if(!isAdmin) return;
-
-  // MULTI-ADMIN COORDINATION + ADAPTIVE CADENCE: the timer ticks every 5 min
-  // (cheap — only Firestore reads, no API call), but an actual API fetch only
-  // happens when enough time has passed since the last fetch (tracked globally
-  // in Firestore via lastFetchedAt, so all admins share one schedule).
-  //   • A game is LIVE  → fetch every ~10 min (fresh scores during play)
-  //   • Nothing live    → fetch every ~30 min (just catch kick-offs / results)
-  // This keeps live updates frequent during games while staying well under the
-  // 100/day budget on the idle stretches.
-  const LIVE_INTERVAL_MS=9.5*60*1000;
-  const IDLE_INTERVAL_MS=29*60*1000;
-
-  async function maybeFetch(){
-    // GATE 1: don't poll before the tournament has started — no games to fetch.
-    if(Date.now()<TOURNAMENT_START.getTime()){return;}
-    // GATE 2: only poll during the daily game window. WC 2026 kick-offs span
-    // ~16:00 UTC (12pm ET) to ~04:00 UTC next day (9pm PT); latest games finish
-    // ~06:30 UTC. Window 14:00–07:00 UTC covers every slot with buffer on both
-    // ends. Outside it, skip. (Manual "Forçar fetch" ignores this.)
-    const h=new Date().getUTCHours();
-    const inGameHours=(h>=14||h<7);
-    if(!inGameHours){return;}
-    const usage=await getApiUsage();
-    if(usage.n>=85){
-      console.warn('API: daily limit reached ('+usage.n+'/100), polling suspended');
-      clearInterval(apiPollTimer);
-      toast('⚠️ Limite diário da API atingido — fetch pausado',true);
-      return;
-    }
-    // Adaptive interval: faster when a game is live, slower when idle.
-    const minInterval=(liveData&&liveData.length>0)?LIVE_INTERVAL_MS:IDLE_INTERVAL_MS;
-    // Check when the last fetch happened (stored in competition doc)
-    try{
-      const{db,doc,getDoc,updateDoc}=window._fb;
-      const snap=await getDoc(doc(db,'competitions',currentCompId));
-      const lastFetch=snap.data()?.lastFetchedAt||0;
-      const msSinceLast=Date.now()-lastFetch;
-      if(msSinceLast<minInterval){
-        // Last fetch (by any admin) was recent enough — skip this tick
-        console.log('API: skipping fetch, last was '+(Math.round(msSinceLast/1000/60))+'min ago (need '+(Math.round(minInterval/60000))+'min)');
-        return;
-      }
-      // Claim this fetch window immediately before fetching
-      await updateDoc(doc(db,'competitions',currentCompId),{lastFetchedAt:Date.now()});
-    }catch(e){console.warn('API coord check failed:',e);}
-    fetchAll(); // ONE call gives upcoming + live + finished
-  }
-
-  apiPollTimer=setInterval(maybeFetch,5*60*1000); // tick every 5min; actual fetch gated by adaptive interval above
+  // EVERY GATE THAT USED TO BE HERE IS GONE, and each for the same reason:
+  // they all protected api-football's 100-calls-a-day budget. We now read a
+  // ~23KB static file from our own GitHub Pages CDN. There is no budget, no
+  // key, and no upstream to overload — the GitHub Action does the only real
+  // fetch, once every 10 min, from a server.
+  //
+  //   removed  if(!window.API_FOOTBALL_KEY)   gated polling on a now-dead key
+  //   removed  if(!isAdmin)                   ← 63 of 64 players never fetched.
+  //                                             Everyone should see live scores.
+  //   removed  usage.n>=85 suspend            a budget that no longer exists,
+  //                                             and the counter no longer resets
+  //   removed  lastFetchedAt >= 29min         a Firestore round-trip to throttle
+  //                                             a static file. Also meant a fresh
+  //                                             page could wait 29 min for a score.
+  //   removed  14:00-07:00 UTC window         nothing to protect
+  //
+  // Cadence: 60s. The Action only republishes every ~10 min, so this is already
+  // faster than the data changes.
+  fetchAll();                                   // run NOW, not in 5 minutes
+  apiPollTimer=setInterval(fetchAll,60*1000);
 }
 async function forceFetch(){
   if(!isAdmin){toast('Apenas o host/admin',true);return;}
-  const usage=await getApiUsage();
-  if(usage.n>=85){toast('⚠️ Limite diário quase atingido ('+usage.n+'/100)',true);return;}
   const btn=document.querySelector('[onclick="forceFetch()"]');
   if(btn){btn.disabled=true;btn.textContent='⏳ A carregar...';}
-  await fetchAll(); // single unified call
-  // Update coordination timestamp after manual fetch too
-  try{const{db,doc,updateDoc}=window._fb;await updateDoc(doc(db,'competitions',currentCompId),{lastFetchedAt:Date.now()});}catch(e){}
+  await fetchAll();
   toast(lang==='pt'?'Fetch feito!':'Fetched!');
   if(btn){btn.disabled=false;btn.textContent='🔄 Forçar fetch';}
 }

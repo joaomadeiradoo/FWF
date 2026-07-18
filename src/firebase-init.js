@@ -11,7 +11,6 @@
     messagingSenderId: "67996577619",
     appId: "1:67996577619:web:7395c5cf151585a1353ba6"
   };
-  window.API_FOOTBALL_KEY = "424ff8dc2cc982631a9e2b54fa9298f6";
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
   const db = getFirestore(app);
