@@ -378,6 +378,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
     <button class="tab hidden" onclick="showTab('tab-host')" id="tab-btn-host">⚙️ Host</button>
   </div>
   <div id="tab-leaderboard" class="tab-content active">
+    <div id="subhost-panel" class="hidden"></div>
     <div class="card"><h2>⚡ Ao Vivo &amp; Próximos <span id="live-updated" style="font-size:.65rem;color:var(--muted);font-family:var(--fb);font-weight:400;letter-spacing:0;text-transform:none"></span></h2><div id="live-content"><p style="color:var(--muted);font-size:.84rem">A carregar...</p></div></div>
     <div id="dsum-wrap"></div>
     <div id="podium-wrap"></div>
@@ -511,6 +512,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
       <div style="margin-bottom:18px">
         <h3 style="font-family:var(--fh);color:var(--gold);letter-spacing:1px;margin-bottom:8px;font-size:.95rem">👥 Participantes</h3>
         <div id="host-members"></div>
+        <div id="subhost-rollup"></div>
       </div>
       <div style="margin-bottom:18px">
         <h3 style="font-family:var(--fh);color:var(--gold);letter-spacing:1px;margin-bottom:6px;font-size:.95rem">🔓 Permitir Re-submissão</h3>
@@ -1587,7 +1589,7 @@ function fuzzyScore(a,b){
 
 // ═══ STATE ═══
 let currentUser=null,currentComp=null,currentCompId=null;
-let isHost=false,isAdmin=false;
+let isHost=false,isAdmin=false,isSubHost=false;
 let userPredictions={},allPredictions={},allUsers={},actualScores={},approvedTopScorers={};
 // True when the user has typed something in the predictions form but not yet
 // submitted. While true, onSnapshot will NOT overwrite userPredictions from
@@ -1680,10 +1682,18 @@ async function doSimpleAuth(){
       fbUid=cred.user.uid;
     }
 
-    // Find competition by code
+    // Find competition by code. A code is either the competition's global
+    // inviteCode, or one of its per-sub-host codes (subHostCodes: {CODE: uid}).
+    // A sub-host code resolves to the SAME competition and remembers who invited
+    // this guest, so they're attributed automatically. No subHostCodes map on the
+    // doc => this behaves exactly like the old global-only lookup.
     const snap=await getDocs(collection(db,'competitions'));
-    let compDoc=null;
-    snap.forEach(d=>{if(d.data().inviteCode===code) compDoc={id:d.id,...d.data()};});
+    let compDoc=null,joinedSubHost=null;
+    snap.forEach(d=>{
+      const data=d.data();
+      if(data.inviteCode===code){ compDoc={id:d.id,...data}; joinedSubHost=null; }
+      else if(data.subHostCodes&&data.subHostCodes[code]){ compDoc={id:d.id,...data}; joinedSubHost=data.subHostCodes[code]; }
+    });
 
     if(!compDoc){toast('Código inválido',true);return;}
 
@@ -1718,7 +1728,9 @@ async function doSimpleAuth(){
       // Add to competition under this device's Firebase UID. Written as a single
       // field path so a simultaneous join from another device cannot clobber it
       // (the old whole-map write would drop whichever member was written first).
-      await updateDoc(doc(db,'competitions',compDoc.id),{[`members.${fbUid}`]:{name,pin,role:'member',joinedAt:new Date().toISOString()}});
+      const memberRec={name,pin,role:'member',joinedAt:new Date().toISOString()};
+      if(joinedSubHost) memberRec.subHost=joinedSubHost;
+      await updateDoc(doc(db,'competitions',compDoc.id),{[`members.${fbUid}`]:memberRec});
     }
 
     currentUser={uid:effectiveUid,displayName:name};
@@ -1899,6 +1911,7 @@ async function initMainApp(uid){
   isHost=currentComp.hostUid===uid;
   const member=currentComp.members?.[uid];
   isAdmin=isHost||(member?.role==='admin');
+  isSubHost=(member?.role==='subhost');
   rules={...DEFAULT_RULES,...(currentComp.rules||{})};
   actualScores=currentComp.actualScores||{};
   allPredictions=currentComp.predictions||{};
@@ -5038,6 +5051,7 @@ function renderHostMembers(){
       ${isAdmin?`<button class="btn btn-sm" style="padding:4px 7px;font-size:.7rem;background:${paid?'var(--green)':'rgba(45,198,83,.15)'};color:${paid?'#0D1B2A':'var(--green)'};border:1px solid var(--green)" onclick="togglePaid('${attrEsc(uid)}')">${paid?'✓ Pago':'Pago'}</button>`:''}
       ${isAdmin?`<button class="btn btn-sm" style="padding:4px 7px;font-size:.7rem;background:${unpaid?'rgba(255,80,0,.25)':'rgba(255,255,255,.05)'};color:${unpaid?'#ff8040':'var(--muted)'};border:1px solid ${unpaid?'#ff8040':'var(--border)'}" onclick="toggleUnpaidAnnounce('${attrEsc(uid)}','${attrEsc(u.name)}')">${unpaid?'€ Anunciado':'€ Não Pago'}</button>`:''}
       ${isHost&&role!=='host'?`<button class="btn btn-ghost btn-sm" style="padding:4px 7px;font-size:.7rem" onclick="toggleAdmin('${attrEsc(uid)}')">${role==='admin'?'↓ Admin':'↑ Admin'}</button>`:''}
+      ${isHost&&role!=='host'&&role!=='admin'?`<button class="btn btn-ghost btn-sm" style="padding:4px 7px;font-size:.7rem" onclick="${role==='subhost'?`demoteSubHost('${attrEsc(uid)}')`:`promoteToSubHost('${attrEsc(uid)}')`}">${role==='subhost'?'↓ Sub-host':'↑ Sub-host'}</button>`:''}
       ${isAdmin&&role!=='host'?`<button class="btn btn-red btn-sm" style="padding:4px 7px;font-size:.7rem" onclick="kickUser('${attrEsc(uid)}','${attrEsc(u.name)}')">🚫</button>`:''}
     </td>
   </tr>`;}).join('')}</tbody></table>`;
@@ -5048,9 +5062,10 @@ function renderHostMembers(){
     ${u.unlockedEdit?`<span class="badge" style="background:rgba(255,215,0,.15);color:var(--gold);margin-left:4px">editing</span>`:''}</div>
     <button class="btn btn-ghost btn-sm" onclick="toggleUnlock('${attrEsc(uid)}')">${u.unlockedEdit?t('relock'):t('allow')}</button>
   </div>`).join('');
+  if(typeof renderSubHostRollup==='function') renderSubHostRollup();
 }
 async function togglePaid(uid){
-  if(!isAdmin)return;
+  if(!canManage(uid))return;
   const u=allUsers[uid];if(!u)return;
   const nowPaid=!u.paid;
   if(!confirm(nowPaid?`Marcar ${u.name} como PAGO?`:`Remover pagamento de ${u.name}?`))return;
@@ -5061,7 +5076,7 @@ async function togglePaid(uid){
   }catch(e){ toast(e.message||'Erro',true); }
 }
 async function toggleUnpaidAnnounce(uid,name){
-  if(!isAdmin)return;
+  if(!canManage(uid))return;
   const u=allUsers[uid];if(!u)return;
   const nowAnnounced=!u.unpaidAnnounced;
   if(!confirm(nowAnnounced?`Anunciar ${name} como NÃO PAGO? Ficará visível na classificação.`:`Remover aviso de não pagamento de ${name}?`))return;
@@ -5756,6 +5771,172 @@ function renderLive(){
   c.innerHTML=html||`<p style="color:var(--muted);font-size:.82rem">${lang==='pt'?'Sem jogos ao momento.':'No matches at this time.'}</p>`;
 }
 
+// ═══ SUB-HOSTS ═══
+// A management layer over ONE competition (one leaderboard). A sub-host is a
+// member with role 'subhost' who is responsible for their own guests: getting
+// them to submit, and collecting their entry fee (offline — the app only tracks
+// paid status). Guests are attributed automatically at join time via a
+// per-sub-host invite code that points to the SAME competition.
+//
+// Schema (all additive — dormant on competitions that don't use it):
+//   competition.subHostCodes : { CODE : subHostUid }   // many codes, one comp
+//   member.subHost           : subHostUid               // who owns this guest
+//   member.role              : 'subhost'                // new role value
+//
+// SECURITY NOTE: scoping here is client-side (trust model for ~64 friends). A
+// sub-host writing only to their own group is enforced in code, not yet by the
+// Firestore rules (those remain unverified — tracked separately). Do not treat
+// this as a hard security boundary until the rules are read and tightened.
+
+// Can the current user manage this member? Host/admins manage everyone; a
+// sub-host manages only guests tagged to them.
+function canManage(uid){
+  if(isAdmin) return true;
+  return !!(isSubHost && currentUser && (allUsers[uid]||{}).subHost===currentUser.uid);
+}
+
+// Members tagged to a given sub-host, sorted by name.
+function subGroupMembers(subHostUid){
+  return Object.entries(allUsers)
+    .filter(([,u])=>u.subHost===subHostUid)
+    .sort((a,b)=>a[1].name.localeCompare(b[1].name,'pt'));
+}
+
+// Reverse-lookup a sub-host's own invite code from the competition map.
+function subHostCodeFor(uid){
+  const codes=(currentComp&&currentComp.subHostCodes)||{};
+  return Object.keys(codes).find(c=>codes[c]===uid)||null;
+}
+
+// Per-sub-host roll-up for the host dashboard: counts + fee totals. An extra
+// 'Sem sub-host' bucket covers guests who joined via the global code.
+function subHostRollup(){
+  const buckets={};
+  const ensure=(id,name)=>{ buckets[id]||(buckets[id]={id,name,members:0,submitted:0,paid:0,unpaid:0}); return buckets[id]; };
+  const UNGROUPED='__none__';
+  for(const [uid,u] of Object.entries(allUsers)){
+    if(u.role==='host') continue; // host isn't anyone's guest
+    const shUid=u.subHost||UNGROUPED;
+    const shName= shUid===UNGROUPED ? (lang==='pt'?'Sem sub-host':'No sub-host')
+                                    : ((allUsers[shUid]||{}).name||'?');
+    const b=ensure(shUid,shName);
+    b.members++;
+    if(allPredictions[uid]) b.submitted++;
+    if(u.paid) b.paid++;
+    if(u.unpaidAnnounced) b.unpaid++;
+  }
+  return Object.values(buckets).sort((a,b)=>a.name.localeCompare(b.name,'pt'));
+}
+
+// ── Host actions ────────────────────────────────────────────────────────────────
+// Promote a member to sub-host: set role and register a fresh invite code, in one
+// transaction (field paths only — no whole-object write).
+async function promoteToSubHost(uid){
+  if(!isHost) return;
+  const u=allUsers[uid]; if(!u) return;
+  if(u.role==='host'){ toast(lang==='pt'?'O host já gere tudo':'The host already manages everyone',true); return; }
+  if(subHostCodeFor(uid)){ toast(lang==='pt'?'Já é sub-host':'Already a sub-host',true); return; }
+  if(!confirm(lang==='pt'?`Tornar ${u.name} sub-host? Recebe um código próprio para convidar os seus convidados.`:`Make ${u.name} a sub-host? They get their own code to invite their guests.`)) return;
+  const{db,doc,runTransaction}=window._fb;
+  const ref=doc(db,'competitions',currentCompId);
+  const code=genCode();
+  try{
+    await runTransaction(db,async tx=>{
+      const snap=await tx.get(ref);
+      if(!snap.exists()) throw new Error(lang==='pt'?'Competição não encontrada':'Competition not found');
+      const cur=((snap.data().members)||{})[uid];
+      if(!cur) throw new Error(lang==='pt'?'Participante não encontrado':'Member not found');
+      tx.update(ref,{ [`members.${uid}`]:{...cur,role:'subhost'}, [`subHostCodes.${code}`]:uid });
+    });
+    toast(lang==='pt'?`${u.name} é agora sub-host`:`${u.name} is now a sub-host`);
+  }catch(e){ toast(e.message||'Erro',true); }
+}
+
+// Demote a sub-host back to member and remove their code. Their guests keep their
+// tag (host can reassign) — we don't touch other members in this write.
+async function demoteSubHost(uid){
+  if(!isHost) return;
+  const u=allUsers[uid]; if(!u) return;
+  const code=subHostCodeFor(uid);
+  if(!confirm(lang==='pt'?`Remover ${u.name} como sub-host?`:`Remove ${u.name} as sub-host?`)) return;
+  const{db,doc,runTransaction,deleteField}=window._fb;
+  const ref=doc(db,'competitions',currentCompId);
+  try{
+    await runTransaction(db,async tx=>{
+      const snap=await tx.get(ref);
+      if(!snap.exists()) throw new Error(lang==='pt'?'Competição não encontrada':'Competition not found');
+      const cur=((snap.data().members)||{})[uid];
+      if(!cur) throw new Error(lang==='pt'?'Participante não encontrado':'Member not found');
+      const patch={ [`members.${uid}`]:{...cur,role:cur.role==='subhost'?'member':cur.role} };
+      if(code) patch[`subHostCodes.${code}`]=deleteField();
+      tx.update(ref,patch);
+    });
+    toast(lang==='pt'?`${u.name} deixou de ser sub-host`:`${u.name} is no longer a sub-host`);
+  }catch(e){ toast(e.message||'Erro',true); }
+}
+
+// Reassign a guest to a different sub-host (or clear the tag). Host only.
+async function reassignMember(uid,targetSubHostUid){
+  if(!isHost) return;
+  const{deleteField}=window._fb;
+  try{
+    await mutateMember(uid,m=>{ const n={...m}; if(targetSubHostUid) n.subHost=targetSubHostUid; else delete n.subHost; return n; });
+    toast(t('saved'));
+  }catch(e){ toast(e.message||'Erro',true); }
+  // deleteField import kept available for callers that prefer a field-path delete.
+  void deleteField;
+}
+
+// ── Rendering ─────────────────────────────────────────────────────────────────
+// Host dashboard: one row per sub-host with submitted / paid / fee counts.
+function renderSubHostRollup(){
+  if(!isHost) return;
+  const c=$('subhost-rollup'); if(!c) return;
+  const rows=subHostRollup();
+  if(!rows.length){ c.innerHTML=''; return; }
+  c.innerHTML=`<h4 style="margin:14px 0 6px">Sub-hosts</h4>
+  <table class="leaderboard" style="font-size:.78rem"><thead><tr><th>Sub-host</th><th>Convidados</th><th>Enviaram</th><th>Pagos</th></tr></thead><tbody>
+  ${rows.map(r=>`<tr>
+    <td>${r.name}</td>
+    <td>${r.members}</td>
+    <td>${r.submitted}/${r.members}</td>
+    <td>${r.paid}/${r.members}${r.unpaid?` <span style="color:#ff8040">(${r.unpaid}€!)</span>`:''}</td>
+  </tr>`).join('')}</tbody></table>`;
+}
+
+// A sub-host's own panel: manage only their guests (paid / not-paid / submission).
+function renderSubHostPanel(){
+  const c=$('subhost-panel'); if(!c) return;
+  if(!isSubHost || !currentUser){ c.classList.add('hidden'); return; }
+  c.classList.remove('hidden');
+  const group=subGroupMembers(currentUser.uid);
+  const submitted=group.filter(([uid])=>allPredictions[uid]).length;
+  const paid=group.filter(([,u])=>u.paid).length;
+  const link=`${location.origin}${location.pathname}?j=${subHostCodeFor(currentUser.uid)||''}`;
+  c.innerHTML=`<div class="card"><h3>O Meu Grupo</h3>
+    <p style="color:var(--muted);font-size:.8rem">Link de convite: <code style="word-break:break-all">${link}</code>
+      <button class="btn btn-ghost btn-sm" onclick="navigator.clipboard.writeText('${attrEsc(link)}');toast(t('copied'))">Copiar</button></p>
+    <p style="font-size:.82rem">Enviaram previsões: <b>${submitted}/${group.length}</b> · Pagaram: <b>${paid}/${group.length}</b></p>
+    ${!group.length?`<p style="color:var(--muted)">Ainda ninguém entrou com o teu código.</p>`:
+    `<table class="leaderboard" style="font-size:.78rem"><thead><tr><th>Nome</th><th>Previsão</th><th></th></tr></thead><tbody>
+    ${group.map(([uid,u])=>`<tr>
+      <td>${u.name}</td>
+      <td><span class="badge ${allPredictions[uid]?'badge-open':'badge-locked'}">${allPredictions[uid]?'✓':'?'}</span></td>
+      <td style="display:flex;gap:3px;flex-wrap:wrap">
+        <button class="btn btn-sm" style="padding:4px 7px;font-size:.7rem;background:${u.paid?'var(--green)':'rgba(45,198,83,.15)'};color:${u.paid?'#0D1B2A':'var(--green)'};border:1px solid var(--green)" onclick="togglePaid('${attrEsc(uid)}')">${u.paid?'✓ Pago':'Pago'}</button>
+        <button class="btn btn-sm" style="padding:4px 7px;font-size:.7rem;background:${u.unpaidAnnounced?'rgba(255,80,0,.25)':'rgba(255,255,255,.05)'};color:${u.unpaidAnnounced?'#ff8040':'var(--muted)'};border:1px solid ${u.unpaidAnnounced?'#ff8040':'var(--border)'}" onclick="toggleUnpaidAnnounce('${attrEsc(uid)}','${attrEsc(u.name)}')">${u.unpaidAnnounced?'€ Anunciado':'€ Não Pago'}</button>
+      </td>
+    </tr>`).join('')}</tbody></table>`}
+  </div>`;
+}
+
+// Auto-fill the invite code from a ?j=CODE link so guests never type it.
+function applyJoinCodeFromURL(){
+  try{
+    const j=new URLSearchParams(location.search).get('j');
+    if(j){ const el=$('auth-code'); if(el) el.value=j.trim().toUpperCase(); }
+  }catch(_){}
+}
 // ═══ UI ═══
 // Make the host-panel section headers (h3) collapsible so the panel isn't one
 // endless scroll. Runs when the host tab opens; idempotent (each section wrapped
@@ -5793,7 +5974,7 @@ function showTab(id){
   const tb=$(`tab-btn-${id.replace('tab-','')}`);if(tb) tb.classList.add('active');
   document.querySelectorAll('.bnav-btn').forEach(el=>el.classList.remove('active'));
   const nb=$(`bnav-${id.replace('tab-','')}`);if(nb) nb.classList.add('active');
-  if(id==='tab-leaderboard'){const sb=$('lb-share-btn');if(sb&&HIDE_LEADERBOARD)sb.style.display='none';renderLeaderboard();renderPodium();renderOtherPreds();renderLive();}
+  if(id==='tab-leaderboard'){const sb=$('lb-share-btn');if(sb&&HIDE_LEADERBOARD)sb.style.display='none';renderLeaderboard();renderPodium();renderOtherPreds();renderLive();if(typeof renderSubHostPanel==='function')renderSubHostPanel();}
   if(id==='tab-grupos') renderGruposTab();
   if(id==='tab-bracket'){renderBracket();renderBracketMobile();renderBracketSwipe();}
   if(id==='tab-historia'){renderPodium();renderHistoria();}
@@ -6032,6 +6213,8 @@ window.toggleAdmin=toggleAdmin;window.kickUser=kickUser;window.togglePaid=toggle
 window.downloadCSV=downloadCSV;window.saveRules=saveRules;window.savePlayerChars=savePlayerChars;
 window.reviewTopScorer=reviewTopScorer;window.approveTopScorer=approveTopScorer;window.forceFetch=forceFetch;
 window.pickWinner=pickWinner;window.setPtsToggle=setPtsToggle;window.launchPtsToggle=launchPtsToggle;
+window.promoteToSubHost=promoteToSubHost;window.demoteSubHost=demoteSubHost;window.reassignMember=reassignMember;
+applyJoinCodeFromURL();
 </script>
 </body>
 </html>

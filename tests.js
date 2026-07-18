@@ -105,6 +105,8 @@ function loadApp() {
       ROAST_PT, ROAST_EN, roastFacts,
       FD_TEAM_ID, fdTeamPT, fdMatchScore, FD_STAGE, FD_DONE, fdKickoffLabel, prettyName, _lbNorm,
       canSeeOthersPreds, iHaveSubmitted, othersPredsRevealTime,
+      subHostRollup, subGroupMembers, subHostCodeFor, canManage,
+      setSubHostState(s) { allUsers = s.allUsers||{}; allPredictions = s.allPredictions||{}; currentComp = s.currentComp||null; currentUser = s.currentUser||null; isAdmin = !!s.isAdmin; isSubHost = !!s.isSubHost; },
       setState(a, p) { actualScores = a; allPredictions = p; },
       setCurrentUser(u) { currentUser = u; },
       setToggles(t) { ptsToggles = t; },
@@ -890,7 +892,59 @@ test('anti-copy: own submission is required to see others', () => {
   eq(A.othersPredsRevealTime() instanceof Date, true, 'reveal time is a Date');
 });
 
-/* ── summary ─────────────────────────────────────────────────────────────── */
+/* ── sub-hosts (delegation layer) ─────────────────────────────────────────── */
+group('sub-hosts');
+
+test('subHostCodeFor reverse-looks-up a sub-host code, null if none', () => {
+  A.setSubHostState({ currentComp: { subHostCodes: { ABC123: 'u1', DEF456: 'u2' } } });
+  eq(A.subHostCodeFor('u1'), 'ABC123', 'u1 code');
+  eq(A.subHostCodeFor('u9'), null, 'unknown uid has no code');
+});
+
+test('subGroupMembers returns only a sub-host\'s own guests', () => {
+  A.setSubHostState({ allUsers: {
+    u1: { name: 'Sub One', role: 'subhost' },
+    g1: { name: 'Guest A', subHost: 'u1' },
+    g2: { name: 'Guest B', subHost: 'u1' },
+    g3: { name: 'Guest C', subHost: 'u2' },
+    g4: { name: 'Ungrouped' },
+  }});
+  eq(A.subGroupMembers('u1').map(([id]) => id).sort(), ['g1', 'g2'], 'u1 group');
+  eq(A.subGroupMembers('u2').map(([id]) => id), ['g3'], 'u2 group');
+});
+
+test('canManage: admin manages all; sub-host only own group; nobody else', () => {
+  A.setSubHostState({ isAdmin: true, currentUser: { uid: 'h' },
+    allUsers: { g1: { subHost: 'u1' } } });
+  ok(A.canManage('g1'), 'admin manages anyone');
+  A.setSubHostState({ isSubHost: true, currentUser: { uid: 'u1' },
+    allUsers: { g1: { subHost: 'u1' }, g3: { subHost: 'u2' } } });
+  ok(A.canManage('g1'), 'sub-host manages own guest');
+  ok(!A.canManage('g3'), 'sub-host cannot manage another group');
+  A.setSubHostState({ currentUser: { uid: 'x' }, allUsers: { g1: { subHost: 'u1' } } });
+  ok(!A.canManage('g1'), 'plain member manages nobody');
+});
+
+test('subHostRollup counts guests/submitted/paid per sub-host + ungrouped bucket', () => {
+  A.setSubHostState({
+    allUsers: {
+      h:  { name: 'Host', role: 'host' },
+      u1: { name: 'Sub One', role: 'subhost', subHost: undefined },
+      g1: { name: 'A', subHost: 'u1', paid: true },
+      g2: { name: 'B', subHost: 'u1' },
+      g3: { name: 'C' },
+    },
+    allPredictions: { g1: { bracket: {} } },
+  });
+  const roll = A.subHostRollup();
+  const byId = Object.fromEntries(roll.map(r => [r.id, r]));
+  eq(byId['u1'].members, 2, 'u1 has 2 guests');
+  eq(byId['u1'].submitted, 1, 'u1: 1 submitted');
+  eq(byId['u1'].paid, 1, 'u1: 1 paid');
+  ok(!!byId['__none__'], 'ungrouped bucket exists');
+  eq(byId['__none__'].members, 2, 'ungrouped = u1(self, untagged) + g3');
+});
+
 
 console.log('\n' + '─'.repeat(64));
 console.log(`\x1b[32m${pass} passed\x1b[0m` +

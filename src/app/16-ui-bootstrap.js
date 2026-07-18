@@ -35,7 +35,7 @@ function showTab(id){
   const tb=$(`tab-btn-${id.replace('tab-','')}`);if(tb) tb.classList.add('active');
   document.querySelectorAll('.bnav-btn').forEach(el=>el.classList.remove('active'));
   const nb=$(`bnav-${id.replace('tab-','')}`);if(nb) nb.classList.add('active');
-  if(id==='tab-leaderboard'){const sb=$('lb-share-btn');if(sb&&HIDE_LEADERBOARD)sb.style.display='none';renderLeaderboard();renderPodium();renderOtherPreds();renderLive();}
+  if(id==='tab-leaderboard'){const sb=$('lb-share-btn');if(sb&&HIDE_LEADERBOARD)sb.style.display='none';renderLeaderboard();renderPodium();renderOtherPreds();renderLive();if(typeof renderSubHostPanel==='function')renderSubHostPanel();}
   if(id==='tab-grupos') renderGruposTab();
   if(id==='tab-bracket'){renderBracket();renderBracketMobile();renderBracketSwipe();}
   if(id==='tab-historia'){renderPodium();renderHistoria();}
@@ -274,3 +274,5 @@ window.toggleAdmin=toggleAdmin;window.kickUser=kickUser;window.togglePaid=toggle
 window.downloadCSV=downloadCSV;window.saveRules=saveRules;window.savePlayerChars=savePlayerChars;
 window.reviewTopScorer=reviewTopScorer;window.approveTopScorer=approveTopScorer;window.forceFetch=forceFetch;
 window.pickWinner=pickWinner;window.setPtsToggle=setPtsToggle;window.launchPtsToggle=launchPtsToggle;
+window.promoteToSubHost=promoteToSubHost;window.demoteSubHost=demoteSubHost;window.reassignMember=reassignMember;
+applyJoinCodeFromURL();

@@ -1,6 +1,6 @@
 // ═══ STATE ═══
 let currentUser=null,currentComp=null,currentCompId=null;
-let isHost=false,isAdmin=false;
+let isHost=false,isAdmin=false,isSubHost=false;
 let userPredictions={},allPredictions={},allUsers={},actualScores={},approvedTopScorers={};
 // True when the user has typed something in the predictions form but not yet
 // submitted. While true, onSnapshot will NOT overwrite userPredictions from

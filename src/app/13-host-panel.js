@@ -172,6 +172,7 @@ function renderHostMembers(){
       ${isAdmin?`<button class="btn btn-sm" style="padding:4px 7px;font-size:.7rem;background:${paid?'var(--green)':'rgba(45,198,83,.15)'};color:${paid?'#0D1B2A':'var(--green)'};border:1px solid var(--green)" onclick="togglePaid('${attrEsc(uid)}')">${paid?'✓ Pago':'Pago'}</button>`:''}
       ${isAdmin?`<button class="btn btn-sm" style="padding:4px 7px;font-size:.7rem;background:${unpaid?'rgba(255,80,0,.25)':'rgba(255,255,255,.05)'};color:${unpaid?'#ff8040':'var(--muted)'};border:1px solid ${unpaid?'#ff8040':'var(--border)'}" onclick="toggleUnpaidAnnounce('${attrEsc(uid)}','${attrEsc(u.name)}')">${unpaid?'€ Anunciado':'€ Não Pago'}</button>`:''}
       ${isHost&&role!=='host'?`<button class="btn btn-ghost btn-sm" style="padding:4px 7px;font-size:.7rem" onclick="toggleAdmin('${attrEsc(uid)}')">${role==='admin'?'↓ Admin':'↑ Admin'}</button>`:''}
+      ${isHost&&role!=='host'&&role!=='admin'?`<button class="btn btn-ghost btn-sm" style="padding:4px 7px;font-size:.7rem" onclick="${role==='subhost'?`demoteSubHost('${attrEsc(uid)}')`:`promoteToSubHost('${attrEsc(uid)}')`}">${role==='subhost'?'↓ Sub-host':'↑ Sub-host'}</button>`:''}
       ${isAdmin&&role!=='host'?`<button class="btn btn-red btn-sm" style="padding:4px 7px;font-size:.7rem" onclick="kickUser('${attrEsc(uid)}','${attrEsc(u.name)}')">🚫</button>`:''}
     </td>
   </tr>`;}).join('')}</tbody></table>`;
@@ -182,9 +183,10 @@ function renderHostMembers(){
     ${u.unlockedEdit?`<span class="badge" style="background:rgba(255,215,0,.15);color:var(--gold);margin-left:4px">editing</span>`:''}</div>
     <button class="btn btn-ghost btn-sm" onclick="toggleUnlock('${attrEsc(uid)}')">${u.unlockedEdit?t('relock'):t('allow')}</button>
   </div>`).join('');
+  if(typeof renderSubHostRollup==='function') renderSubHostRollup();
 }
 async function togglePaid(uid){
-  if(!isAdmin)return;
+  if(!canManage(uid))return;
   const u=allUsers[uid];if(!u)return;
   const nowPaid=!u.paid;
   if(!confirm(nowPaid?`Marcar ${u.name} como PAGO?`:`Remover pagamento de ${u.name}?`))return;
@@ -195,7 +197,7 @@ async function togglePaid(uid){
   }catch(e){ toast(e.message||'Erro',true); }
 }
 async function toggleUnpaidAnnounce(uid,name){
-  if(!isAdmin)return;
+  if(!canManage(uid))return;
   const u=allUsers[uid];if(!u)return;
   const nowAnnounced=!u.unpaidAnnounced;
   if(!confirm(nowAnnounced?`Anunciar ${name} como NÃO PAGO? Ficará visível na classificação.`:`Remover aviso de não pagamento de ${name}?`))return;

@@ -23,10 +23,18 @@ async function doSimpleAuth(){
       fbUid=cred.user.uid;
     }
 
-    // Find competition by code
+    // Find competition by code. A code is either the competition's global
+    // inviteCode, or one of its per-sub-host codes (subHostCodes: {CODE: uid}).
+    // A sub-host code resolves to the SAME competition and remembers who invited
+    // this guest, so they're attributed automatically. No subHostCodes map on the
+    // doc => this behaves exactly like the old global-only lookup.
     const snap=await getDocs(collection(db,'competitions'));
-    let compDoc=null;
-    snap.forEach(d=>{if(d.data().inviteCode===code) compDoc={id:d.id,...d.data()};});
+    let compDoc=null,joinedSubHost=null;
+    snap.forEach(d=>{
+      const data=d.data();
+      if(data.inviteCode===code){ compDoc={id:d.id,...data}; joinedSubHost=null; }
+      else if(data.subHostCodes&&data.subHostCodes[code]){ compDoc={id:d.id,...data}; joinedSubHost=data.subHostCodes[code]; }
+    });
 
     if(!compDoc){toast('Código inválido',true);return;}
 
@@ -61,7 +69,9 @@ async function doSimpleAuth(){
       // Add to competition under this device's Firebase UID. Written as a single
       // field path so a simultaneous join from another device cannot clobber it
       // (the old whole-map write would drop whichever member was written first).
-      await updateDoc(doc(db,'competitions',compDoc.id),{[`members.${fbUid}`]:{name,pin,role:'member',joinedAt:new Date().toISOString()}});
+      const memberRec={name,pin,role:'member',joinedAt:new Date().toISOString()};
+      if(joinedSubHost) memberRec.subHost=joinedSubHost;
+      await updateDoc(doc(db,'competitions',compDoc.id),{[`members.${fbUid}`]:memberRec});
     }
 
     currentUser={uid:effectiveUid,displayName:name};
@@ -242,6 +252,7 @@ async function initMainApp(uid){
   isHost=currentComp.hostUid===uid;
   const member=currentComp.members?.[uid];
   isAdmin=isHost||(member?.role==='admin');
+  isSubHost=(member?.role==='subhost');
   rules={...DEFAULT_RULES,...(currentComp.rules||{})};
   actualScores=currentComp.actualScores||{};
   allPredictions=currentComp.predictions||{};
