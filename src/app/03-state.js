@@ -50,29 +50,21 @@ function canEdit(uid){
   return false;
 }
 
-// ═══ API USAGE ═══
-async function getApiUsage(){
-  const{db,doc,getDoc}=window._fb;
-  const today=new Date().toISOString().split('T')[0];
-  try{const d=await getDoc(doc(db,'apiUsage','counter'));const data=d.exists()?d.data():{date:'',n:0,log:[]};return data.date===today?data:{date:today,n:0,log:[]};}
-  catch(e){return{date:new Date().toISOString().split('T')[0],n:0,log:[]};}
-}
-async function bumpApi(reason=''){
-  const{db,doc,setDoc}=window._fb;
-  const u=await getApiUsage();u.n++;u.date=new Date().toISOString().split('T')[0];
-  u.log=[`${new Date().toLocaleTimeString()} - ${reason}`,...(u.log||[])].slice(0,25);
-  try{await setDoc(doc(db,'apiUsage','counter'),u);}catch(e){}
-  updateApiCounter(u);return u.n;
-}
-async function canApi(max=85){
-  const u=await getApiUsage();return u.n<max;
-}
-function updateApiCounter(u){
+// ═══ API / LIVE-FILE STATUS ═══
+// The old per-day request counter (getApiUsage/bumpApi/canApi) is gone: it
+// tracked api-football's 100/day budget, which no longer exists now that scores
+// come from data/live.json via the GitHub Action (#6, build 20260717h). What
+// the host still wants to see is whether the file is fresh, so this now reports
+// the timestamp published inside live.json.
+function updateApiCounter(){
   const lbl=$('api-count-lbl');const bar=$('api-bar-fill');const log=$('api-log');
-  if(!u||!lbl) return;
-  const pct=Math.min(Math.round((u.n/100)*100),100);
-  lbl.textContent=`${u.n} / 100 chamadas hoje (${Math.max(0,100-u.n)} restantes)`;
-  if(bar){bar.style.width=pct+'%';bar.style.background=pct>80?'var(--red)':pct>60?'var(--gold)':'var(--green)';}
-  if(log&&u.log) log.innerHTML=u.log.map(l=>`<div>${l}</div>`).join('');
+  if(!lbl) return;
+  const ts=window._liveFetchedAt;
+  if(!ts){lbl.textContent=lang==='pt'?'à espera de dados…':'waiting for data…';if(bar)bar.style.width='0%';return;}
+  const mins=Math.max(0,Math.round((Date.now()-new Date(ts).getTime())/60000));
+  lbl.textContent=(lang==='pt'?'Atualizado há ':'Updated ')+
+    (mins<1?(lang==='pt'?'menos de 1 min':'<1 min ago'):`${mins} min${lang==='pt'?'':' ago'}`);
+  if(bar){const stale=mins>15;bar.style.width='100%';bar.style.background=stale?'var(--gold)':'var(--green)';}
+  if(log)log.innerHTML='';
 }
 

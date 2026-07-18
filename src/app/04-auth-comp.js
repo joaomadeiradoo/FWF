@@ -285,7 +285,7 @@ async function initMainApp(uid){
   renderGroupMatches();renderGruposTab();renderBracket();renderBracketMobile();renderBracketSwipe();
   renderRules();renderLeaderboard();renderPodium();renderOtherPreds();renderLive();
   renderCountdown();updateBanner();
-  if(isAdmin){renderHostScores();renderHostMembers();renderHostAdjust();renderHostRules();renderHostPlayerChars();renderPtsToggles();renderPodiumHostSection();getApiUsage().then(updateApiCounter);makeHostPanelCollapsible();}
+  if(isAdmin){renderHostScores();renderHostMembers();renderHostAdjust();renderHostRules();renderHostPlayerChars();renderPtsToggles();renderPodiumHostSection();updateApiCounter();makeHostPanelCollapsible();}
   hide('screen-loading');hide('screen-auth');show('screen-main');
   scheduleApi();
 }

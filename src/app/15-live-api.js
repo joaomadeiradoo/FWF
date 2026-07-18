@@ -36,6 +36,7 @@ async function fetchAll(){
     const r=await fetch('data/live.json?t='+Math.floor(Date.now()/60000),{cache:'no-store'}); // 60s bucket: all clients share one CDN object
     if(!r.ok){console.warn('[live] data/live.json not published yet:',r.status);return;} // fall back to local ticker
     const d=await r.json();
+    if(d&&d.fetchedAt){window._liveFetchedAt=d.fetchedAt;updateApiCounter();}
     if(!d||!Array.isArray(d.matches)) return;
     const now=Date.now();
     const ko=m=>new Date(m.utcDate).getTime();

@@ -40,7 +40,7 @@ function showTab(id){
   if(id==='tab-bracket'){renderBracket();renderBracketMobile();renderBracketSwipe();}
   if(id==='tab-historia'){renderPodium();renderHistoria();}
   if(id==='tab-rules') renderRules();
-  if(id==='tab-host'){renderHostScores();renderHostMembers();renderHostAdjust();renderHostRules();renderHostPlayerChars();renderPtsToggles();renderPodiumHostSection();getApiUsage().then(updateApiCounter);makeHostPanelCollapsible();}
+  if(id==='tab-host'){renderHostScores();renderHostMembers();renderHostAdjust();renderHostRules();renderHostPlayerChars();renderPtsToggles();renderPodiumHostSection();updateApiCounter();makeHostPanelCollapsible();}
 }
 function copyInvite(){navigator.clipboard.writeText(currentComp?.inviteCode||'');toast(t('copied'));}
 
