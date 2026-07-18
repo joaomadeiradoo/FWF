@@ -16,6 +16,19 @@
 // LATENCY, honestly: GitHub queues scheduled runs, so 5-15 min late is normal.
 // Fine for results. The live dot will lag. A Cloudflare Worker would fix that.
 const LIVE_WINDOW_MS=3.5*60*60*1000; // kick-off → assume over after 3h30 (90'+ET+pens+breaks)
+// Kick-off label in Lisbon time. Time-only if the match is TODAY in Lisbon,
+// otherwise "HH:MM · DD/MM" so tomorrow's game does not read as tonight's.
+// Compares Lisbon calendar days, not UTC — a 20:00Z match belongs to whichever
+// Lisbon date it falls on, and "today" must mean today where the user is.
+function fdKickoffLabel(utc){
+  const d=new Date(utc);
+  const opt={timeZone:'Europe/Lisbon'};
+  const dayKey=x=>x.toLocaleDateString('en-CA',opt); // YYYY-MM-DD in Lisbon
+  const t=d.toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit',...opt});
+  if(dayKey(d)===dayKey(new Date())) return t;
+  const dm=d.toLocaleDateString('pt-PT',{day:'2-digit',month:'2-digit',...opt});
+  return t+' · '+dm;
+}
 async function fetchAll(){
   try{
     // Cache-bust: GitHub Pages' CDN caches assets hard, and a stale live.json
@@ -47,7 +60,7 @@ async function fetchAll(){
       .filter(m=>m.status!==FD_DONE&&ko(m)>now)
       .sort((a,b)=>ko(a)-ko(b)).slice(0,3)
       .map(m=>({home:nm(m.homeTeam.id)||m.homeTeam.name,away:nm(m.awayTeam.id)||m.awayTeam.name,
-        time:new Date(m.utcDate).toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Lisbon'}),venue:''}));
+        time:fdKickoffLabel(m.utcDate),venue:''}));
 
     // FINISHED — feeds autoApplyScores only; renderLive builds RECENTES from
     // actualScores, not from here. Shape kept identical to the old api-football

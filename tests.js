@@ -103,7 +103,7 @@ function loadApp() {
       DEFAULT_RULES, currentPhaseId, profileStats,
       historyFor, roastFor, fuzzyScore, normalize, ROLL_CALL_PT, dailyRollCall,
       ROAST_PT, ROAST_EN, roastFacts,
-      FD_TEAM_ID, fdTeamPT, fdMatchScore, FD_STAGE, FD_DONE,
+      FD_TEAM_ID, fdTeamPT, fdMatchScore, FD_STAGE, FD_DONE, fdKickoffLabel,
       setState(a, p) { actualScores = a; allPredictions = p; },
       setToggles(t) { ptsToggles = t; },
       setAdjustments(x) { adjustments = x; },
@@ -847,6 +847,16 @@ test('stage vocabulary is football-data\'s, not api-football\'s', () => {
   eq(A.FD_STAGE.LAST_32, 'r32');
   eq(A.FD_STAGE['3rd Place Final'], undefined); // the old provider's wording
   eq(Object.keys(A.FD_STAGE).length, 7);        // the observed set, exhaustive
+});
+
+
+test('upcoming kick-off: time-only today, time + date otherwise (Lisbon)', () => {
+  // Frozen "now" = morning of 18 Jul Lisbon. A.fdKickoffLabel reads the real
+  // clock, so this asserts the SHAPE (has a date / has none), not the wording.
+  const today = A.fdKickoffLabel(new Date().toISOString());
+  eq(/·/.test(today), false, 'today should be time-only: ' + today);
+  const tomorrow = new Date(Date.now() + 36 * 3600 * 1000).toISOString();
+  eq(/·/.test(A.fdKickoffLabel(tomorrow)), true, 'a later day must carry a date');
 });
 
 /* ── summary ─────────────────────────────────────────────────────────────── */
