@@ -69,6 +69,14 @@ function lbFindMe(){
 // onSnapshot would yank the page out from under anyone reading the table.
 let _lbAutoScrolled=false;
 function lbAfterRender(){
+  const c=$('lb-content');
+  if(window._lbAdminPreview && c && !c.querySelector('.lb-admin-preview')){
+    const b=document.createElement('div');
+    b.className='lb-admin-preview';
+    b.style.cssText='margin:0 0 12px;padding:8px 12px;border:1px solid var(--gold);border-radius:8px;background:rgba(212,175,55,.08);color:var(--gold);font-size:.78rem;line-height:1.5;text-align:center';
+    b.innerHTML='👁️ <strong>Pré-visualização do host</strong> — só tu vês esta tabela. Os outros participantes veem "indisponível".';
+    c.prepend(b);
+  }
   const tools=$('lb-tools'),btn=$('lb-findme-btn');
   const hasRows=!!document.querySelector('#lb-content tbody tr');
   if(tools)tools.classList.toggle('hidden',!hasRows);
@@ -86,7 +94,19 @@ function lbAfterRender(){
 }
 function renderLeaderboard(){
   const c=$('lb-content');if(!c) return;
-  if(HIDE_LEADERBOARD){
+  // ADMIN PREVIEW: while HIDE_LEADERBOARD is on, the 63 non-admins get the
+  // "indisponível" card below. The admin (you) sees the real, live-computed
+  // table so you can watch results move points. This gates DISPLAY only — the
+  // rows are computed in-page, so treat this as a private sanity check, not a
+  // security boundary. Server-side hiding is unchanged.
+  const _adminPreview = HIDE_LEADERBOARD && isAdmin;
+  if(_adminPreview){
+    // banner is prepended after the table renders below (see lbAfterRender hook)
+    window._lbAdminPreview = true;
+  } else {
+    window._lbAdminPreview = false;
+  }
+  if(HIDE_LEADERBOARD && !isAdmin){
     lbRows=[];
     $('lb-tools')?.classList.add('hidden');
     $('lb-noresults')?.classList.add('hidden');

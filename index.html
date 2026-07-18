@@ -313,7 +313,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
 </style>
 </head>
 <body>
-<!-- FWF-BUILD:20260717i -->
+<!-- FWF-BUILD:20260717j -->
 <div id="update-banner" onclick="fwfUpdateNow()" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99999;background:#FFD700;color:#0D1B2A;text-align:center;padding:11px;font-weight:800;font-size:.85rem;cursor:pointer;font-family:system-ui,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.4)">🔄 Nova versão disponível — toca para atualizar</div>
 <div id="ptr"><div id="ptr-spinner"></div></div>
 <nav id="bottom-nav">
@@ -585,7 +585,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
 </div>
 <script>
 // ═══ ANTI-CACHE: deteta versão nova no servidor e mostra barra (NÃO recarrega sozinho) ═══
-const FWF_BUILD='20260717i';
+const FWF_BUILD='20260717j';
 function fwfUpdateNow(){
   try{if(typeof hasUnsavedEdits!=='undefined'&&hasUnsavedEdits&&!confirm('Tens alterações por guardar. Atualizar mesmo assim?'))return;}catch(e){}
   location.href=location.pathname+'?v='+Date.now();
@@ -2975,6 +2975,14 @@ function lbFindMe(){
 // onSnapshot would yank the page out from under anyone reading the table.
 let _lbAutoScrolled=false;
 function lbAfterRender(){
+  const c=$('lb-content');
+  if(window._lbAdminPreview && c && !c.querySelector('.lb-admin-preview')){
+    const b=document.createElement('div');
+    b.className='lb-admin-preview';
+    b.style.cssText='margin:0 0 12px;padding:8px 12px;border:1px solid var(--gold);border-radius:8px;background:rgba(212,175,55,.08);color:var(--gold);font-size:.78rem;line-height:1.5;text-align:center';
+    b.innerHTML='👁️ <strong>Pré-visualização do host</strong> — só tu vês esta tabela. Os outros participantes veem "indisponível".';
+    c.prepend(b);
+  }
   const tools=$('lb-tools'),btn=$('lb-findme-btn');
   const hasRows=!!document.querySelector('#lb-content tbody tr');
   if(tools)tools.classList.toggle('hidden',!hasRows);
@@ -2992,7 +3000,19 @@ function lbAfterRender(){
 }
 function renderLeaderboard(){
   const c=$('lb-content');if(!c) return;
-  if(HIDE_LEADERBOARD){
+  // ADMIN PREVIEW: while HIDE_LEADERBOARD is on, the 63 non-admins get the
+  // "indisponível" card below. The admin (you) sees the real, live-computed
+  // table so you can watch results move points. This gates DISPLAY only — the
+  // rows are computed in-page, so treat this as a private sanity check, not a
+  // security boundary. Server-side hiding is unchanged.
+  const _adminPreview = HIDE_LEADERBOARD && isAdmin;
+  if(_adminPreview){
+    // banner is prepended after the table renders below (see lbAfterRender hook)
+    window._lbAdminPreview = true;
+  } else {
+    window._lbAdminPreview = false;
+  }
+  if(HIDE_LEADERBOARD && !isAdmin){
     lbRows=[];
     $('lb-tools')?.classList.add('hidden');
     $('lb-noresults')?.classList.add('hidden');
