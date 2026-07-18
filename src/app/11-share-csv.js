@@ -133,17 +133,33 @@ function downloadCSV(){
   const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='previsoes_karamba.csv';a.click();
 }
+// ═══ ANTI-COPY GATE (single source of truth) ═══
+// A player may see ANYONE ELSE's predictions only after BOTH hold:
+//   1) the reveal time has passed (10 min before the first match), AND
+//   2) they have submitted their own predictions.
+// This is the copying rule. It MUST gate every path that exposes another
+// player's picks — the others-predictions table AND the profile modal — or the
+// hole reopens on whichever path forgets. Own profile is always visible.
+function othersPredsRevealTime(){
+  const firstGameTime=new Date('2026-06-11T19:00:00Z'); // first match kickoff (20h Portugal)
+  return new Date(firstGameTime.getTime()-10*60*1000);
+}
+function iHaveSubmitted(){
+  return !!(allPredictions[currentUser?.uid]&&Object.keys(allPredictions[currentUser?.uid]).length>0);
+}
+function canSeeOthersPreds(){
+  return new Date()>=othersPredsRevealTime() && iHaveSubmitted();
+}
+function othersPredsBlockReason(){
+  if(new Date()<othersPredsRevealTime())
+    return 'Disponível 10 min antes do primeiro jogo para que o Niza não copie pelo Nuno Cordas como costume.';
+  return lang==='pt'?'Submete primeiro as tuas previsões para ver as dos outros.':'Submit your predictions first.';
+}
 function renderOtherPreds(){
   const c=$('op-content');if(!c) return;
-  const firstGameTime=new Date('2026-06-11T19:00:00Z'); // first match kickoff (20h Portugal)
-  const showFrom=new Date(firstGameTime.getTime()-10*60*1000);
-  if(new Date()<showFrom){
-    c.innerHTML=`<p style="color:var(--muted);font-size:.82rem">Disponível 10 min antes do primeiro jogo para que o Niza não copie pelo Nuno Cordas como costume.</p>`;
-    return;
-  }
-  const myS=!!(allPredictions[currentUser?.uid]&&Object.keys(allPredictions[currentUser?.uid]).length>0);
-  if(!myS){
-    c.innerHTML=`<p style="color:var(--muted);font-size:.82rem">${lang==='pt'?'Submete primeiro as tuas previsões para ver as dos outros.':'Submit your predictions first.'}</p>`;
+  if(!canSeeOthersPreds()){
+    const reason=othersPredsBlockReason();
+    c.innerHTML=`<p style="color:var(--muted);font-size:.82rem">${reason}</p>`;
     return;
   }
   // All members with predictions, sorted alphabetically

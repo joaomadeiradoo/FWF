@@ -313,7 +313,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
 </style>
 </head>
 <body>
-<!-- FWF-BUILD:20260717m -->
+<!-- FWF-BUILD:20260717n -->
 <div id="update-banner" onclick="fwfUpdateNow()" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99999;background:#FFD700;color:#0D1B2A;text-align:center;padding:11px;font-weight:800;font-size:.85rem;cursor:pointer;font-family:system-ui,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.4)">🔄 Nova versão disponível — toca para atualizar</div>
 <div id="ptr"><div id="ptr-spinner"></div></div>
 <nav id="bottom-nav">
@@ -585,7 +585,7 @@ input:disabled+.toggle-slider{opacity:.5;cursor:not-allowed}
 </div>
 <script>
 // ═══ ANTI-CACHE: deteta versão nova no servidor e mostra barra (NÃO recarrega sozinho) ═══
-const FWF_BUILD='20260717m';
+const FWF_BUILD='20260717n';
 function fwfUpdateNow(){
   try{if(typeof hasUnsavedEdits!=='undefined'&&hasUnsavedEdits&&!confirm('Tens alterações por guardar. Atualizar mesmo assim?'))return;}catch(e){}
   location.href=location.pathname+'?v='+Date.now();
@@ -2733,6 +2733,16 @@ function showPlayerProfile(uid){
   const u=allUsers[uid]||{};
   if(!u.name){showInfoModal('—',lang==='pt'?'Participante não encontrado.':'Player not found.');return;}
   const pt=lang==='pt';
+  // ANTI-COPY: another player's profile reveals their Champion/Runner-up/3rd/
+  // Top-scorer picks — the same thing the others-predictions table hides. Gate
+  // it by the SAME rule (canSeeOthersPreds). Your own profile is always visible;
+  // the host may audit anyone. Admins see everything for scoring.
+  const isMe=uid===currentUser?.uid;
+  if(!isMe && !isAdmin && typeof canSeeOthersPreds==='function' && !canSeeOthersPreds()){
+    const reason=(typeof othersPredsBlockReason==='function')?othersPredsBlockReason():(pt?'Submete primeiro as tuas previsões.':'Submit your predictions first.');
+    showInfoModal(`👤 ${u.name}`,`<span style="color:var(--muted)">🔒 ${reason}</span>`);
+    return;
+  }
   if(!Object.keys(allPredictions[uid]||{}).length){
     showInfoModal(`👤 ${u.name}`,`<span style="color:var(--muted)">${pt?'Este jogador não submeteu previsões.':'This player has not submitted predictions.'}</span>`);
     return;
@@ -2863,6 +2873,11 @@ window.showHeadToHead=showHeadToHead;
 // player), sorted by name, each opening the head-to-head. Reuses showInfoModal.
 function pickH2HOpponent(anchorUid){
   const pt=lang==='pt';
+  // Same anti-copy gate: comparing exposes both players' picks. Admin exempt.
+  if(!isAdmin && typeof canSeeOthersPreds==='function' && !canSeeOthersPreds()){
+    showInfoModal(pt?'⚔️ Comparar':'⚔️ Compare',`<span style="color:var(--muted)">🔒 ${(typeof othersPredsBlockReason==='function')?othersPredsBlockReason():(pt?'Submete primeiro as tuas previsões.':'Submit your predictions first.')}</span>`);
+    return;
+  }
   const others=Object.keys(allUsers)
     .filter(uid=>uid!==anchorUid && Object.keys(allPredictions[uid]||{}).length)
     .map(uid=>({uid,name:allUsers[uid].name||'—'}))
@@ -4328,17 +4343,33 @@ function downloadCSV(){
   const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='previsoes_karamba.csv';a.click();
 }
+// ═══ ANTI-COPY GATE (single source of truth) ═══
+// A player may see ANYONE ELSE's predictions only after BOTH hold:
+//   1) the reveal time has passed (10 min before the first match), AND
+//   2) they have submitted their own predictions.
+// This is the copying rule. It MUST gate every path that exposes another
+// player's picks — the others-predictions table AND the profile modal — or the
+// hole reopens on whichever path forgets. Own profile is always visible.
+function othersPredsRevealTime(){
+  const firstGameTime=new Date('2026-06-11T19:00:00Z'); // first match kickoff (20h Portugal)
+  return new Date(firstGameTime.getTime()-10*60*1000);
+}
+function iHaveSubmitted(){
+  return !!(allPredictions[currentUser?.uid]&&Object.keys(allPredictions[currentUser?.uid]).length>0);
+}
+function canSeeOthersPreds(){
+  return new Date()>=othersPredsRevealTime() && iHaveSubmitted();
+}
+function othersPredsBlockReason(){
+  if(new Date()<othersPredsRevealTime())
+    return 'Disponível 10 min antes do primeiro jogo para que o Niza não copie pelo Nuno Cordas como costume.';
+  return lang==='pt'?'Submete primeiro as tuas previsões para ver as dos outros.':'Submit your predictions first.';
+}
 function renderOtherPreds(){
   const c=$('op-content');if(!c) return;
-  const firstGameTime=new Date('2026-06-11T19:00:00Z'); // first match kickoff (20h Portugal)
-  const showFrom=new Date(firstGameTime.getTime()-10*60*1000);
-  if(new Date()<showFrom){
-    c.innerHTML=`<p style="color:var(--muted);font-size:.82rem">Disponível 10 min antes do primeiro jogo para que o Niza não copie pelo Nuno Cordas como costume.</p>`;
-    return;
-  }
-  const myS=!!(allPredictions[currentUser?.uid]&&Object.keys(allPredictions[currentUser?.uid]).length>0);
-  if(!myS){
-    c.innerHTML=`<p style="color:var(--muted);font-size:.82rem">${lang==='pt'?'Submete primeiro as tuas previsões para ver as dos outros.':'Submit your predictions first.'}</p>`;
+  if(!canSeeOthersPreds()){
+    const reason=othersPredsBlockReason();
+    c.innerHTML=`<p style="color:var(--muted);font-size:.82rem">${reason}</p>`;
     return;
   }
   // All members with predictions, sorted alphabetically

@@ -43,6 +43,16 @@ function showPlayerProfile(uid){
   const u=allUsers[uid]||{};
   if(!u.name){showInfoModal('—',lang==='pt'?'Participante não encontrado.':'Player not found.');return;}
   const pt=lang==='pt';
+  // ANTI-COPY: another player's profile reveals their Champion/Runner-up/3rd/
+  // Top-scorer picks — the same thing the others-predictions table hides. Gate
+  // it by the SAME rule (canSeeOthersPreds). Your own profile is always visible;
+  // the host may audit anyone. Admins see everything for scoring.
+  const isMe=uid===currentUser?.uid;
+  if(!isMe && !isAdmin && typeof canSeeOthersPreds==='function' && !canSeeOthersPreds()){
+    const reason=(typeof othersPredsBlockReason==='function')?othersPredsBlockReason():(pt?'Submete primeiro as tuas previsões.':'Submit your predictions first.');
+    showInfoModal(`👤 ${u.name}`,`<span style="color:var(--muted)">🔒 ${reason}</span>`);
+    return;
+  }
   if(!Object.keys(allPredictions[uid]||{}).length){
     showInfoModal(`👤 ${u.name}`,`<span style="color:var(--muted)">${pt?'Este jogador não submeteu previsões.':'This player has not submitted predictions.'}</span>`);
     return;
@@ -173,6 +183,11 @@ window.showHeadToHead=showHeadToHead;
 // player), sorted by name, each opening the head-to-head. Reuses showInfoModal.
 function pickH2HOpponent(anchorUid){
   const pt=lang==='pt';
+  // Same anti-copy gate: comparing exposes both players' picks. Admin exempt.
+  if(!isAdmin && typeof canSeeOthersPreds==='function' && !canSeeOthersPreds()){
+    showInfoModal(pt?'⚔️ Comparar':'⚔️ Compare',`<span style="color:var(--muted)">🔒 ${(typeof othersPredsBlockReason==='function')?othersPredsBlockReason():(pt?'Submete primeiro as tuas previsões.':'Submit your predictions first.')}</span>`);
+    return;
+  }
   const others=Object.keys(allUsers)
     .filter(uid=>uid!==anchorUid && Object.keys(allPredictions[uid]||{}).length)
     .map(uid=>({uid,name:allUsers[uid].name||'—'}))

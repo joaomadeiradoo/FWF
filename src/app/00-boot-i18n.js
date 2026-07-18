@@ -1,5 +1,5 @@
 // ═══ ANTI-CACHE: deteta versão nova no servidor e mostra barra (NÃO recarrega sozinho) ═══
-const FWF_BUILD='20260717m';
+const FWF_BUILD='20260717n';
 function fwfUpdateNow(){
   try{if(typeof hasUnsavedEdits!=='undefined'&&hasUnsavedEdits&&!confirm('Tens alterações por guardar. Atualizar mesmo assim?'))return;}catch(e){}
   location.href=location.pathname+'?v='+Date.now();

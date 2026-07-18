@@ -104,7 +104,9 @@ function loadApp() {
       historyFor, roastFor, fuzzyScore, normalize, ROLL_CALL_PT, dailyRollCall,
       ROAST_PT, ROAST_EN, roastFacts,
       FD_TEAM_ID, fdTeamPT, fdMatchScore, FD_STAGE, FD_DONE, fdKickoffLabel, prettyName, _lbNorm,
+      canSeeOthersPreds, iHaveSubmitted, othersPredsRevealTime,
       setState(a, p) { actualScores = a; allPredictions = p; },
+      setCurrentUser(u) { currentUser = u; },
       setToggles(t) { ptsToggles = t; },
       setAdjustments(x) { adjustments = x; },
       getBuild: () => FWF_BUILD,
@@ -876,6 +878,16 @@ test('prettyName is display-only: it never changes the match key', () => {
   const keys = ['JOÃO DO Ó', 'João do Ó', 'joão do ó'].map(A._lbNorm);
   eq(new Set(keys).size, 1, 'casing must not affect the match key');
   eq(keys[0], 'joao do o');
+});
+
+
+test('anti-copy: own submission is required to see others', () => {
+  A.setCurrentUser({ uid: 'me' });
+  A.setState({}, { me: {}, other: { bracket: { fin: ['x'] } } });
+  eq(A.iHaveSubmitted(), false, 'empty own predictions => not submitted');
+  A.setState({}, { me: { bracket: { fin: ['y'] } } });
+  eq(A.iHaveSubmitted(), true, 'own predictions present => submitted');
+  eq(A.othersPredsRevealTime() instanceof Date, true, 'reveal time is a Date');
 });
 
 /* ── summary ─────────────────────────────────────────────────────────────── */
