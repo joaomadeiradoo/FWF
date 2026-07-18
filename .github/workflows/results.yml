@@ -40,6 +40,22 @@ jobs:
           FD_TOKEN: ${{ secrets.FD_TOKEN }}
         run: node scripts/fetch-results.js
 
+      # Applies group-stage results to Firestore server-side, so scores land even
+      # when no admin has the app open. INERT BY DEFAULT: dry-runs (logs only)
+      # unless repo variable APPLY_LIVE=true AND secret FIREBASE_SERVICE_ACCOUNT
+      # is set. Manual host entry stays the failsafe; a 'manual' score is never
+      # overwritten. Knockout apply is not wired here yet (see TODO).
+      - name: Apply scores to Firestore (group stage)
+        env:
+          APPLY_LIVE: ${{ vars.APPLY_LIVE }}
+          FWF_COMP_ID: ${{ vars.FWF_COMP_ID }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ "$APPLY_LIVE" = "true" ] && [ -n "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            npm i firebase-admin --no-save --silent
+          fi
+          node scripts/apply-scores.js
+
       - name: Commit if changed
         run: |
           git config user.name  "FWF results bot"
