@@ -71,7 +71,7 @@ async function fetchAll(){
       .sort((a,b)=>ko(a)-ko(b)).slice(-30)
       .map(m=>{const sc=fdMatchScore(m);if(!sc) return null;
         return{home:nm(m.homeTeam.id)||m.homeTeam.name,away:nm(m.awayTeam.id)||m.awayTeam.name,
-          hs:sc.home,as:sc.away,penHome:sc.pens?sc.pens.home:null,penAway:sc.pens?sc.pens.away:null,round:FD_STAGE[m.stage]||null};})
+          hs:sc.home,as:sc.away,penHome:sc.pens?sc.pens.home:null,penAway:sc.pens?sc.pens.away:null,round:FD_STAGE[m.stage]||null,utcDate:m.utcDate};})
       .filter(Boolean);
 
     // AUTO-APPLY DESLIGADO (2026-06-29): resultados inseridos manualmente pelo host.
@@ -370,18 +370,37 @@ function renderLive(){
   // Recentes: the 3 most recently played results, built ONLY from entered results
   // (actualScores — manual now, plus any API-applied later), ordered by match date
   // (Portugal time), newest first. Independent of the live API list.
-  const allRecent=ALL_MATCHES
-    .filter(m=>{const s=actualScores[m.id];return s&&s.home!==undefined&&s.home!=='';})
-    .sort((a,b)=>parseDate(a.date)-parseDate(b.date))
-    .slice(-3)
-    .reverse()
-    .map(m=>({home:m.home,away:m.away,hs:actualScores[m.id].home,as:actualScores[m.id].away}));
+  // Recentes: the 3 most recently played results, newest first.
+  // PREFERRED source: recentData from the live feed (data/live.json) — this is
+  // the ONLY source that includes knockout results, because ALL_MATCHES holds
+  // group fixtures only (KO rounds were never added to this tournament's fixture
+  // list). Without this, RECENTES freezes on the last group game even after the
+  // semis/final are played. A round label is shown so a KO result reads clearly.
+  // FALLBACK: if the feed hasn't loaded, use manually-entered actualScores over
+  // ALL_MATCHES, exactly as before. Display-only either way — nothing is written.
+  const RLBL={r32:'R32',r16:'R16',qf:lang==='pt'?'Quartos':'QF',sf:lang==='pt'?'Meias':'SF',f3:lang==='pt'?'3.º/4.º':'3rd',fin:lang==='pt'?'Final':'Final'};
+  let allRecent;
+  if(Array.isArray(recentData)&&recentData.length){
+    allRecent=recentData
+      .slice()
+      .sort((a,b)=>new Date(a.utcDate||0)-new Date(b.utcDate||0))
+      .slice(-3).reverse()
+      .map(m=>({home:m.home,away:m.away,hs:m.hs,as:m.as,penHome:m.penHome,penAway:m.penAway,
+        label:m.round&&RLBL[m.round]&&m.round!=='group'?RLBL[m.round]:null}));
+  } else {
+    allRecent=ALL_MATCHES
+      .filter(m=>{const s=actualScores[m.id];return s&&s.home!==undefined&&s.home!=='';})
+      .sort((a,b)=>parseDate(a.date)-parseDate(b.date))
+      .slice(-3).reverse()
+      .map(m=>({home:m.home,away:m.away,hs:actualScores[m.id].home,as:actualScores[m.id].away,penHome:null,penAway:null,label:null}));
+  }
   if(allRecent.length){
     html+=`<div style="margin-bottom:10px"><div class="sec-lbl">🏁 ${lang==='pt'?'Recentes':'Recent'}</div>`;
-    allRecent.forEach(m=>{html+=`<div class="lmc"><div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+    allRecent.forEach(m=>{const pens=(m.penHome!=null&&m.penAway!=null)?` <span style="font-size:.6rem;color:var(--muted)">(${lang==='pt'?'gp':'pens'} ${m.penHome}-${m.penAway})</span>`:'';
+      html+=`<div class="lmc"><div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
       <span style="font-weight:700;font-size:.8rem;flex:1;text-align:right">${m.home}</span>
       <div style="text-align:center;min-width:70px"><div class="ls">${m.hs} - ${m.as}</div>${predPill(m.home,m.away)}</div>
-      <span style="font-weight:700;font-size:.8rem;flex:1">${m.away}</span></div><div style="text-align:center;font-size:.6rem;color:var(--muted);margin-top:2px">FT</div></div>`;});
+      <span style="font-weight:700;font-size:.8rem;flex:1">${m.away}</span></div><div style="text-align:center;font-size:.6rem;color:var(--muted);margin-top:2px">${m.label?m.label+' · ':''}FT${pens}</div></div>`;});
     html+='</div>';
   }
   if(liveData.length){
