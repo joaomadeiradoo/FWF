@@ -103,7 +103,7 @@ function loadApp() {
       DEFAULT_RULES, currentPhaseId, profileStats,
       historyFor, roastFor, fuzzyScore, normalize, ROLL_CALL_PT, dailyRollCall,
       ROAST_PT, ROAST_EN, roastFacts,
-      FD_TEAM_ID, fdTeamPT, fdMatchScore, FD_STAGE, FD_DONE, fdKickoffLabel,
+      FD_TEAM_ID, fdTeamPT, fdMatchScore, FD_STAGE, FD_DONE, fdKickoffLabel, prettyName, _lbNorm,
       setState(a, p) { actualScores = a; allPredictions = p; },
       setToggles(t) { ptsToggles = t; },
       setAdjustments(x) { adjustments = x; },
@@ -857,6 +857,25 @@ test('upcoming kick-off: time-only today, time + date otherwise (Lisbon)', () =>
   eq(/·/.test(today), false, 'today should be time-only: ' + today);
   const tomorrow = new Date(Date.now() + 36 * 3600 * 1000).toISOString();
   eq(/·/.test(A.fdKickoffLabel(tomorrow)), true, 'a later day must carry a date');
+});
+
+
+test('prettyName: fixes all-caps / all-lower, leaves mixed case alone', () => {
+  eq(A.prettyName('JOÃO DO Ó'), 'João do Ó');       // all-caps + PT connector
+  eq(A.prettyName('ANTÓNIO VALENTE'), 'António Valente');
+  eq(A.prettyName('pedro fonseca'), 'Pedro Fonseca'); // all-lower
+  // mixed case is the player's deliberate spelling — never touched
+  eq(A.prettyName('McGinn'), 'McGinn');
+  eq(A.prettyName('van Dijk'), 'van Dijk');
+  eq(A.prettyName('João do Ó'), 'João do Ó');
+  eq(A.prettyName('Luís Vargas Mota'), 'Luís Vargas Mota');
+});
+
+test('prettyName is display-only: it never changes the match key', () => {
+  // the login/row-match key comes from _lbNorm, which must be casing-blind
+  const keys = ['JOÃO DO Ó', 'João do Ó', 'joão do ó'].map(A._lbNorm);
+  eq(new Set(keys).size, 1, 'casing must not affect the match key');
+  eq(keys[0], 'joao do o');
 });
 
 /* ── summary ─────────────────────────────────────────────────────────────── */

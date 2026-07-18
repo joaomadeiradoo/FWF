@@ -25,6 +25,32 @@ const STATIC_LB_DATA=[
   ['Pedro Fonseca',-51,130],['Gonçalo Rodeia Marques',-59,130],['José Pedro Esteves',-60,120],['Marisa Calvinho',-76,130]
 ];
 function _lbNorm(s){return (s||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9 ]/g,'').replace(/\s+/g,' ').trim();}
+// DISPLAY ONLY. Never call this anywhere a name is COMPARED (login, _lbNorm,
+// historyFor, fuzzyScore) — only where one is printed. It rewrites nothing in
+// Firestore; the stored name (the login key) is untouched.
+//
+// It fires ONLY when a name carries no casing information: entirely UPPER or
+// entirely lower. A name the player already mixed-cased (McGinn, van Dijk,
+// João do Ó) is left byte-for-byte alone — they typed it on purpose, and
+// re-casing it is exactly the mangling we were asked to avoid. So the only
+// names touched are the ones where there is nothing to lose.
+//
+// Casing an all-caps name is still a guess (VAN DIJK -> Van Dijk), but a guess
+// applied only where the original told us nothing, and strictly better than
+// shouting. Lowercase connectors (de/da/do/dos/e/von/van/di) are kept lower
+// except in first position, which fixes the common PT cases.
+function prettyName(raw){
+  const s=(raw||'').toString().trim();
+  if(!s) return s;
+  const hasLower=/[a-zà-ÿ]/.test(s), hasUpper=/[A-ZÀ-Þ]/.test(s);
+  if(hasLower&&hasUpper) return s;                 // already mixed → leave it
+  const low=new Set(['de','da','do','dos','das','e','von','van','di','del','la','le']);
+  return s.toLocaleLowerCase('pt').split(/(\s+)/).map((tok,i)=>{
+    if(/^\s+$/.test(tok)) return tok;
+    if(i>0 && low.has(tok)) return tok;            // keep connectors lower, not at start
+    return tok.charAt(0).toLocaleUpperCase('pt')+tok.slice(1);
+  }).join('');
+}
 function staticLbRows(){
   const myName=(allUsers[currentUser?.uid]?.name)||'';
   const myNorm=_lbNorm(myName);
@@ -124,7 +150,7 @@ function renderLeaderboard(){
       const rank=i+1;const rc=rank===1?'r1':rank===2?'r2':rank===3?'r3':'';
       const rankCell=rank===1?'🥇':rank===2?'🥈':rank===3?'🥉':rank;
       const ptsCls=r.pts>=0?'pts-pos':'pts-neg';const ptsStr=`${r.pts>=0?'+':''}${r.pts}`;
-      h+=`<tr data-lbname="${attrEsc(_lbNorm(r.name))}"${r.isMe?' data-lbme="1"':''}><td class="${rc}" style="white-space:nowrap">${rankCell}</td><td>${r.name}${r.isMe?' 👈':''}</td><td class="pts-today-zero">${r.r32}</td><td class="${ptsCls}">${ptsStr}</td></tr>`;
+      h+=`<tr data-lbname="${attrEsc(_lbNorm(r.name))}"${r.isMe?' data-lbme="1"':''}><td class="${rc}" style="white-space:nowrap">${rankCell}</td><td>${prettyName(r.name)}${r.isMe?' 👈':''}</td><td class="pts-today-zero">${r.r32}</td><td class="${ptsCls}">${ptsStr}</td></tr>`;
     });
     h+='</tbody></table>';c.innerHTML=h;lbAfterRender();return;
   }
@@ -241,7 +267,7 @@ function renderLeaderboard(){
     }
     html+=`<tr data-lbname="${attrEsc(_lbNorm(r.name))}"${r.uid===currentUser?.uid?' data-lbme="1"':''}>
       <td class="${rc}" style="white-space:nowrap">${rankCell}${trend?` ${trend}`:''}</td>
-      <td><span class="lb-name" onclick="showPlayerProfile('${attrEsc(r.uid)}')" title="${lang==='pt'?'Ver perfil':'View profile'}">${r.name}</span>${r.uid===currentUser?.uid?' 👈':''}${adjBadge(r.uid)}${allUsers[r.uid]?.unpaidAnnounced?`<span class="unpaid-badge" title="Pagamento em falta — fala com o host">€</span>`:''}${tbNote}</td>
+      <td><span class="lb-name" onclick="showPlayerProfile('${attrEsc(r.uid)}')" title="${lang==='pt'?'Ver perfil':'View profile'}">${prettyName(r.name)}</span>${r.uid===currentUser?.uid?' 👈':''}${adjBadge(r.uid)}${allUsers[r.uid]?.unpaidAnnounced?`<span class="unpaid-badge" title="Pagamento em falta — fala com o host">€</span>`:''}${tbNote}</td>
       <td class="${todayCls}">${todayStr}</td>
       <td class="${phaseCls}">${phaseStr}</td>
       <td class="${ptsCls}">${ptsStr}</td>${showBadgeCol?`<td>${badge}</td>`:''}
