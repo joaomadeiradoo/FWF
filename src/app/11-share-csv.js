@@ -386,7 +386,7 @@ function renderOtherPreds(){
         const finPick=(bp.fin||[]).filter(Boolean);
         const finText=finPick.length?finPick.map((t,i)=>finLine(t,i)).join(''):'-';
         const scorer=(allPredictions[uid]||{}).topScorer||'-';
-        const scorerCorrect=actualScorer&&scorer&&scorer.toLowerCase()===actualScorer.toLowerCase();
+        const scorerCorrect=actualScorer&&scorer&&scorer!=='-'&&calcBreakdown(uid).dbg.top>0;
         html+=`<tr style="border-top:1px solid #1e3a5f"><td style="padding:3px 6px;font-weight:700;white-space:nowrap">${u.name}</td>`;
         html+=`<td style="padding:3px 6px;text-align:center;font-weight:700">${finText}</td>`;
         html+=`<td style="padding:3px 6px;text-align:center;font-weight:700;${scorerCorrect?'color:#2dc653':'color:#ccd6e0'}">${scorer}</td></tr>`;
