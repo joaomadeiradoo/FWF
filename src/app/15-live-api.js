@@ -74,16 +74,12 @@ async function fetchAll(){
           hs:sc.home,as:sc.away,penHome:sc.pens?sc.pens.home:null,penAway:sc.pens?sc.pens.away:null,round:FD_STAGE[m.stage]||null,utcDate:m.utcDate};})
       .filter(Boolean);
 
-    // AUTO-APPLY DESLIGADO (2026-06-29): resultados inseridos manualmente pelo host.
-    // A escrita automática reescrevia o actualScores inteiro e causava sobreposição
-    // entre dispositivos ("o último a fazer refresh ganhava"). Para reativar:
-    // if(isAdmin) await autoApplyScores(recentData);
-    //
-    // ⚠️ STILL DEAD, DELIBERATELY. Changing the data source does not fix the
-    // write. Before re-arming: convert to field-path writes inside
-    // runTransaction (same pattern as mutateMember). Fixing the pipe and
-    // re-introducing the worst bug in the project's history in one commit
-    // would be a bad day.
+    // AUTO-APPLY RE-ARMADO (2026-07): a escrita foi convertida para transação
+    // com field paths (ver autoApplyScores). A causa original da sobreposição
+    // — reescrever o actualScores inteiro a partir de um snapshot local —
+    // deixou de existir; o host só precisa de inserir resultados à mão se
+    // quiser corrigir/forçar um valor. Só o admin dispara a escrita.
+    if(isAdmin) await autoApplyScores(recentData);
     updateLiveTimestamp();
     renderLive();
   }catch(e){console.warn('[live]',e);}
@@ -205,8 +201,8 @@ function fdMatchScore(m){
 }
 async function autoApplyScores(finishedMatches){
   if(!isAdmin||!currentCompId) return;
-  const{db,doc,updateDoc}=window._fb;
-  let updated=false;
+  const{db,doc,runTransaction}=window._fb;
+  const ref=doc(db,'competitions',currentCompId);
 
   // ── English→Portuguese team name mapping for API responses ──
   const EN_TO_PT={
@@ -238,116 +234,127 @@ async function autoApplyScores(finishedMatches){
     '3rd Place Final':'f3','Third Place':'f3',
     'Final':'fin',
   };
-
-  // ── Group stage matches (exact score) ──
-  // Match in EITHER orientation: the API's home/away may differ from our
-  // schedule's. When swapped, swap the score too so it lands on the right team.
   const teamEq=(a,b)=>{
     const x=normalizeTeamName(a).toLowerCase(),y=normalizeTeamName(b).toLowerCase();
     return x===y||x.includes(y)||y.includes(x);
   };
-  for(const apiMatch of finishedMatches){
-    const ah=toPT(apiMatch.home),aa=toPT(apiMatch.away);
-    let found=null,swapped=false;
-    for(const m of ALL_MATCHES){
-      if(teamEq(m.home,ah)&&teamEq(m.away,aa)){found=m;swapped=false;break;}
-      if(teamEq(m.home,aa)&&teamEq(m.away,ah)){found=m;swapped=true;break;}
-    }
-    if(found){
-      const hs=swapped?apiMatch.as:apiMatch.hs;
-      const as=swapped?apiMatch.hs:apiMatch.as;
-      const existing=actualScores[found.id];
-      if(!existing||(existing.source==='api')){
-        actualScores[found.id]={home:hs,away:as,source:'api'};
-        updated=true;
-      }
-    }
-  }
 
-  // ── KO stage: determine winner and slot ──
-  // Build current R32 matchups to identify slot indices
+  // r32 matchups (for slot lookup) — derived, does not touch the DB
   const r32Teams=getR32Teams(currentUser?.uid);
 
-  for(const apiMatch of finishedMatches){
-    if(!apiMatch.round) continue;
-    const roundId=ROUND_MAP[apiMatch.round];
-    if(!roundId) continue;
+  // ═══ WRITE MECHANISM (2026-07: re-armed) ═══
+  // Every mutation below is computed against the data read INSIDE the
+  // transaction (`fresh`), never against the local `actualScores` snapshot,
+  // and is written as an individual field path — never the whole map. This is
+  // the same discipline as mutateMember/kickUser. It fixes the original
+  // whole-object write, whose failure mode ("last device to refresh wins")
+  // silently reverted other admins' and the host's manual entries.
+  //
+  // Field paths touched are limited to the exact matches that changed:
+  //   actualScores.<matchId>   (group stage, ids g0…g71)
+  //   actualScores.ko_<round>  (whole array for that ONE round only)
+  // Concurrent admins converge: each writes only genuine changes, so a second
+  // admin computing the same result finds nothing to write and no-ops.
+  try{
+    await runTransaction(db,async tx=>{
+      const snap=await tx.get(ref);
+      if(!snap.exists()) throw new Error('Competição não encontrada');
+      const fresh=snap.data().actualScores||{};
+      const updates={};                 // field path → new value
+      // Working copies of the KO arrays, seeded from FRESH data. Mutated as we
+      // walk finishedMatches so a later round in the same batch can read the
+      // winners a prior round just produced (same in-pass chaining the original
+      // relied on, but now against transaction-fresh data).
+      const ko={
+        r32:[...(fresh.ko_r32||[])], r16:[...(fresh.ko_r16||[])],
+        qf:[...(fresh.ko_qf||[])],   sf:[...(fresh.ko_sf||[])],
+        f3:[...(fresh.ko_f3||[])],   fin:[...(fresh.ko_fin||[])],
+      };
+      const touchedKo=new Set();
 
-    const homeTeam=toPT(apiMatch.home);
-    const awayTeam=toPT(apiMatch.away);
-    // Determine winner: higher score wins; if draw (AET/PEN) use penScore if available
-    let winner=null;
-    if(apiMatch.hs>apiMatch.as) winner=homeTeam;
-    else if(apiMatch.as>apiMatch.hs) winner=awayTeam;
-    else if(apiMatch.penHome!=null&&apiMatch.penAway!=null){
-      winner=apiMatch.penHome>apiMatch.penAway?homeTeam:awayTeam;
-    }
-    if(!winner) continue;
-
-    const ko=actualScores[`ko_${roundId}`]||[];
-    let slotIdx=-1;
-
-    if(roundId==='r32'){
-      slotIdx=r32Teams.findIndex(m=>
-        (m.home===homeTeam&&m.away===awayTeam)||
-        (m.home===awayTeam&&m.away===homeTeam)
-      );
-      // Fallback: if slot not found (group results incomplete), append winner
-      // to ko_r32 anyway. Scoring is Set-based so slot position doesn't matter.
-      if(slotIdx===-1&&winner){
-        const newKo=[...(actualScores.ko_r32||[])];
-        if(!newKo.includes(winner)){newKo.push(winner);actualScores.ko_r32=newKo;updated=true;}
-        continue;
+      // ── Group stage (exact score) ──
+      // Match in EITHER orientation; when swapped, swap the score too. Only
+      // fill an empty slot or correct a previously API-sourced one — a manual
+      // host entry (source!=='api') is never overwritten.
+      for(const apiMatch of finishedMatches){
+        const ah=toPT(apiMatch.home),aa=toPT(apiMatch.away);
+        let found=null,swapped=false;
+        for(const m of ALL_MATCHES){
+          if(teamEq(m.home,ah)&&teamEq(m.away,aa)){found=m;swapped=false;break;}
+          if(teamEq(m.home,aa)&&teamEq(m.away,ah)){found=m;swapped=true;break;}
+        }
+        if(!found) continue;
+        const hs=swapped?apiMatch.as:apiMatch.hs;
+        const as=swapped?apiMatch.hs:apiMatch.as;
+        const existing=fresh[found.id];
+        if(existing&&existing.source!=='api') continue;         // manual entry — leave it
+        if(existing&&existing.home===hs&&existing.away===as) continue; // no change
+        updates[`actualScores.${found.id}`]={home:hs,away:as,source:'api'};
       }
-    }else if(roundId==='r16'){
-      // R16 slot i feeds from R32 slots 2i and 2i+1
-      const r32actual=actualScores.ko_r32||[];
-      slotIdx=[0,1,2,3,4,5,6,7].findIndex(i=>
-        [r32actual[i*2],r32actual[i*2+1]].includes(homeTeam)&&
-        [r32actual[i*2],r32actual[i*2+1]].includes(awayTeam)
-      );
-    }else if(roundId==='qf'){
-      const r16actual=actualScores.ko_r16||[];
-      slotIdx=[0,1,2,3].findIndex(i=>
-        [r16actual[i*2],r16actual[i*2+1]].includes(homeTeam)&&
-        [r16actual[i*2],r16actual[i*2+1]].includes(awayTeam)
-      );
-    }else if(roundId==='sf'){
-      const qfactual=actualScores.ko_qf||[];
-      slotIdx=[0,1].findIndex(i=>
-        [qfactual[i*2],qfactual[i*2+1]].includes(homeTeam)&&
-        [qfactual[i*2],qfactual[i*2+1]].includes(awayTeam)
-      );
-    }else if(roundId==='f3'){
-      // 3rd place match: both teams are SF losers
-      slotIdx=0;
-    }else if(roundId==='fin'){
-      // Final: slot 0 = champion, slot 1 = runner-up
-      slotIdx=0;
-    }
 
-    if(slotIdx===-1&&roundId!=='f3'&&roundId!=='fin') continue;
+      // ── KO stage: winner → slot ──
+      for(const apiMatch of finishedMatches){
+        if(!apiMatch.round) continue;
+        const roundId=ROUND_MAP[apiMatch.round];
+        if(!roundId) continue;
+        const homeTeam=toPT(apiMatch.home),awayTeam=toPT(apiMatch.away);
+        let winner=null;
+        if(apiMatch.hs>apiMatch.as) winner=homeTeam;
+        else if(apiMatch.as>apiMatch.hs) winner=awayTeam;
+        else if(apiMatch.penHome!=null&&apiMatch.penAway!=null){
+          winner=apiMatch.penHome>apiMatch.penAway?homeTeam:awayTeam;
+        }
+        if(!winner) continue;
 
-    const newKo=[...ko];
-    newKo[roundId==='fin'?0:slotIdx]=winner;
-    // For final, also set runner-up (slot 1)
-    if(roundId==='fin'){
-      const loser=winner===homeTeam?awayTeam:homeTeam;
-      newKo[1]=loser;
-    }
+        let slotIdx=-1;
+        if(roundId==='r32'){
+          slotIdx=r32Teams.findIndex(m=>
+            (m.home===homeTeam&&m.away===awayTeam)||
+            (m.home===awayTeam&&m.away===homeTeam));
+          // Fallback: slot unknown (group results incomplete) — append winner.
+          // Scoring is Set-based, so slot position does not matter for points.
+          if(slotIdx===-1){
+            if(!ko.r32.includes(winner)){ko.r32.push(winner);touchedKo.add('r32');}
+            continue;
+          }
+        }else if(roundId==='r16'){
+          slotIdx=[0,1,2,3,4,5,6,7].findIndex(i=>
+            [ko.r32[i*2],ko.r32[i*2+1]].includes(homeTeam)&&
+            [ko.r32[i*2],ko.r32[i*2+1]].includes(awayTeam));
+        }else if(roundId==='qf'){
+          slotIdx=[0,1,2,3].findIndex(i=>
+            [ko.r16[i*2],ko.r16[i*2+1]].includes(homeTeam)&&
+            [ko.r16[i*2],ko.r16[i*2+1]].includes(awayTeam));
+        }else if(roundId==='sf'){
+          slotIdx=[0,1].findIndex(i=>
+            [ko.qf[i*2],ko.qf[i*2+1]].includes(homeTeam)&&
+            [ko.qf[i*2],ko.qf[i*2+1]].includes(awayTeam));
+        }else if(roundId==='f3'){
+          slotIdx=0;   // 3rd place match — both teams are SF losers
+        }else if(roundId==='fin'){
+          slotIdx=0;   // final — slot 0 champion, slot 1 runner-up
+        }
+        if(slotIdx===-1&&roundId!=='f3'&&roundId!=='fin') continue;
 
-    const existing=actualScores[`ko_${roundId}`]||[];
-    if(existing[roundId==='fin'?0:slotIdx]!==winner){
-      actualScores[`ko_${roundId}`]=newKo;
-      updated=true;
-    }
-  }
+        const idx=roundId==='fin'?0:slotIdx;
+        const arr=ko[roundId];
+        if(arr[idx]!==winner){arr[idx]=winner;touchedKo.add(roundId);}
+        if(roundId==='fin'){
+          const loser=winner===homeTeam?awayTeam:homeTeam;
+          if(arr[1]!==loser){arr[1]=loser;touchedKo.add('fin');}
+        }
+      }
 
-  if(updated){
-    await updateDoc(doc(db,'competitions',currentCompId),{actualScores});
-    renderGroupMatches();renderGruposTab();renderBracket();renderBracketMobile();renderBracketSwipe();
-    renderLeaderboard();renderLive();
-  }
+      for(const r of touchedKo) updates[`actualScores.ko_${r}`]=ko[r];
+
+      if(Object.keys(updates).length===0) return;  // nothing genuinely changed
+      tx.update(ref,updates);
+    });
+  }catch(e){ console.warn('[autoApply] transaction failed:',e); }
+  // No manual re-render here: the onSnapshot listener on the competition doc
+  // fires on a successful write and re-renders from fresh Firestore state, so
+  // local `actualScores` is never mutated by this function. Same contract as
+  // mutateMember/kickUser.
 }
 function renderLive(){
   const c=$('live-content');if(!c) return;
