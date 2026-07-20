@@ -62,7 +62,18 @@ function calcBreakdown(uid,toggleOverride=null){
   if(finPk[1]&&finAk[1]&&finPk[1]===finAk[1]){bd.fin+=P.vice;bd.dbg.vice=P.vice;}
   if(actualScores.topScorer&&pr.topScorer){
     const score=fuzzyScore(pr.topScorer,actualScores.topScorer);
-    if(score===1||(score>=0.5&&(approvedTopScorers[uid]===true))){bd.fin+=P.top;bd.dbg.top=P.top;}
+    // Exact (1.0) always counts. A containment match (>=0.85 — one name fully
+    // contains the other, e.g. "Kylian Mbappé" vs official "Mbappe") counts
+    // AUTOMATICALLY unless the host has explicitly rejected it. The weaker
+    // 0.5–0.85 band still requires an explicit host approval.
+    // ⚠️ Containment is not proof of identity — fuzzyScore('João Luís Mota',
+    // 'Luís Mota')===0.85 and those are two different people (see tests.js).
+    // For a single famous top-scorer name a collision is near-nil, and the host
+    // can still reject a bad row; that reject is the safety valve.
+    const rej=approvedTopScorers[uid]===false;
+    const auto=score>=0.85&&!rej;
+    const manual=score>=0.5&&approvedTopScorers[uid]===true;
+    if(score===1||auto||manual){bd.fin+=P.top;bd.dbg.top=P.top;}
   }
   // Manual host adjustments (offset layer). The automatic scoring above always
   // runs; these just ride on top. Each user's adjustments is an array of

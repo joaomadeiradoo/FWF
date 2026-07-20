@@ -378,26 +378,63 @@ async function savePlayerChars(){
     toast(t('saved'));
   }catch(e){console.error('savePlayerChars:',e);toast('Erro ao guardar: '+e.message,true);}
 }
-function reviewTopScorer(){
-  const official=($('host-topscorer')||{}).value||actualScores.topScorer||'';
+// Persist ONLY the official top-scorer name, as a field path. This is what
+// scoring reads (actualScores.topScorer). It must be saved for ANY top-scorer
+// points to count — previously the name lived only in the transient input and
+// was never written unless the host also pressed "Guardar Fase a Eliminar".
+async function saveOfficialTopScorer(name){
+  const{db,doc,updateDoc}=window._fb;
+  await updateDoc(doc(db,'competitions',currentCompId),{['actualScores.topScorer']:name});
+}
+async function reviewTopScorer(){
+  const input=(($('host-topscorer')||{}).value||'').trim();
+  const official=input||actualScores.topScorer||'';
   if(!official){toast(lang==='pt'?'Insere primeiro o nome oficial':'Enter official name first',true);return;}
+  // Persist the typed name so (a) scoring actually uses it and (b) the re-render
+  // that an approval triggers repopulates the input from a saved value instead
+  // of blanking it — the cause of the phantom "insert name first" error.
+  if(input&&input!==actualScores.topScorer){
+    try{ await saveOfficialTopScorer(input); }
+    catch(e){ console.warn('[topscorer] persist failed:',e); }
+  }
   const c=$('ts-fuzzy-results');if(!c) return;
+  // Build rows first, then sort by match descending so 100% sits on top and the
+  // host works down a ranked list.
+  const rows=Object.entries(allUsers).map(([uid,u])=>{
+    const pred=(allPredictions[uid]||{}).topScorer||'';if(!pred) return null;
+    return{uid,name:u.name,pred,score:fuzzyScore(pred,official)};
+  }).filter(Boolean).sort((a,b)=>b.score-a.score||a.name.localeCompare(b.name));
   let html=`<div style="font-size:.78rem;color:var(--muted);margin-bottom:8px">${lang==='pt'?'Nome oficial:':'Official name:'} <strong style="color:var(--gold)">${official}</strong></div>`;
-  Object.entries(allUsers).forEach(([uid,u])=>{
-    const pr=allPredictions[uid]||{};const pred=pr.topScorer||'';if(!pred) return;
-    const score=fuzzyScore(pred,official);const pct=Math.round(score*100);
-    const approved=approvedTopScorers[uid];const col=score===1?'var(--green)':score>=0.5?'var(--gold)':'var(--red)';
-    html+=`<div class="ts-item"><div><div style="font-weight:700;font-size:.82rem">${u.name}</div>
+  for(const{uid,name,pred,score} of rows){
+    const pct=Math.round(score*100);
+    const approved=approvedTopScorers[uid];
+    // Mirrors scoring: exact, or >=0.85 unless explicitly rejected, or 0.5–0.85
+    // once approved === counts.
+    const counts=score===1||(score>=0.85&&approved!==false)||(score>=0.5&&approved===true);
+    const col=score===1?'var(--green)':score>=0.5?'var(--gold)':'var(--red)';
+    let ctrl;
+    if(score===1){
+      ctrl=`<span class="badge badge-open">✓ Exact</span>`;
+    }else if(score>=0.85){
+      // Auto-counts by default; the button lets the host reject/re-accept.
+      ctrl=`<button class="btn btn-sm ${counts?'btn-green':'btn-red'}" onclick="approveTopScorer('${uid}',${!counts})">
+        ${counts?(lang==='pt'?'✓ Conta (auto)':'✓ Counts (auto)'):(lang==='pt'?'✗ Rejeitado':'✗ Rejected')}</button>`;
+    }else{
+      ctrl=`<button class="btn btn-sm ${approved===true?'btn-green':approved===false?'btn-red':'btn-ghost'}" onclick="approveTopScorer('${uid}',${approved!==true})">
+        ${approved===true?(lang==='pt'?'✓ Aprovado':'✓ Approved'):(lang==='pt'?'Aprovar':'Approve')}</button>`;
+    }
+    html+=`<div class="ts-item"><div><div style="font-weight:700;font-size:.82rem">${name}</div>
       <div style="font-size:.74rem;color:var(--muted)">"<span style="color:${col}">${pred}</span>" · ${pct}% match</div></div>
-      <div>${score===1?`<span class="badge badge-open">✓ Exact</span>`:
-        `<button class="btn btn-sm ${approved===true?'btn-green':approved===false?'btn-red':'btn-ghost'}" onclick="approveTopScorer('${uid}',${approved!==true})">
-          ${approved===true?(lang==='pt'?'✓ Aprovado':'✓ Approved'):(lang==='pt'?'Aprovar':'Approve')}</button>`}
-      </div></div>`;
-  });
-  c.innerHTML=html||`<p style="color:var(--muted);font-size:.8rem">Sem previsões.</p>`;
+      <div>${ctrl}</div></div>`;
+  }
+  c.innerHTML=rows.length?html:`<p style="color:var(--muted);font-size:.8rem">Sem previsões.</p>`;
 }
 async function approveTopScorer(uid,approve){
-  const{db,doc,updateDoc}=window._fb;const approved={...approvedTopScorers};approved[uid]=approve;
-  await updateDoc(doc(db,'competitions',currentCompId),{approvedTopScorers:approved});toast(t('saved'));reviewTopScorer();
+  // Field-path write — never rewrites the whole approvedTopScorers map, so two
+  // admins approving different players can't revert each other.
+  const{db,doc,updateDoc}=window._fb;
+  try{ await updateDoc(doc(db,'competitions',currentCompId),{[`approvedTopScorers.${uid}`]:approve});toast(t('saved')); }
+  catch(e){ console.warn('[topscorer] approve failed:',e);toast('Erro',true); }
+  reviewTopScorer();
 }
 

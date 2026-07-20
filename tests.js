@@ -108,6 +108,7 @@ function loadApp() {
       subHostRollup, subGroupMembers, subHostCodeFor, canManage,
       setSubHostState(s) { allUsers = s.allUsers||{}; allPredictions = s.allPredictions||{}; currentComp = s.currentComp||null; currentUser = s.currentUser||null; isAdmin = !!s.isAdmin; isSubHost = !!s.isSubHost; },
       setState(a, p) { actualScores = a; allPredictions = p; },
+      setApproved(x) { approvedTopScorers = x; },
       setCurrentUser(u) { currentUser = u; },
       setToggles(t) { ptsToggles = t; },
       setAdjustments(x) { adjustments = x; },
@@ -473,6 +474,42 @@ test('a malformed prediction does not throw', () => {
   const s = fullGroupStage();
   withState({ ...s, ko_r32: null, ko_fin: undefined }, { bracket: { r32: [null, 'TBD', undefined] } },
     () => { A.bdTotal(A.calcBreakdown(U)); });
+});
+
+/* Top-scorer acceptance — the rule the host set on 2026-07-20:
+   exact and containment (>=0.85) auto-count; the host may reject a containment
+   row; the 0.5–0.85 band still needs explicit approval. Isolated by using an
+   empty bracket and no ko_fin/ko_f3 so bd.fin is ONLY the top-scorer layer. */
+group('top-scorer acceptance (auto >=0.85, reject override, approval band)');
+const TOP = 20;                                     // P.top inside calcBreakdown
+const topOnly = (actualTop, predTop, approved) => {
+  A.setApproved(approved === undefined ? {} : { [U]: approved });
+  const bd = withState(
+    { topScorer: actualTop, ko_fin: [], ko_f3: [] },
+    { bracket: emptyBracket, topScorer: predTop },
+    () => A.calcBreakdown(U));
+  A.setApproved({});                                // don't leak into later tests
+  return bd.fin;
+};
+test('premise: fuzzy is exact/containment/below as assumed', () => {
+  eq(A.fuzzyScore('Mbappe', 'Mbappe'), 1);
+  eq(A.fuzzyScore('Kylian Mbappé', 'Mbappe'), 0.85, 'containment must be 0.85');
+  ok(A.fuzzyScore('Haaland', 'Mbappe') < 0.5, 'unrelated must be below the band');
+  ok(A.fuzzyScore('Messi Cristiano', 'Lionel Messi') >= 0.5
+    && A.fuzzyScore('Messi Cristiano', 'Lionel Messi') < 0.85, 'need a 0.5–0.85 case');
+});
+test('exact counts with no approval', () => eq(topOnly('Mbappe', 'Mbappe', undefined), TOP));
+test('containment (0.85) auto-counts with no approval', () =>
+  eq(topOnly('Mbappe', 'Kylian Mbappé', undefined), TOP));
+test('containment auto-count is overridable — host reject zeroes it', () =>
+  eq(topOnly('Mbappe', 'Kylian Mbappé', false), 0));
+test('below-band prediction never counts, even if approved', () => {
+  eq(topOnly('Mbappe', 'Haaland', undefined), 0);
+  eq(topOnly('Mbappe', 'Haaland', true), 0);
+});
+test('0.5–0.85 band needs explicit approval', () => {
+  eq(topOnly('Lionel Messi', 'Messi Cristiano', undefined), 0, 'unapproved mid-band must be 0');
+  eq(topOnly('Lionel Messi', 'Messi Cristiano', true), TOP, 'approved mid-band counts');
 });
 
 /* ─────────────────────────────────────────────────────────────────────────
